@@ -1,20 +1,73 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=68,<77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "hivebr"
 version = "0.1.0"
-description = "OpenLab API for single- and multi-robot (B-bot) navigation experiments."
+description = "Hivebr simulator - 2D simulator and OpenLab API for single- and multi-robot (B-bot) navigation."
 readme = "README.md"
 requires-python = ">=3.8"
-authors = [{name = "Elias J. R. Freitas"}]
+license = { text = "MIT" }
+authors = [{ name = "Elias J. R. Freitas" }]
+keywords = [
+    "robotics",
+    "simulation",
+    "multi-robot",
+    "swarm",
+    "navigation",
+    "path-planning",
+    "mobile-robots",
+    "pygame",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "pygame-ce>=2.5.0",
     "pygame_gui>=0.6.9",
     "numpy>=1.24",
-    "PyYAML>=6.0"
+    "PyYAML>=6.0",
 ]
+
+[project.optional-dependencies]
+maps = [
+    "Pillow>=9.0",
+    "scipy>=1.9",
+]
+plot = [
+    "matplotlib>=3.6",
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.25",
+    "black>=24.0",
+]
+dev = [
+    "build>=1.2",
+    "twine>=5.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/eliasjof/hivebr_simulator"
+Documentation = "https://eliasjof.github.io/hivebr_simulator/"
+Repository = "https://github.com/eliasjof/hivebr_simulator"
+Issues = "https://github.com/eliasjof/hivebr_simulator/issues"
 
 [tool.setuptools.package-data]
 "hivebr.engine" = ["assets/*.png"]

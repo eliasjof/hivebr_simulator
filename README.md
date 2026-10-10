@@ -1,138 +1,109 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/eliasjof/hivebr_simulator/main/hivebr-bar.png" alt="hiveBr — Brazilian Open Lab for Multi-Robots" width="100%">
+</p>
+
 # hivebr — OpenLab Simulator
 
-A lightweight 2D simulation framework for single- and multi-robot (B-bot) mobile
-navigation using **Pygame**, with a dual-paradigm OpenLab API for centralized and
-decentralized control, sensors, external controllers, and interactive
-visualization.
+[![PyPI version](https://img.shields.io/pypi/v/hivebr.svg)](https://pypi.org/project/hivebr/)
+[![Python versions](https://img.shields.io/pypi/pyversions/hivebr.svg)](https://pypi.org/project/hivebr/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/eliasjof/hivebr_simulator/blob/main/LICENSE)
+[![Docs](https://img.shields.io/badge/docs-online-blue.svg)](https://eliasjof.github.io/hivebr_simulator/)
 
-📖 **Documentation:** <https://eliasjof.github.io/hivebr_simulator/>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/eliasjof/hivebr_simulator/main/hivebr-logo.png" alt="hivebr logo" width="180">
+</p>
+
+A lightweight 2D simulation framework for **single- and multi-robot mobile
+navigation**, built on Pygame, with a dual-paradigm **OpenLab API** for
+centralized and decentralized control.
+
+Robots in the simulator are called **B-bots** (for *bee*), keeping the hive
+metaphor.
+
+📖 **Full documentation:** <https://eliasjof.github.io/hivebr_simulator/>
 
 ---
 
-## Compile
+## Installation
 
 ```bash
-python.exe -m build   
-
-python.exe -m twine upload dist/*
-
-sudo apt install python3-tk
-
+pip install hivebr
 ```
-Necessário colocar a API token obtida do site pipy.
 
----
-
-## 🚀 Key Features
-
-*   **Dual Environment Representation**: Supports both traditional coordinate-based circular obstacles AND image-based **Occupancy Grid Maps**.
-*   **Interactive GUI**: 
-    *   **Map Loading**: Load maps dynamically during simulation with custom resolution.
-    *   **Theming**: Dynamic switching between Light and Dark themes.
-    *   **Map Panning**: Drag the environment view using `SHIFT` + `Right Click`.
-*   **Map Generation (Benchmarking)**: Built-in `MapGenerator` for 'U', 'L', and Random maze patterns.
-*   **Precision Sensing**: Ray-casting based LiDAR using DDA algorithm for accurate grid-based collision.
-
----
-
-## 🏗️ Architecture
-
-- ✅ **Simulator (`nav_sim`)**: Handles physics, UI, sensors, and environment.
-- ✅ **Occupancy Grid**: Automatic conversion of images to binary/inflated grids for collision and LiDAR.
-- ✅ **External Controllers**: Easily pluggable navigation strategies.
-
----
-
-## Supported Robot Models
-
-- `holonomic`  
-  Command:
-  ```python
-  {"vx": ..., "vy": ...}
-  ```
-
-- `differential`  
-  Command:
-  ```python
-  {"v": ..., "omega": ...}
-  ```
-
-- `ackermann`  
-  Command:
-  ```python
-  {"speed": ..., "steer": ...}
-  ```
-
----
-
-## 📡 Sensors
-
-### LiDAR (2D)
-The simulator provides a configurable 2D LiDAR:
-- Angular scan
-- Range-limited
-- Returns `(angle, distance, hit_point)`
-
----
-
-## ⚙️ Installation
+Optional extras:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-
-pip install -r requirements.txt
+pip install "hivebr[maps]"   # occupancy grids (Pillow + scipy)
+pip install "hivebr[plot]"   # data logger plots (matplotlib)
 ```
 
----
-
-## ▶️ Run Examples
-
-```bash
-python examples/run_holonomic.py
-python examples/run_differential.py
-python examples/run_maze.py
-```
-
----
-
-## 🗺️ Occupancy Grid Maps
-You can define map sources directly in your config or load them dynamically:
-
-```yaml
-world:
-  map_image: "maze.png"
-  resolution: 0.1
-  show_inflation: true
-theme: "dark"
-```
-
-## ⌨️ User Interaction
-- **Left Click**: Set Waypoint.
-- **Right Click**: Add Obstacle (opens radius dialog).
-- **SHIFT + Right Click**: Pan/Drag the environment.
-- **Scroll**: Zoom.
-- **UI Panel**: Toggle LiDAR, switch themes, load new maps.
-
----
-
-## 🧩 Controller Interface
+## Quick start
 
 ```python
-def controller(robot, world, goal, config, dt, lidar_readings=None) -> dict:
-    ...
+from hivebr import HiveBrAgent, SwarmExperiment
+
+class Patrol(HiveBrAgent):
+    def loop(self, state, neighbors):
+        # state.goal holds the current waypoint (x, y, theta)
+        return 0.5, 0.0
+
+exp = SwarmExperiment(robots=3, backend="navsim2d")
+exp.assign_agent(robot_ids=[0, 1, 2], agent_class=Patrol)
+exp.assign_route(0, [[5, 2, 0.0], [5, 6, 0.0]])
+exp.run()
 ```
 
----
+A single robot is just a fleet with `N = 1`. Switching `backend="ros2"` reuses
+the same agent code on the physical arena.
 
-## 🛑 Collision Handling
-The simulator detects collisions using:
-`d <= r_robot + r_obstacle`
+## Dual paradigm
 
-- Immediate stop.
-- Visual indicator (💥) displayed.
+| Decentralized — `HiveBrAgent` | Centralized — `SwarmController` |
+| ----------------------------- | ------------------------------- |
+| One instance per B-bot | Exactly one instance |
+| Receives its `state` + `neighbors` | Receives all `states` |
+| Returns a command | Returns `{robot_id: command}` |
+| Reactive control, consensus | Global planning, optimization (DE, L-SHADE) |
 
----
+## Features
 
-## 📄 License
-Free for educational and research use.
+- **Mono or fleet, one API.** A single robot is a fleet with `N = 1`.
+- **Interactive GUI.** Pan/zoom, load occupancy-grid maps, switch themes,
+  toggle LiDAR, add waypoints and obstacles with the mouse.
+- **Two environment representations.** Analytic circular obstacles *and*
+  image-based occupancy grids with inflation.
+- **Precision sensing.** Ray-casting LiDAR (DDA) against the grid plus analytic
+  circle intersections.
+- **Deterministic fleets.** Each timestep is computed from a frozen snapshot of
+  the fleet state, independent of update order.
+- **Research-ready.** Pluggable controllers, path planners (A*, RRT, RRT*, PRM,
+  BIT*, OMPL, RRT-Dubins), and a data logger for offline analysis.
+
+## Robot models
+
+| `type` | Command |
+| ------ | ------- |
+| `differential` | `{"v": ..., "omega": ...}` |
+| `differential_firstorder` | `{"v": ..., "omega": ...}` |
+| `holonomic` | `{"vx": ..., "vy": ...}` |
+| `ackermann` | `{"speed": ..., "steer": ...}` |
+| `boat` | `{"v": ..., "omega": ...}` |
+
+## Run the examples
+
+```bash
+# from a clone of the repository (examples are not shipped in the wheel)
+python examples/controle_robodiferencial.py
+python examples/decentralized_swarm.py
+python examples/multi_robot_differential.py
+```
+
+## Links
+
+- Documentation: <https://eliasjof.github.io/hivebr_simulator/>
+- Repository: <https://github.com/eliasjof/hivebr_simulator>
+- Issue tracker: <https://github.com/eliasjof/hivebr_simulator/issues>
+
+## License
+
+MIT — free for educational and research use. See [LICENSE](LICENSE).

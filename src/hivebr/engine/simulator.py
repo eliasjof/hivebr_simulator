@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import os
 import pygame
 import pygame_gui
 import numpy as np
@@ -41,6 +42,44 @@ from pathlib import Path
 
 assets_dir = Path(__file__).parent / "assets"
 
+
+def _render_honeybee_icon(size: int = 256):
+    """Render the honeybee emoji (🐝) into a square surface for the window icon."""
+    emoji = "\U0001F41D"
+
+    candidates = [
+        Path(os.environ.get("WINDIR", "C:\\Windows")) / "Fonts" / "seguiemj.ttf",
+        Path("/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"),
+        Path("/usr/share/fonts/noto/NotoColorEmoji.ttf"),
+        Path("/System/Library/Fonts/Apple Color Emoji.ttc"),
+    ]
+    font_paths = [str(p) for p in candidates if p.exists()]
+    for name in ("Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji"):
+        match = pygame.font.match_font(name)
+        if match:
+            font_paths.append(match)
+
+    for font_path in font_paths:
+        try:
+            font = pygame.font.Font(font_path, size)
+            glyph = font.render(emoji, True, (255, 255, 255))
+        except Exception:
+            continue
+
+        if glyph.get_width() == 0 or glyph.get_height() == 0:
+            continue
+        if int(pygame.surfarray.array_alpha(glyph).max()) == 0:
+            continue
+
+        side = max(glyph.get_width(), glyph.get_height())
+        icon = pygame.Surface((side, side), pygame.SRCALPHA)
+        icon.blit(
+            glyph,
+            ((side - glyph.get_width()) // 2, (side - glyph.get_height()) // 2),
+        )
+        return pygame.transform.smoothscale(icon, (size, size))
+
+    return None
 
 
 # =====================================================================
@@ -186,6 +225,11 @@ class Simulator:
         self.panel_x = self.world_view_width
         self.screen = pygame.display.set_mode((self.width, self.height), pygame.RESIZABLE)
         pygame.display.set_caption(self.config["window"].get("title", "NavSim"))
+
+        icon = _render_honeybee_icon()
+        if icon is not None:
+            pygame.display.set_icon(icon)
+
         self.clock = pygame.time.Clock()
         self.manager = pygame_gui.UIManager((self.width, self.height))
         self.world = World(self.config)

@@ -4,7 +4,7 @@ window:
   min_width: 1100
   min_height: 650
   panel_width: 300
-  title: NavSim2D
+  title: HiveBr Simulator
 world:
   width: 20.0
   height: 12.0

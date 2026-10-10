@@ -4,7 +4,7 @@ window:
   min_width: 1100
   min_height: 650
   panel_width: 300
-  title: NavSim2D - Maze Challenge
+  title: HiveBr Simulator - Maze Challenge
 
 world:
   width: 10.0
