@@ -2,13 +2,7 @@
   <img src="assets/hivebr-bar.png" alt="hiveBr — Brazilian Open Lab for Multi-Robots" width="100%">
 </p>
 
-<p align="center">
-  <img src="assets/hivebr-logo.png" alt="hiveBr logo" width="180">
-</p>
-
-# 🐝HiveBr — Brazilian OpenLab for Multi-Robots Simulator
-
-**🐝HiveBr** is a lightweight 2D simulation framework for single- and multi-robot
+**🐝hiveBr🐝** is a lightweight 2D simulation framework for single- and multi-robot
 mobile navigation. It ships a Pygame-based physics/renderer engine and a clean
 **OpenLab API** that lets the same user script run a fleet locally or on a
 physical arena.
@@ -19,7 +13,7 @@ hive metaphor.
 ---
 
 
-## Why HiveBr?
+## Why hiveBr?
 
 - **Mono or fleet, one API.** A single robot is just a fleet with `N = 1`.
 - **Dual paradigm.** Write *decentralized* logic with `HiveBrAgent` (one
@@ -87,3 +81,7 @@ Switching `backend="ros2"` reuses the *same* agent code on the physical lab.
     [:octicons-arrow-right-24: API Reference](api/index.md)
 
 </div>
+
+<p align="center">
+  <img src="assets/hivebr-logo.png" alt="hiveBr logo" width="180">
+</p>

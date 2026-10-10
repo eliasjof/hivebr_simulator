@@ -2,16 +2,14 @@
   <img src="https://raw.githubusercontent.com/eliasjof/hivebr_simulator/main/hivebr-bar.png" alt="hiveBr — Brazilian Open Lab for Multi-Robots" width="100%">
 </p>
 
-# hivebr — OpenLab Simulator
+# 🐝hiveBr — OpenLab Simulator
 
 [![PyPI version](https://img.shields.io/pypi/v/hivebr.svg)](https://pypi.org/project/hivebr/)
 [![Python versions](https://img.shields.io/pypi/pyversions/hivebr.svg)](https://pypi.org/project/hivebr/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/eliasjof/hivebr_simulator/blob/main/LICENSE)
 [![Docs](https://img.shields.io/badge/docs-online-blue.svg)](https://eliasjof.github.io/hivebr_simulator/)
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/eliasjof/hivebr_simulator/main/hivebr-logo.png" alt="hivebr logo" width="180">
-</p>
+
 
 A lightweight 2D simulation framework for **single- and multi-robot mobile
 navigation**, built on Pygame, with a dual-paradigm **OpenLab API** for
@@ -107,3 +105,7 @@ python examples/multi_robot_differential.py
 ## License
 
 MIT — free for educational and research use. See [LICENSE](LICENSE).
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/eliasjof/hivebr_simulator/main/hivebr-logo.png" alt="hivebr logo" width="180">
+</p>
