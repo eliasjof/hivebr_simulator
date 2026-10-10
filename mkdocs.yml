@@ -1,0 +1,123 @@
+site_name: hivebr — OpenLab Simulator
+site_description: >-
+  A 2D simulation framework for single- and multi-robot (B-bot) navigation,
+  with a dual-paradigm OpenLab API for centralized and decentralized control.
+site_url: https://eliasjof.github.io/hivebr_simulator/
+repo_url: https://github.com/eliasjof/hivebr_simulator
+repo_name: eliasjof/hivebr_simulator
+edit_uri: edit/main/docs/
+copyright: Free for educational and research use.
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: google
+            show_root_heading: true
+            show_root_full_path: false
+            show_source: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_if_no_docstring: true
+            members_order: source
+            merge_init_into_class: true
+            separate_signature: true
+            signature_crossrefs: true
+            filters:
+              - "!^_"
+              - "!^__"
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: ["."]
+  - pymdownx.superfences
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: installation.md
+      - Quick Start: getting_started.md
+      - User Interface: user_interface.md
+      - Configuration: configuration.md
+  - Guides:
+      - Robot Models: robots.md
+      - Sensors: sensors.md
+      - Maps & Occupancy Grids: maps.md
+      - Controllers: controllers.md
+      - Path Planners: planners.md
+      - Multi-Robot Fleets: multi_robot.md
+  - OpenLab API:
+      - Overview: openlab_api.md
+  - Examples:
+      - Single Robot: examples/single_robot.md
+      - Decentralized Swarm: examples/decentralized.md
+      - Multi-Robot Fleet: examples/multi_robot.md
+  - API Reference:
+      - api/index.md
+      - OpenLab API:
+          - Core: api/core.md
+          - State: api/state.md
+          - Kinematics: api/kinematics.md
+          - Bridge & Backends: api/bridge.md
+      - Engine:
+          - Simulator: api/simulator.md
+          - Robots: api/robots.md
+          - World: api/world.md
+          - LiDAR: api/lidar.md
+          - Occupancy Grid: api/occupancy_grid.md
+          - Waypoints: api/waypoints.md
+          - Camera: api/camera.md
+          - Robot Interaction: api/interaction.md
+          - Data Logging: api/data_logger.md
+          - Map Generation: api/map_generator.md
+          - Geometry & Config: api/geometry.md

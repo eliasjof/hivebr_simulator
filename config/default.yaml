@@ -1,0 +1,147 @@
+window:
+  width: 1400
+  height: 750
+  min_width: 1100
+  min_height: 650
+  panel_width: 300
+  title: NavSim2D
+world:
+  width: 20.0
+  height: 12.0
+  grid_size: 1.0
+  obstacle_radius: 0.4
+  show_origin: true
+  show_axes: true
+  default_obstacle_radius: 0.4
+  obstacles:
+  - - 6.381818181818182
+    - 5.3090909090909095
+    - 0.4  
+  resolution: 0.1
+camera:
+  initial_zoom: 1.0
+  min_zoom: 0.25
+  max_zoom: 8.0
+  zoom_step: 1.1
+  margin_x: 1.0
+  margin_y: 1.0
+robot:
+  type: differential
+  initial_pose:
+  - 2.5
+  - 2.5
+  - 0.0
+  radius: 0.1375
+  length: 0.39
+  width: 0.275
+  wheel_base: 0.285
+  max_speed: 3.0
+  max_omega: 4.0
+  max_steer: 0.52
+  tau_v: 0.2
+  path_max_length: 4000
+lidar:
+  enabled: false
+  num_rays: 101
+  range: 12.0
+  fov_deg: 360
+waypoints:
+  goal_tolerance: 0.5
+  define_orientation: true
+  show_tolerance_circle: false
+  points: []
+controller:
+  enabled: true
+  attractive_gain: 1.0
+  repulsive_gain: 2.0
+  repulsive_radius: 2.0
+  max_repulsive_force: 8.0
+  force_filter_alpha: 0.35
+  command_filter_alpha: 0.4
+  obstacle_slowdown_distance: 2.0
+  min_obstacle_speed_factor: 0.2
+  min_lidar_distance: 0.08
+  linear_gain: 0.6
+  angular_gain: 0.6
+  max_steer_rate: 0.52
+  curvature_speed_gain: 2.0
+  tangential_gain: 1.5
+  stagnation_radius: 0.15
+  local_minima_angle_deg: 90.0
+  virtual_subgoal_offset: 2.0
+  emergency_brake_distance: 0.5
+  emergency_safe_distance: 0.65
+  emergency_rear_clearance: 0.5
+  reverse_speed: -0.25
+  reverse_duration_s: 1.2
+colors:
+  background:
+  - 240
+  - 240
+  - 240
+  grid:
+  - 220
+  - 220
+  - 220
+  panel:
+  - 20
+  - 20
+  - 20
+  robot:
+  - 30
+  - 144
+  - 255
+  obstacle:
+  - 0
+  - 100
+  - 0
+  waypoint:
+  - 180
+  - 150
+  - 0
+  goal:
+  - 140
+  - 0
+  - 255
+  path:
+  - 30
+  - 144
+  - 255
+  lidar:
+  - 0
+  - 150
+  - 150
+  red:
+  - 200
+  - 0
+  - 0
+  green:
+  - 0
+  - 150
+  - 0
+  white:
+  - 0
+  - 0
+  - 0
+  black:
+  - 255
+  - 255
+  - 255
+  silver:
+  - 192
+  - 192
+  - 186
+  occupancy_inflated:
+  - 50
+  - 129
+  - 75
+  occupancy_raw:
+  - 40
+  - 120
+  - 40
+  occupancy_free:
+  - 230
+  - 230
+  - 230
+obstacles: []
+theme: light

@@ -1,0 +1,127 @@
+window:
+  width: 1400
+  height: 750
+  min_width: 1100
+  min_height: 650
+  panel_width: 300
+  title: NavSim2D
+world:
+  width: 20.0
+  height: 12.0
+  grid_size: 1.0
+  obstacle_radius: 0.4
+  show_origin: true
+  show_axes: true
+  default_obstacle_radius: 0.4
+  obstacles:
+  - - 6.0
+    - 5.0
+    - 1.2
+  - - 13.163636363636364
+    - 5.709090909090909
+    - 0.4
+camera:
+  initial_zoom: 1.0
+  min_zoom: 0.25
+  max_zoom: 8.0
+  zoom_step: 1.1
+  margin_x: 1.0
+  margin_y: 1.0
+robot:
+  type: differential
+  initial_pose:
+  - 2.0
+  - 2.0
+  - 0.0
+  radius: 0.4473
+  length: 0.8
+  width: 0.4
+  wheel_base: 0.5
+  max_speed: 3.0
+  max_omega: 4.0
+  max_steer: 0.52
+  path_max_length: 4000
+lidar:
+  enabled: true
+  num_rays: 101
+  range: 12.0
+  fov_deg: 360
+waypoints:
+  goal_tolerance: 0.5
+controller:
+  enabled: true
+  attractive_gain: 1.0
+  repulsive_gain: 2.0
+  repulsive_radius: 5.0
+  max_repulsive_force: 8.0
+  force_filter_alpha: 0.35
+  command_filter_alpha: 0.4
+  obstacle_slowdown_distance: 2.0
+  min_obstacle_speed_factor: 0.2
+  min_lidar_distance: 0.08
+  linear_gain: 0.6
+  angular_gain: 0.6
+  max_steer_rate: 0.52
+  curvature_speed_gain: 2.0
+  tangential_gain: 1.5          # k_tang — MOD-3
+  stagnation_radius: 0.15       # metros — MOD-1
+  local_minima_angle_deg: 90.0  # graus — MOD-1
+  virtual_subgoal_offset: 2.0   # metros — MOD-2
+  emergency_brake_distance: 0.5   # metros — aciona BRAKE
+  emergency_safe_distance:  0.65   # metros — cancela BRAKE se obstáculo recua
+  emergency_rear_clearance: 0.50   # metros — interrompe ré se obstáculo atrás
+  reverse_speed:           -0.25   # m/s — velocidade da ré (negativo)
+  reverse_duration_s:       1.2    # segundos — duração máxima da ré
+colors:
+  background:
+  - 30
+  - 30
+  - 30
+  grid:
+  - 50
+  - 50
+  - 50
+  panel:
+  - 20
+  - 20
+  - 20
+  robot:
+  - 220
+  - 50
+  - 50
+  obstacle:
+  - 50
+  - 100
+  - 255
+  waypoint:
+  - 255
+  - 220
+  - 0
+  goal:
+  - 0
+  - 255
+  - 0
+  path:
+  - 255
+  - 140
+  - 0
+  lidar:
+  - 0
+  - 255
+  - 255
+  red:
+  - 220
+  - 50
+  - 50
+  green:
+  - 0
+  - 255
+  - 0
+  white:
+  - 255
+  - 255
+  - 255
+  black:
+  - 0
+  - 0
+  - 0

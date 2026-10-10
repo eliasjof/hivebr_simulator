@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hivebr"
+version = "0.1.0"
+description = "OpenLab API for single- and multi-robot (B-bot) navigation experiments."
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [{name = "Elias J. R. Freitas"}]
+dependencies = [
+    "pygame-ce>=2.5.0",
+    "pygame_gui>=0.6.9",
+    "numpy>=1.24",
+    "PyYAML>=6.0"
+]
+
+[tool.setuptools.package-data]
+"hivebr.engine" = ["assets/*.png"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["hivebr*"]

@@ -1,0 +1,95 @@
+window:
+  width: 1400
+  height: 750
+  min_width: 1100
+  min_height: 650
+  panel_width: 300
+  title: NavSim2D - Maze Challenge
+
+world:
+  width: 10.0
+  height: 10.0
+  # map_image: "config/maze.png"
+  resolution: 0.1
+  show_origin: true
+  show_axes: true
+  show_inflation: true
+  default_obstacle_radius: 0.2
+  obstacles: []  
+
+camera:
+  initial_zoom: 1.0
+  min_zoom: 0.25
+  max_zoom: 8.0
+  zoom_step: 1.1
+  margin_x: 1.0
+  margin_y: 1.0
+
+robot:
+  type: differential
+  initial_pose:
+  - 1.0
+  - 1.0
+  - 0.0
+  radius: 0.2
+  length: 0.4
+  width: 0.2
+  wheel_base: 0.3
+  max_speed: 1.0
+  max_omega: 2.0
+  max_steer: 0.52
+  tau_v: 0.1
+  path_max_length: 1000
+
+lidar:
+  enabled: true
+  num_rays: 60
+  range: 5.0
+  fov_deg: 360
+
+waypoints:
+  goal_tolerance: 0.3
+  define_orientation: false
+  show_tolerance_circle: true
+  points: []
+  
+
+controller:
+  enabled: true
+  attractive_gain: 2.0
+  repulsive_gain: 1.0
+  repulsive_radius: 0.5
+  max_repulsive_force: 5.0
+  force_filter_alpha: 0.3
+  command_filter_alpha: 0.3
+  obstacle_slowdown_distance: 1.0
+  min_obstacle_speed_factor: 0.1
+  min_lidar_distance: 0.1
+  linear_gain: 0.5
+  angular_gain: 1.0
+  max_steer_rate: 0.5
+  curvature_speed_gain: 1.0
+  tangential_gain: 1.0
+  stagnation_radius: 0.1
+  local_minima_angle_deg: 90.0
+  virtual_subgoal_offset: 1.0
+  emergency_brake_distance: 0.2
+  emergency_safe_distance: 0.3
+  emergency_rear_clearance: 0.2
+  reverse_speed: -0.2
+  reverse_duration_s: 1.0
+
+colors:
+  background: [30, 30, 30]
+  grid: [50, 50, 50]
+  panel: [20, 20, 20]
+  robot: [220, 50, 50]
+  obstacle: [50, 100, 255]
+  waypoint: [255, 220, 0]
+  goal: [0, 255, 0]
+  path: [255, 140, 0]
+  lidar: [0, 255, 255]
+  red: [220, 50, 50]
+  green: [0, 255, 0]
+  white: [255, 255, 255]
+  black: [0, 0, 0]
