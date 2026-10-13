@@ -147,7 +147,7 @@ def pose_on_track(points: np.ndarray, index: int = 0, lookahead: int = 12):
 
 def main():
     parser = argparse.ArgumentParser(description="Line follower com PID (TCRT5000)")
-    parser.add_argument("--seed", type=int, default=67, help="semente da trajetória")
+    parser.add_argument("--seed", type=int, default=7, help="semente da trajetória")
     parser.add_argument("--sensors", type=int, default=None, help="nº de sensores (2, 5 ou 8)")
     parser.add_argument("--regenerate", action="store_true", help="força nova trajetória")
     args = parser.parse_args()

@@ -34,9 +34,12 @@ class LineTrackMap:
         self.darkness = np.flipud(1.0 - gray / 255.0)
 
         try:
-            self.pygame_image = pygame.transform.flip(
-                pygame.image.load(resolved_path).convert(), False, True
-            )
+            # A imagem original tem o topo no maior y do mundo (a origem do
+            # mundo fica na linha de baixo da imagem), que já coincide com a
+            # projeção da câmera (screen_to_world/world_to_screen). Por isso
+            # NÃO invertemos aqui — o array `darkness` é que é invertido para a
+            # amostragem analógica.
+            self.pygame_image = pygame.image.load(resolved_path).convert()
         except Exception as exc:  # pragma: no cover - depends on pygame setup
             print(f"Warning: could not load line map image in Pygame: {exc}")
             self.pygame_image = None
