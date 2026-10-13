@@ -41,6 +41,28 @@ readings = sim.lidar.cast_rays(sim.robot, sim.world)
     per-robot controller receives its own scan; `sim.lidar_readings` is a
     convenience alias for the **selected** B-bot.
 
+## Line sensors (TCRT5000)
+
+The `line_follower` B-bot carries an array of analog reflectance sensors
+(TCRT5000) mounted in a horizontal bar in front of the body. The line is read
+from a **line map**: a grayscale image whose dark pixels are the track. The
+analog reading is `1.0` over the black line and `0.0` over the white background.
+
+```python
+robot.read_line_sensors(world.line_map)
+values = robot.sensor_readings     # array in [0, 1], one entry per sensor
+error  = robot.line_error          # normalised lateral error in [-1, 1]
+offset = robot.line_position       # lateral offset in metres
+if robot.line_lost:
+    ...                            # no sensor currently sees the line
+```
+
+Configure the array under `robot` (`num_sensors`, `sensor_offset`,
+`sensor_span`, `sensor_aperture`, `sensor_noise`, `line_width`). The line map is
+loaded from `world.line_map_image` with `world.resolution`; it is rendered as the
+arena background and does **not** participate in collision checks. See
+[Robot Models](robots.md) and `examples/line_follower.py`.
+
 ## Adding your own sensor
 
 Sensors are plain objects that read from a robot and the world. A minimal

@@ -18,6 +18,7 @@ The **command** you return from a controller depends on the model.
 | `type` (aliases) | Command keys | Notes |
 | ---------------- | ------------ | ----- |
 | `differential` (`diff`, `unicycle`, `nonholonomic`) | `{"v": …, "omega": …}` | Classic unicycle, with optional battery model. |
+| `line_follower` (`line`, `linefollower`, `line_tracker`, `tcrt5000`) | `{"v": …, "omega": …}` | Differential kinematics + 2/5/8 analog line sensors (TCRT5000). |
 | `differential_firstorder` (`firstorder`, `diff_tau`) | `{"v": …, "omega": …}` | Adds a first-order lag on the linear speed (`tau_v`). |
 | `holonomic` (`omni`, `omnidirectional`) | `{"vx": …, "vy": …}` | Velocity is set directly in world frame. |
 | `ackermann` (`car`, `racecar`) | `{"speed": …, "steer": …}` | Bicycle model with front steering. |
@@ -44,6 +45,46 @@ or programmatically:
 ```python
 sim = Simulator(config=config, controller=ctrl, type_robot="ackermann")
 ```
+
+## Line follower (TCRT5000)
+
+`LineFollowerRobot` keeps the differential-drive kinematics, but the body is a
+square (default `10cm x 10cm`) carrying a horizontal bar of analog line sensors
+in front. The line is *not* an obstacle: it is read from a **line map** — a
+grayscale image whose dark pixels are the track (see
+[`world.line_map_image`](configuration.md)).
+
+```yaml
+world:
+  line_map_image: config/line_track.png   # black line on white background
+  resolution: 0.005                        # metres per pixel
+
+robot:
+  type: line_follower
+  length: 0.10
+  width: 0.10
+  line_width: 0.02          # physical line width (used to space the sensors)
+  num_sensors: 5            # 2, 5 or 8 TCRT5000
+  sensor_offset: 0.05       # distance ahead of the body centre
+  sensor_aperture: 0.004    # sampled area radius
+  sensor_noise: 0.0
+```
+
+Read the sensors from a control callback; each reading is analog in `[0, 1]`
+(`1` = black line):
+
+```python
+def controller(robot, world, goal, cfg, dt, lidar_readings=None):
+    robot.read_line_sensors(world.line_map)   # updates readings/error
+    error = robot.line_error                  # -1 (right) .. +1 (left)
+    return {"v": 0.3, "omega": 3.0 * error}
+```
+
+`robot.sensor_readings` holds the per-sensor values, `robot.line_position` is the
+lateral offset in metres and `robot.line_lost` is `True` when no sensor sees the
+line. If `sensor_span` is omitted it is derived from `line_width` so that the
+line always crosses neighbouring sensors. See
+`examples/line_follower.py` for a full PID demo on a random track.
 
 ## Battery model (differential)
 

@@ -1069,6 +1069,7 @@ class Simulator:
                 self.grid_map.draw(self.screen, self.camera, draw_inflated=True)
             
         else:
+            self.world.draw_line_map(self.screen, self.camera)
             self.world.draw_grid(self.screen, self.camera)
             
         self.world.draw_origin(self.screen, self.camera)

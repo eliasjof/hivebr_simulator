@@ -25,6 +25,12 @@ overview and command dictionaries.
     options:
       inherited_members: true
 
+## Differential drive with line sensors (TCRT5000)
+
+::: hivebr.engine.robots.line_follower.LineFollowerRobot
+    options:
+      inherited_members: true
+
 ## Holonomic
 
 ::: hivebr.engine.robots.holonomic.HolonomicRobot

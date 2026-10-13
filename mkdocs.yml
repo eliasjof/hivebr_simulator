@@ -115,6 +115,7 @@ nav:
           - World: api/world.md
           - LiDAR: api/lidar.md
           - Occupancy Grid: api/occupancy_grid.md
+          - Line Map: api/line_map.md
           - Waypoints: api/waypoints.md
           - Camera: api/camera.md
           - Robot Interaction: api/interaction.md

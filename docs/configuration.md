@@ -114,6 +114,7 @@ theme: dark                  # "dark" | "light"
 | | `grid_size` | Background grid spacing. |
 | | `obstacle_radius` | Default radius for mouse-added obstacles. |
 | | `map_image`, `resolution` | Occupancy-grid source image and metres/pixel. |
+| | `line_map_image` | Line-follower track image (black line on white), rendered as background. |
 | | `recharge_places` | Charging spots (`[x, y]` or `[x, y, r]`). |
 | `camera` | `initial_zoom`, `min_zoom`, `max_zoom` | Zoom limits. |
 | `robot` | `type` | Kinematic model (see [Robot Models](robots.md)). |
@@ -121,6 +122,7 @@ theme: dark                  # "dark" | "light"
 | | `radius` | Collision radius. |
 | | `max_speed`, `max_omega`, `max_steer` | Actuation limits. |
 | | `tau_v` | First-order velocity time constant. |
+| | `num_sensors`, `line_width`, `sensor_offset`, `sensor_span`, `sensor_aperture`, `sensor_noise` | Line-follower TCRT5000 array. |
 | `robots` | list of specs | Fleet; each overrides `robot` and may set `color`. |
 | `lidar` | `enabled`, `num_rays`, `range`, `fov_deg` | Sensor settings. |
 | `noise` | `enabled` | Inject Gaussian noise on the actuated velocities. |

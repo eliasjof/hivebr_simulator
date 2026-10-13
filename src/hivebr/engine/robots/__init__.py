@@ -5,6 +5,7 @@ from .differential import DifferentialRobot
 from .ackermann import AckermannRobot
 from .boat import BoatRobot
 from .differential_firstorder import DifferentialRobotFirstOrder
+from .line_follower import LineFollowerRobot
 
 
 def create_robot(config: dict):
@@ -15,6 +16,9 @@ def create_robot(config: dict):
         return AckermannRobot(config)
     elif robot_type == "boat":
         return BoatRobot(config)
+    elif robot_type in ["line_follower", "linefollower", "line", "line_tracker", "tcrt5000",
+                        "differential_line_follower"]:
+        return LineFollowerRobot(config)
     elif robot_type in ["differential_firstorder", "firstorder", "diff_tau"]:            
         return DifferentialRobotFirstOrder(config)
     elif robot_type in ["differential", "diff", "unicycle", "nonholonomic"]:
@@ -58,4 +62,4 @@ def create_fleet(config: dict) -> list:
         robots.append(create_robot(merged))
     return robots
 
-__all__ = ["create_robot", "create_fleet", "HolonomicRobot", "DifferentialRobot", "DifferentialRobotFirstOrder", "AckermannRobot", "BoatRobot"]
+__all__ = ["create_robot", "create_fleet", "HolonomicRobot", "DifferentialRobot", "DifferentialRobotFirstOrder", "AckermannRobot", "BoatRobot", "LineFollowerRobot"]

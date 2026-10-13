@@ -63,6 +63,13 @@ class World:
             self.width = self.grid_map.width_m
             self.height = self.grid_map.height_m
 
+        self.line_map = None
+        if config["world"].get("line_map_image"):
+            self.load_line_map(
+                config["world"]["line_map_image"],
+                float(config["world"].get("resolution", 0.1)),
+            )
+
         self.show_inflation = bool(
             config["world"].get("show_inflation", True)
         )
@@ -89,6 +96,21 @@ class World:
         self.grid_map = grid_map
         self.width = self.grid_map.width_m
         self.height = self.grid_map.height_m
+
+    def load_line_map(self, image_path: str, resolution: float):
+        """Carrega dinamicamente uma pista de linha (imagem preto no branco)."""
+        from .line_map import LineTrackMap
+        self.line_map = LineTrackMap(
+            image_path=image_path,
+            resolution=float(resolution),
+            colors=self.colors,
+        )
+        self.width = self.line_map.width_m
+        self.height = self.line_map.height_m
+
+    def draw_line_map(self, screen, camera):
+        if self.line_map is not None:
+            self.line_map.draw(screen, camera)
 
     def _parse_obstacle(self, obs):
         """
