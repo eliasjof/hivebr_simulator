@@ -16,7 +16,9 @@ plain callable controller plus the interactive engine.
 ## Key parts
 
 ```python
-def full_controller(robot, world, goal, cfg, dt, lidar_readings=None, r_tol=0.2):
+def full_controller(robot, world, goal, cfg, dt, lidar_readings=None, r_tol=None):
+    if r_tol is None:
+        r_tol = float(cfg.get("waypoints", {}).get("goal_tolerance", 0.2))
     ...
     rho   = np.linalg.norm([delta_x, delta_y])
     alpha = normalize_angle(np.arctan2(delta_y, delta_x) - theta)

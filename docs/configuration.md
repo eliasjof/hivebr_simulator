@@ -63,6 +63,14 @@ lidar:
   range: 12.0
   fov_deg: 360
 
+# Gaussian actuation noise on the commanded velocities
+noise:
+  enabled: false
+  sigma_v: 0.0               # std of the linear velocity error (m/s)
+  sigma_omega: 0.0           # std of the angular velocity error (rad/s)
+  limit: 3.0                 # truncate the error at +/- limit * sigma
+  seed: null                 # optional RNG seed for reproducibility
+
 waypoints:
   goal_tolerance: 0.5
   define_orientation: true
@@ -115,6 +123,11 @@ theme: dark                  # "dark" | "light"
 | | `tau_v` | First-order velocity time constant. |
 | `robots` | list of specs | Fleet; each overrides `robot` and may set `color`. |
 | `lidar` | `enabled`, `num_rays`, `range`, `fov_deg` | Sensor settings. |
+| `noise` | `enabled` | Inject Gaussian noise on the actuated velocities. |
+| | `sigma_v`, `sigma_omega` | Std of the linear / angular velocity error. |
+| | `sigma` | Alias applied to both `sigma_v` and `sigma_omega`. |
+| | `limit` | Truncate the sampled error at `+/- limit * sigma`. |
+| | `seed` | Optional RNG seed (reproducible runs). |
 | `waypoints` | `goal_tolerance` | Distance to consider a waypoint reached. |
 | | `define_orientation` | Ask for a final heading when adding waypoints. |
 | `interaction` | `collision_policy` | `stop`, `resolve` or `none` for B-bot pairs. |

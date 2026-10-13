@@ -1,21 +1,25 @@
 """
 plot_window.py
 --------------
-Janela de plot interativa (Tkinter + Matplotlib) para inspecionar os dados
-registrados pelo :class:`~hivebr.engine.data_logger.DataLogger`.
+Interactive plot window (Tkinter + Matplotlib) to inspect the data recorded
+by :class:`~hivebr.engine.data_logger.DataLogger`.
 
-A janela permite:
+The window allows the user to:
 
-- selecionar um ou **vários** robôs da arena;
-- selecionar os sinais a exibir a partir de uma lista (trajetória XY,
-  erro de posição, erro de orientação, velocidades linear/angular
-  comando vs real, comandos de controle, etc.);
-- escolher a grade de subplots (1x1, 2x1, 2x2, ...);
-- sobrepor vários robôs no mesmo subplot ou separar um robô por subplot;
-- salvar a figura corrente (png/pdf/svg).
+- select one or **several** B-bots in the hive;
+- select the signals to display from a list (XY trajectory, position error,
+  orientation error, linear/angular velocity command vs actual, control
+  commands, ...);
+- choose the subplot grid (1x1, 2x1, 2x2, ...);
+- overlay several B-bots in the same subplot or split one B-bot per subplot;
+- save the current figure (png/pdf/svg).
 
-A janela é aberta por :func:`show_interactive_plot`, normalmente a partir do
-botão **Plot Log** do simulador ou de ``DataLogger.plot()``.
+Two variables can share the same subplot through dual y-axes (one on the left,
+one on the right): the commanded and the actual velocities, or the orientation
+and its desired value, are drawn together with a dedicated axis each.
+
+The window is opened by :func:`show_interactive_plot`, usually from the
+**Plot Log** button of the simulator or from ``DataLogger.plot()``.
 """
 
 from __future__ import annotations
@@ -28,7 +32,7 @@ from .data_logger import _ROBOT_CMD_FIELDS, MultiRobotLog
 
 
 # ──────────────────────────────────────────────────────────────
-# Utilidades
+# Helpers
 # ──────────────────────────────────────────────────────────────
 
 def _wrap_to_pi(a):
@@ -54,7 +58,7 @@ def _theta_error(data):
 
 
 def _linear_pair(data, robot_type):
-    """Retorna (cmd, real, ylabel) da velocidade linear."""
+    """Return (command, actual, ylabel) of the linear velocity."""
     if robot_type == "holonomic":
         cmd = np.hypot(data.get("vx", 0.0), data.get("vy", 0.0))
         real = np.hypot(data.get("vx_real", 0.0), data.get("vy_real", 0.0))
@@ -67,26 +71,28 @@ def _linear_pair(data, robot_type):
 
 
 def _angular_pair(data, robot_type):
-    """Retorna (cmd, real, ylabel, in_degrees)."""
+    """Return (command, actual, ylabel, in_degrees)."""
     if robot_type == "holonomic":
         return data.get("vx"), data.get("vx_real"), "vx (m/s)", False
     if robot_type == "ackermann":
-        return data.get("steer"), data.get("steer_real"), "δ (°)", True
-    return data.get("omega"), data.get("omega_real"), "ω (°/s)", True
+        return data.get("steer"), data.get("steer_real"), r"$\delta$ (deg)", True
+    return data.get("omega"), data.get("omega_real"), r"$\omega$ (deg/s)", True
 
 
 # ──────────────────────────────────────────────────────────────
-# Construtores de sinal
+# Signal builders
 #
-# Cada construtor recebe (data, log) e devolve um dicionário:
-#   {"kind": "xy" | "time", "xlabel", "ylabel", "title",
-#    "curves": [{"label", "x", "y", "ls"?, "lw"?, "alpha"?}],
-#    "points": [{"label", "x", "y", "marker"?, "size"?}]}
-# ou None quando não há dados.
+# Each builder receives (data, log) and returns a dict of panels:
+#   {panel_key: {"kind": "xy" | "time", "xlabel", "ylabel", "title",
+#                "curves": [{"label", "x", "y", "ls"?, "lw"?, "alpha"?}],
+#                "points": [{"label", "x", "y", "marker"?, "size"?}]}}
+#
+# A curve with "axis": "right" is plotted against a twin right-hand axis,
+# so two variables can share the same subplot (left/right y-axes).
 # ──────────────────────────────────────────────────────────────
 
 def _sig_trajectory(data, log):
-    curves = [{"label": "trajetória", "x": data["x"], "y": data["y"], "lw": 1.8}]
+    curves = [{"label": "path", "x": data["x"], "y": data["y"], "lw": 1.8}]
     points = []
     if _has_finite(data.get("goal_x")):
         points.append({"label": "goals", "x": data["goal_x"], "y": data["goal_y"],
@@ -97,41 +103,46 @@ def _sig_trajectory(data, log):
     if log.planned_path:
         px = np.array([p[0] for p in log.planned_path])
         py = np.array([p[1] for p in log.planned_path])
-        curves.append({"label": "planejado", "x": px, "y": py, "ls": "--", "lw": 1.4})
+        curves.append({"label": "planned", "x": px, "y": py, "ls": "--", "lw": 1.4})
     if log.planned_curve:
-        curves.append({"label": "curva planejada",
+        curves.append({"label": "planned curve",
                        "x": log.planned_curve["x"], "y": log.planned_curve["y"],
                        "ls": "--", "lw": 1.4})
-    return {"kind": "xy", "xlabel": "x (m)", "ylabel": "y (m)",
-            "title": "Trajetória XY", "curves": curves, "points": points}
+    return {
+        "xy": {"kind": "xy", "xlabel": "x (m)", "ylabel": "y (m)",
+               "title": "Trajectory XY", "curves": curves, "points": points},
+    }
 
 
 def _sig_orientation(data, log):
     t = data["t"]
-    curves = [{"label": "θ", "x": t, "y": np.degrees(data["theta"])}]
+    curves = [{"label": r"$\theta$", "x": t, "y": np.degrees(data["theta"])}]
     if _has_finite(data.get("goal_theta")):
-        curves.append({"label": "θ desejado", "x": t,
+        curves.append({"label": r"$\theta_{des}$", "x": t,
                        "y": np.degrees(data["goal_theta"]), "ls": "--"})
-    return {"kind": "time", "xlabel": "t (s)", "ylabel": "θ (°)",
-            "title": "Orientação", "curves": curves}
+    return {"orientation": {"kind": "time", "xlabel": "t (s)",
+                            "ylabel": r"$\theta$ (deg)",
+                            "title": "Orientation", "curves": curves}}
 
 
 def _sig_pos_error(data, log):
     rho = _xy_error(data)
     if rho is None:
         return None
-    return {"kind": "time", "xlabel": "t (s)", "ylabel": "ρ (m)",
-            "title": "Erro de posição (distância ao goal)",
-            "curves": [{"label": "ρ", "x": data["t"], "y": rho}]}
+    return {"rho": {"kind": "time", "xlabel": "t (s)", "ylabel": r"$\rho$ (m)",
+                    "title": "Position error (distance to goal)",
+                    "curves": [{"label": r"$\rho$", "x": data["t"], "y": rho}]}}
 
 
 def _sig_ori_error(data, log):
     err = _theta_error(data)
     if err is None:
         return None
-    return {"kind": "time", "xlabel": "t (s)", "ylabel": "Δθ (°)",
-            "title": "Erro de orientação",
-            "curves": [{"label": "Δθ", "x": data["t"], "y": np.degrees(err)}]}
+    return {"theta_e": {"kind": "time", "xlabel": "t (s)",
+                        "ylabel": r"$\theta_e$ (deg)",
+                        "title": "Orientation error",
+                        "curves": [{"label": r"$\theta_e$", "x": data["t"],
+                                    "y": np.degrees(err)}]}}
 
 
 def _sig_linear(data, log):
@@ -141,11 +152,15 @@ def _sig_linear(data, log):
     t = data["t"]
     curves = []
     if _has_finite(cmd):
-        curves.append({"label": "cmd", "x": t, "y": cmd, "lw": 1.6})
+        curves.append({"label": "command", "x": t, "y": cmd, "lw": 1.6})
     if _has_finite(real):
-        curves.append({"label": "real", "x": t, "y": real, "ls": "--", "lw": 1.2})
-    return {"kind": "time", "xlabel": "t (s)", "ylabel": ylabel,
-            "title": "Velocidade linear — cmd vs real", "curves": curves}
+        curves.append({"label": "actual", "x": t, "y": real, "axis": "right",
+                       "ls": "--", "lw": 1.2})
+    panel = {"kind": "time", "xlabel": "t (s)", "ylabel": ylabel,
+             "title": "Linear velocity - command vs actual", "curves": curves}
+    if _has_finite(real):
+        panel["ylabel_right"] = ylabel
+    return {"linear": panel}
 
 
 def _sig_angular(data, log):
@@ -155,23 +170,28 @@ def _sig_angular(data, log):
     t = data["t"]
     curves = []
     if _has_finite(cmd):
-        curves.append({"label": "cmd", "x": t,
+        curves.append({"label": "command", "x": t,
                        "y": np.degrees(cmd) if to_deg else cmd, "lw": 1.6})
     if _has_finite(real):
-        curves.append({"label": "real", "x": t,
+        curves.append({"label": "actual", "x": t,
                        "y": np.degrees(real) if to_deg else real,
-                       "ls": "--", "lw": 1.2})
-    return {"kind": "time", "xlabel": "t (s)", "ylabel": ylabel,
-            "title": "Velocidade angular — cmd vs real", "curves": curves}
+                       "axis": "right", "ls": "--", "lw": 1.2})
+    panel = {"kind": "time", "xlabel": "t (s)", "ylabel": ylabel,
+             "title": "Angular velocity - command vs actual", "curves": curves}
+    if _has_finite(real):
+        panel["ylabel_right"] = ylabel
+    return {"angular": panel}
 
 
 def _sig_linear_error(data, log):
     cmd, real, ylabel = _linear_pair(data, log.robot_type)
     if not (_has_finite(cmd) and _has_finite(real)):
         return None
-    return {"kind": "time", "xlabel": "t (s)", "ylabel": f"Δ {ylabel}",
-            "title": "Erro de velocidade linear (cmd − real)",
-            "curves": [{"label": "Δ", "x": data["t"], "y": np.asarray(cmd) - np.asarray(real)}]}
+    return {"lin_err": {"kind": "time", "xlabel": "t (s)",
+                        "ylabel": f"error ({ylabel})",
+                        "title": "Linear velocity error (command - actual)",
+                        "curves": [{"label": "error", "x": data["t"],
+                                    "y": np.asarray(cmd) - np.asarray(real)}]}}
 
 
 def _sig_angular_error(data, log):
@@ -179,91 +199,93 @@ def _sig_angular_error(data, log):
     if not (_has_finite(cmd) and _has_finite(real)):
         return None
     err = np.asarray(cmd) - np.asarray(real)
-    return {"kind": "time", "xlabel": "t (s)", "ylabel": f"Δ {ylabel}",
-            "title": "Erro de velocidade angular (cmd − real)",
-            "curves": [{"label": "Δ", "x": data["t"],
-                        "y": np.degrees(err) if to_deg else err}]}
-
-
-def _sig_wp_index(data, log):
-    if "wp_index" not in data:
-        return None
-    return {"kind": "time", "xlabel": "t (s)", "ylabel": "índice",
-            "title": "Waypoint atual",
-            "curves": [{"label": "wp_index", "x": data["t"], "y": data["wp_index"]}]}
+    return {"ang_err": {"kind": "time", "xlabel": "t (s)",
+                        "ylabel": f"error ({ylabel})",
+                        "title": "Angular velocity error (command - actual)",
+                        "curves": [{"label": "error", "x": data["t"],
+                                    "y": np.degrees(err) if to_deg else err}]}}
 
 
 def _sig_commands(data, log):
-    fields = _ROBOT_CMD_FIELDS.get(log.robot_type, [])
-    curves = []
-    for field in fields:
-        if _has_finite(data.get(field)):
-            curves.append({"label": field, "x": data["t"], "y": data[field]})
-    if not curves:
+    fields = [f for f in _ROBOT_CMD_FIELDS.get(log.robot_type, [])
+              if _has_finite(data.get(f))]
+    if not fields:
         return None
-    return {"kind": "time", "xlabel": "t (s)", "ylabel": "comando",
-            "title": "Comandos de controle", "curves": curves}
+    curves = [{"label": fields[0], "x": data["t"], "y": data[fields[0]]}]
+    for field in fields[1:]:
+        curves.append({"label": field, "x": data["t"], "y": data[field],
+                       "axis": "right"})
+    panel = {"kind": "time", "xlabel": "t (s)", "ylabel": fields[0],
+             "title": "Control commands", "curves": curves}
+    if len(fields) > 1:
+        panel["ylabel_right"] = ", ".join(fields[1:])
+    return {"commands": panel}
 
 
 SIGNALS = [
-    ("trajectory", "Trajetória XY", _sig_trajectory),
-    ("orientation", "Orientação θ(t)", _sig_orientation),
-    ("pos_error", "Erro de posição ρ(t)", _sig_pos_error),
-    ("ori_error", "Erro de orientação Δθ(t)", _sig_ori_error),
-    ("linear", "Vel. linear (cmd vs real)", _sig_linear),
-    ("angular", "Vel. angular (cmd vs real)", _sig_angular),
-    ("linear_error", "Erro vel. linear (cmd−real)", _sig_linear_error),
-    ("angular_error", "Erro vel. angular (cmd−real)", _sig_angular_error),
-    ("wp_index", "Índice do waypoint", _sig_wp_index),
-    ("commands", "Comandos de controle", _sig_commands),
+    ("trajectory", "Trajectory XY", _sig_trajectory),
+    ("orientation", "Orientation", _sig_orientation),
+    ("pos_error", "Position error (distance to goal)", _sig_pos_error),
+    ("ori_error", "Orientation error", _sig_ori_error),
+    ("linear", "Linear velocity (command vs actual)", _sig_linear),
+    ("angular", "Angular velocity (command vs actual)", _sig_angular),
+    ("linear_error", "Linear velocity error", _sig_linear_error),
+    ("angular_error", "Angular velocity error", _sig_angular_error),
+    ("commands", "Control commands", _sig_commands),
 ]
 
 SIGNAL_MAP = {sig_id: (sig_id, label, fn) for sig_id, label, fn in SIGNALS}
 
 
 # ──────────────────────────────────────────────────────────────
-# Desenho de um subplot
+# Panel drawing
 # ──────────────────────────────────────────────────────────────
 
-def _safe_legend(ax):
+def _legend(ax, right_ax=None):
     handles, labels = ax.get_legend_handles_labels()
+    if right_ax is not None:
+        extra_handles, extra_labels = right_ax.get_legend_handles_labels()
+        handles += extra_handles
+        labels += extra_labels
     if not handles:
         return
     ncol = 1 if len(handles) <= 8 else 2
     ax.legend(handles, labels, fontsize=7, ncol=ncol, loc="best", framealpha=0.7)
 
 
-def draw_signal(ax, sig_id, robot_indices, logs, robot_colors, overlay):
-    """Desenha um sinal (eventualmente sobreposto por robô) no eixo ``ax``."""
-    builder = SIGNAL_MAP[sig_id][2]
-    specs = []
-    for index in robot_indices:
-        log = logs.get(index)
-        if log is None or not log.frames:
-            continue
-        spec = builder(log.to_numpy(), log)
-        if spec is not None:
-            specs.append((index, spec))
+def draw_panel(ax, entries, overlay, robot_colors):
+    """Draw one panel, optionally overlaying several B-bots.
 
-    if not specs:
-        ax.text(0.5, 0.5, "Sem dados para este sinal",
+    ``entries`` is a list of ``(robot_index, panel)``. Curves flagged with
+    ``axis="right"`` are drawn against a twin (right-hand) axis, so two
+    variables can share the same subplot.
+    """
+    if not entries:
+        ax.text(0.5, 0.5, "No data for this signal",
                 ha="center", va="center", transform=ax.transAxes,
                 fontsize=10, color="gray")
         ax.set_xticks([])
         ax.set_yticks([])
         return
 
-    ref = specs[0][1]
-    for index, spec in specs:
+    ref = entries[0][1]
+    right_ax = None
+    for index, panel in entries:
         color = robot_colors.get(index, "C0")
-        for curve in spec.get("curves", []):
-            label = f"B{index}-{curve['label']}" if overlay else curve["label"]
-            ax.plot(curve["x"], curve["y"], color=color,
-                    linestyle=curve.get("ls", "-"),
-                    linewidth=curve.get("lw", 1.5),
-                    alpha=curve.get("alpha", 0.9), label=label)
-        for point in spec.get("points", []):
-            label = f"B{index}-{point['label']}" if overlay else point["label"]
+        for curve in panel.get("curves", []):
+            label = f"B{index} {curve['label']}" if overlay else curve["label"]
+            if curve.get("axis") == "right":
+                if right_ax is None:
+                    right_ax = ax.twinx()
+                target = right_ax
+            else:
+                target = ax
+            target.plot(curve["x"], curve["y"], color=color,
+                        linestyle=curve.get("ls", "-"),
+                        linewidth=curve.get("lw", 1.5),
+                        alpha=curve.get("alpha", 0.9), label=label)
+        for point in panel.get("points", []):
+            label = f"B{index} {point['label']}" if overlay else point["label"]
             marker = point.get("marker", "o")
             common = dict(s=point.get("size", 30), marker=marker,
                           linewidths=1.2, label=label)
@@ -273,26 +295,38 @@ def draw_signal(ax, sig_id, robot_indices, logs, robot_colors, overlay):
             else:
                 ax.scatter(point["x"], point["y"], color=color, **common)
 
-    title = ref.get("title", SIGNAL_MAP[sig_id][1])
-    if not overlay and len(robot_indices) == 1:
-        title = f"B-Bot{robot_indices[0]} — {title}"
+    title = ref.get("title", "")
+    if not overlay and len(entries) == 1:
+        title = f"B-Bot{entries[0][0]} - {title}"
     ax.set_xlabel(ref.get("xlabel", ""))
     ax.set_ylabel(ref.get("ylabel", ""))
     ax.set_title(title, fontsize=10)
     if ref.get("kind") == "xy":
         ax.set_aspect("equal", adjustable="datalim")
     ax.grid(True, alpha=0.4)
-    _safe_legend(ax)
+    if right_ax is not None:
+        right_ax.set_ylabel(ref.get("ylabel_right", ""))
+    _legend(ax, right_ax)
 
 
 # ──────────────────────────────────────────────────────────────
-# Janela interativa
+# Interactive window
 # ──────────────────────────────────────────────────────────────
+
+def _robot_panels(builder, log):
+    if log is None or not log.frames:
+        return {}
+    try:
+        panels = builder(log.to_numpy(), log)
+    except Exception:
+        return {}
+    return panels or {}
+
 
 class InteractivePlotWindow:
-    """Janela Tkinter com controles e uma figura Matplotlib embutida."""
+    """Tkinter window with controls and an embedded Matplotlib figure."""
 
-    def __init__(self, multi_log: MultiRobotLog, title: str = "HiveBr — Plot"):
+    def __init__(self, multi_log: MultiRobotLog, title: str = "HiveBr - Plot"):
         import tkinter as tk
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_tkagg import (
@@ -327,17 +361,17 @@ class InteractivePlotWindow:
         self._replot()
 
     def show(self):
-        """Exibe a janela (bloqueia até ser fechada)."""
+        """Show the window (blocks until it is closed)."""
         self.root.mainloop()
 
-    # ── construção da UI ───────────────────────────────────────
+    # ── UI construction ────────────────────────────────────────
 
     def _build_controls(self):
         tk = self._tk
         main = tk.Frame(self.root)
         main.pack(fill="both", expand=True)
 
-        left = tk.Frame(main, width=290, padx=10, pady=10)
+        left = tk.Frame(main, width=300, padx=10, pady=10)
         left.pack(side="left", fill="y")
         left.pack_propagate(False)
 
@@ -345,9 +379,9 @@ class InteractivePlotWindow:
         right.pack(side="right", fill="both", expand=True)
         self.right_frame = right
 
-        # Robôs
-        tk.Label(left, text="Robôs na arena", font=("TkDefaultFont", 10, "bold"))\
-            .pack(anchor="w")
+        # B-bots
+        tk.Label(left, text="B-bots in the hive",
+                 font=("TkDefaultFont", 10, "bold")).pack(anchor="w")
         self.robot_list = tk.Listbox(left, selectmode=tk.EXTENDED,
                                      exportselection=False, height=6)
         for index in self.robot_indices:
@@ -359,14 +393,14 @@ class InteractivePlotWindow:
 
         robot_buttons = tk.Frame(left)
         robot_buttons.pack(fill="x", pady=(0, 10))
-        tk.Button(robot_buttons, text="Todos",
+        tk.Button(robot_buttons, text="All",
                   command=self._select_all_robots).pack(side="left")
-        tk.Button(robot_buttons, text="Nenhum",
+        tk.Button(robot_buttons, text="None",
                   command=self._clear_robots).pack(side="left", padx=6)
 
-        # Sinais
-        tk.Label(left, text="Sinais", font=("TkDefaultFont", 10, "bold"))\
-            .pack(anchor="w")
+        # Signals
+        tk.Label(left, text="Signals",
+                 font=("TkDefaultFont", 10, "bold")).pack(anchor="w")
         self.signal_vars = {}
         for sig_id, label, _ in SIGNALS:
             var = tk.BooleanVar(value=(sig_id == "trajectory"))
@@ -374,33 +408,33 @@ class InteractivePlotWindow:
             tk.Checkbutton(left, text=label, variable=var,
                            anchor="w", justify="left").pack(fill="x")
 
-        # Grade
-        grid = tk.LabelFrame(left, text="Grade de subplots", padx=6, pady=6)
+        # Grid
+        grid = tk.LabelFrame(left, text="Subplot grid", padx=6, pady=6)
         grid.pack(fill="x", pady=10)
         self.rows_var = tk.IntVar(value=2)
         self.cols_var = tk.IntVar(value=2)
-        tk.Label(grid, text="Linhas:").grid(row=0, column=0, sticky="w")
-        tk.Spinbox(grid, from_=1, to=6, width=4,
+        tk.Label(grid, text="Rows:").grid(row=0, column=0, sticky="w")
+        tk.Spinbox(grid, from_=1, to=8, width=4,
                    textvariable=self.rows_var).grid(row=0, column=1)
-        tk.Label(grid, text="Colunas:").grid(row=1, column=0, sticky="w")
-        tk.Spinbox(grid, from_=1, to=6, width=4,
+        tk.Label(grid, text="Columns:").grid(row=1, column=0, sticky="w")
+        tk.Spinbox(grid, from_=1, to=8, width=4,
                    textvariable=self.cols_var).grid(row=1, column=1)
 
-        # Modo
+        # Mode
         self.overlay_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(left, text="Sobrepor robôs no mesmo subplot",
-                       variable=self.overlay_var, wraplength=250,
+        tk.Checkbutton(left, text="Overlay B-bots in the same subplot",
+                       variable=self.overlay_var, wraplength=260,
                        justify="left", anchor="w").pack(fill="x", pady=(0, 10))
 
-        # Ações
-        tk.Button(left, text="Atualizar", command=self._replot)\
+        # Actions
+        tk.Button(left, text="Update", command=self._replot)\
             .pack(fill="x", pady=2)
-        tk.Button(left, text="Salvar plot", command=self._save_plot)\
+        tk.Button(left, text="Save plot", command=self._save_plot)\
             .pack(fill="x", pady=2)
-        tk.Button(left, text="Fechar", command=self.root.destroy)\
+        tk.Button(left, text="Close", command=self.root.destroy)\
             .pack(fill="x", pady=2)
 
-        self.status = tk.Label(left, text="", fg="#555", wraplength=260,
+        self.status = tk.Label(left, text="", fg="#555", wraplength=270,
                                justify="left")
         self.status.pack(fill="x", pady=(8, 0), side="bottom")
 
@@ -411,7 +445,7 @@ class InteractivePlotWindow:
         toolbar = NavigationToolbar2Tk(self.canvas, container)
         toolbar.update()
 
-    # ── seleções ───────────────────────────────────────────────
+    # ── selections ─────────────────────────────────────────────
 
     def _select_all_robots(self):
         self.robot_list.selection_set(0, "end")
@@ -427,7 +461,34 @@ class InteractivePlotWindow:
         return [sig_id for sig_id, _, _ in SIGNALS
                 if self.signal_vars[sig_id].get()]
 
-    # ── plot ───────────────────────────────────────────────────
+    # ── plotting ───────────────────────────────────────────────
+
+    def _build_items(self, signal_ids, robot_indices, overlay):
+        cache = {}
+        for sig_id in signal_ids:
+            builder = SIGNAL_MAP[sig_id][2]
+            for index in robot_indices:
+                cache[(sig_id, index)] = _robot_panels(builder, self.logs.get(index))
+
+        items = []
+        if overlay:
+            for sig_id in signal_ids:
+                keys = []
+                for index in robot_indices:
+                    for key in cache[(sig_id, index)]:
+                        if key not in keys:
+                            keys.append(key)
+                for key in keys:
+                    entries = [(index, cache[(sig_id, index)][key])
+                               for index in robot_indices
+                               if key in cache[(sig_id, index)]]
+                    items.append(entries)
+        else:
+            for sig_id in signal_ids:
+                for index in robot_indices:
+                    for key, panel in cache[(sig_id, index)].items():
+                        items.append([(index, panel)])
+        return items
 
     def _replot(self):
         self.figure.clear()
@@ -435,41 +496,34 @@ class InteractivePlotWindow:
         signal_ids = self._selected_signals()
 
         if not robot_indices or not signal_ids:
-            self.figure.text(0.5, 0.5, "Selecione robô(s) e sinal(is)",
+            self.figure.text(0.5, 0.5, "Select B-bot(s) and signal(s)",
                              ha="center", va="center", fontsize=12, color="gray")
             self.canvas.draw_idle()
-            self.status.config(text="Nada selecionado.")
+            self.status.config(text="Nothing selected.")
             return
 
         rows = max(1, int(self.rows_var.get()))
         cols = max(1, int(self.cols_var.get()))
         overlay = bool(self.overlay_var.get())
 
-        if overlay:
-            items = [(sig_id, robot_indices) for sig_id in signal_ids]
-        else:
-            items = [(sig_id, [index])
-                     for sig_id in signal_ids for index in robot_indices]
-
+        items = self._build_items(signal_ids, robot_indices, overlay)
         cells = rows * cols
         shown = items[:cells]
 
         for position in range(cells):
             ax = self.figure.add_subplot(rows, cols, position + 1)
             if position < len(shown):
-                sig_id, indices = shown[position]
-                draw_signal(ax, sig_id, indices, self.logs,
-                            self.robot_colors, overlay)
+                draw_panel(ax, shown[position], overlay, self.robot_colors)
             else:
                 ax.axis("off")
 
         self.figure.tight_layout()
         self.canvas.draw_idle()
         self.status.config(
-            text=f"{len(shown)} de {len(items)} gráfico(s) — grade {rows}x{cols}"
+            text=f"{len(shown)} of {len(items)} plot(s) shown - grid {rows}x{cols}"
         )
 
-    # ── salvar ─────────────────────────────────────────────────
+    # ── saving ─────────────────────────────────────────────────
 
     def _save_plot(self):
         from tkinter import filedialog
@@ -477,7 +531,7 @@ class InteractivePlotWindow:
         plots_dir = os.path.abspath("./plots")
         os.makedirs(plots_dir, exist_ok=True)
         path = filedialog.asksaveasfilename(
-            title="Salvar plot",
+            title="Save plot",
             initialdir=plots_dir,
             initialfile="plot.png",
             defaultextension=".png",
@@ -486,14 +540,14 @@ class InteractivePlotWindow:
         if not path:
             return
         self.figure.savefig(path, dpi=150, bbox_inches="tight")
-        self.status.config(text=f"Salvo: {path}")
-        print(f"[PlotWindow] Figura salva em '{path}'")
+        self.status.config(text=f"Saved: {path}")
+        print(f"[PlotWindow] Figure saved to '{path}'")
 
 
 def show_interactive_plot(multi_log: MultiRobotLog,
-                          title: str = "HiveBr — Plot Interativo"):
-    """Abre a janela interativa de plot (bloqueante até ser fechada)."""
+                          title: str = "HiveBr - Interactive Plot"):
+    """Open the interactive plot window (blocks until it is closed)."""
     if multi_log is None or not multi_log:
-        print("[PlotWindow] Nenhum dado para plotar.")
+        print("[PlotWindow] No data to plot.")
         return
     InteractivePlotWindow(multi_log, title=title).show()

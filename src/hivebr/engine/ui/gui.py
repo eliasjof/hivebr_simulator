@@ -49,7 +49,7 @@ class GUI:
     def create_buttons(self):
         x = self.panel_x + 35
         y = 12
-        w, h, gap = 230, 34, 40
+        w, h, gap = 230, 30, 32
         
         buttons = [
             ("start", "Start / Pause"),
@@ -59,6 +59,7 @@ class GUI:
             ("clear_obstacles", "Clear Obstacles"),            
             ("load_map", "Load Map"),
             ("toggle_lidar", "Toggle LiDAR"),
+            ("toggle_noise", "Toggle Noise"),
             ("toggle_theme", "Toggle Theme"),
             ("save_config", "Save Config"),
             ("center_camera", "Center Camera"),
@@ -121,18 +122,19 @@ class GUI:
     def add_slider(self, key, label, y, start, value_range):
         x = self.panel_x + 35
         w = 230
-        self.elements[f"{key}_label"] = pygame_gui.elements.UILabel(pygame.Rect(x, y, w, 22), label, self.manager)
-        self.elements[key] = pygame_gui.elements.UIHorizontalSlider(pygame.Rect(x, y+24, w, 22), start, value_range, self.manager)
-        self.elements[f"{key}_value"] = pygame_gui.elements.UILabel(pygame.Rect(x, y+47, w, 22), f"{start:.2f}", self.manager)
+        self.elements[f"{key}_label"] = pygame_gui.elements.UILabel(pygame.Rect(x, y, 170, 22), label, self.manager)
+        self.elements[f"{key}_value"] = pygame_gui.elements.UILabel(pygame.Rect(x+170, y, 60, 22), f"{start:.2f}", self.manager)
+        self.elements[key] = pygame_gui.elements.UIHorizontalSlider(pygame.Rect(x, y+22, w, 18), start, value_range, self.manager)
 
     def create_sliders(self):
         cfg = self.layout["config"]
         start_y = self.buttons_bottom_y + 2
-        spacing = 60
+        spacing = 44
         self.add_slider("max_speed", "Max Speed", start_y, cfg["robot"].get("max_speed", 2.0), (0.2, 8.0))
         self.add_slider("max_omega", "Max Omega", start_y + spacing, cfg["robot"].get("max_omega", 2.0), (0.1, 6.0))
         self.add_slider("max_steer", "Max Steering", start_y + 2*spacing, cfg["robot"].get("max_steer", 0.6), (0.1, 1.2))
         self.add_slider("grid_size", "Grid Size", start_y + 3*spacing, cfg["world"].get("grid_size", 1.0), (0.1, 5.0))
+        self.add_slider("noise_sigma", "Noise Sigma", start_y + 4*spacing, cfg.get("noise", {}).get("sigma_v", 0.0), (0.0, 1.0))
 
     def create_info_labels(self):
         x = self.panel_x + 20
@@ -161,6 +163,15 @@ class GUI:
                     robot.max_steer = value
         elif event.ui_element == e["grid_size"]:
             world.grid_size = e["grid_size"].get_current_value(); config["world"]["grid_size"] = world.grid_size; e["grid_size_value"].set_text(f"{world.grid_size:.2f}")
+        elif event.ui_element == e["noise_sigma"]:
+            value = e["noise_sigma"].get_current_value()
+            noise = config.setdefault("noise", {})
+            noise["sigma_v"] = value
+            noise["sigma_omega"] = value
+            noise.setdefault("limit", 3.0)
+            # Moving the slider enables the noise; setting it to 0 disables it.
+            noise["enabled"] = value > 0.0
+            e["noise_sigma_value"].set_text(f"{value:.3f}")
 
     def close_obstacle_radius_window(self):
         if self.obstacle_radius_window is not None:
@@ -260,6 +271,7 @@ class GUI:
             defaultextension=".pkl",
             filetypes=[
                 ("Pickle files", "*.pkl"),
+                ("CSV files", "*.csv"),
                 ("Todos os arquivos", "*.*")
             ]
         )
@@ -267,7 +279,7 @@ class GUI:
         root.destroy()
 
         if filename:
-            logger.save(filename)
+            logger.export(filename)
     
     # def export_log(self, logger: DataLogger):
     #     if self.export_dialog is not None:
@@ -297,7 +309,7 @@ class GUI:
     def _robot_color(robot):
         return tuple(getattr(robot, "colors", {}).get("robot", (255, 255, 255)))
 
-    def update_info(self, robots, waypoint_managers, world, fps, running, lidar, camera, selected=0, collisions=None):
+    def update_info(self, robots, waypoint_managers, world, fps, running, lidar, camera, selected=0, collisions=None, config=None):
         collisions = collisions if collisions is not None else [False] * len(robots)
         selected = selected % max(len(robots), 1)
         robot = robots[selected]
@@ -316,10 +328,20 @@ class GUI:
         else:
             motion = "motion=None"
 
+        if config is None:
+            config = getattr(robot, "config", {})
+        noise = config.get("noise", {})
+        noise_on = bool(noise.get("enabled", False))
+        noise_text = (
+            f"  [NOISE ON  sigma={noise.get('sigma_v', 0.0):.3f}]"
+            if noise_on else ""
+        )
+
         rows = [(
             f"{'RUN' if running else 'PAUSE'} | fleet={len(robots)} | selected=B-Bot{selected} "
-            f"| FPS={fps:.0f} | Obs={len(world.obstacles)} | Zoom={camera.zoom:.2f}",
-            (255, 255, 255),
+            f"| FPS={fps:.0f} | Obs={len(world.obstacles)} | Zoom={camera.zoom:.2f}"
+            f"{noise_text}",
+            (255, 165, 0) if noise_on else (255, 255, 255),
         )]
         rows.append((
             f"B-Bot{selected} ({rtype}) x={robot.x:.2f}, y={robot.y:.2f} θ={math.degrees(robot.theta):.1f}° "

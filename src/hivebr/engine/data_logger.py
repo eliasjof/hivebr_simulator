@@ -3,25 +3,29 @@ data_logger.py
 --------------
 DataLogger genérico para hivebr.engine.
 
-Salva em pickle: suporta goal=None, waypoints mistos, qualquer tipo de robô.
+Registra o estado de **todos os robôs presentes na arena** a cada frame,
+via ``draw_callback``. Suporta janelas de plot interativas (Tk + Matplotlib)
+e exportação em ``pickle`` e ``csv``.
 
 Comportamento de gravação
 -------------------------
-- Inicia gravação quando há waypoints ativos no WaypointManager.
-- Pausa gravação quando não há mais waypoints a seguir.
-- Reinicia um novo segmento quando novos waypoints são adicionados.
-- Cada segmento é identificado pelo campo `segment` nos frames.
+- Gravação ativa enquanto ``sim.running_simulation`` for verdadeiro.
+- Cada robô possui o seu próprio log e a sua própria sequência de segmentos.
+- Um novo segmento é iniciado sempre que novos waypoints são adicionados
+  àquele robô.
+- Cada segmento é identificado pelo campo ``segment`` nos frames.
 
 Uso
 ---
     from hivebr.engine.data_logger import DataLogger
 
     logger = DataLogger()
-    sim    = Simulator(controller=ctrl, draw_callback=logger.draw_callback)
+    sim    = Simulator(controller=ctrl)
     sim.run()
 
-    logger.save("run_01.pkl")
-    logger.plot()
+    logger.save("run_01.pkl")     # pickle
+    logger.save_csv("run_01.csv") # csv
+    logger.plot()                 # janela interativa de plot
 
     # Carregar e plotar depois
     log = DataLogger.load("run_01.pkl")
@@ -30,9 +34,12 @@ Uso
 
 from __future__ import annotations
 
+import csv
 import pickle
-import numpy as np
+from collections import OrderedDict
 from dataclasses import dataclass, field
+
+import numpy as np
 
 
 # ──────────────────────────────────────────────────────────────
@@ -45,20 +52,33 @@ _ROBOT_CMD_FIELDS = {
     "differential": ["v", "omega"],
     "differential_firstorder": ["v_ref", "omega"],
     "ackermann":    ["speed", "steer"],
+    "boat":         ["v", "omega"],
 }
 
 # Velocidade real (lida do estado do robô após o step)
-# Mapeamento: campo_no_frame → chave_no_robot_state
+# Mapeamento: campo_no_frame -> chave_no_robot_state
 _ROBOT_REAL_MAP = {
     "holonomic":    {"vx_real": "vx",    "vy_real": "vy"},
     "differential": {"v_real":  "v",     "omega_real": "omega"},
     "differential_firstorder": {"v_real": "v", "omega_real": "omega"},
     "ackermann":    {"speed_real": "speed", "steer_real": "steer"},
+    "boat":         {"v_real": "v", "omega_real": "omega"},
+}
+
+# Mapeamento: campo_no_frame (comando) -> chave no dict de comando do controller
+_ROBOT_CMD_KEYS = {
+    "holonomic":    {"vx": "vx", "vy": "vy"},
+    "differential": {"v": "v", "omega": "omega"},
+    "differential_firstorder": {"v_ref": "v", "omega": "omega"},
+    "ackermann":    {"speed": "speed", "steer": "steer"},
+    "boat":         {"v": "v", "omega": "omega"},
 }
 
 _ROBOT_TYPE_ALIASES = {
     "omni": "holonomic", "omnidirectional": "holonomic",
-    "diff": "differential", "unicycle": "differential", "differential_firstorder": "differential_firstorder", "firstorder": "differential_firstorder", "diff_tau": "differential_firstorder",
+    "diff": "differential", "unicycle": "differential",
+    "differential_firstorder": "differential_firstorder",
+    "firstorder": "differential_firstorder", "diff_tau": "differential_firstorder",
     "nonholonomic": "differential",
     "car": "ackermann", "racecar": "ackermann",
 }
@@ -107,17 +127,19 @@ class Frame:
 
 
 # ──────────────────────────────────────────────────────────────
-# SimLog — container do log completo
+# SimLog — container do log de um único robô
 # ──────────────────────────────────────────────────────────────
 
 @dataclass
 class SimLog:
-    """Container salvo em pickle com todos os frames da simulação."""
+    """Container com todos os frames de um robô."""
 
     robot_type:    str
     frames:        list[Frame]        = field(default_factory=list)
     planned_path:  list[tuple] | None = None
     planned_curve: dict        | None = None
+    robot_index:   int                = 0
+    label:         str                = ""
 
     def to_numpy(self) -> dict[str, np.ndarray]:
         """Converte frames para dicionário de arrays numpy."""
@@ -143,14 +165,12 @@ class SimLog:
 
         # ação de controle
         for cmd in _ROBOT_CMD_FIELDS.get(self.robot_type, []):
-            print(cmd)
             result[cmd] = _get_nullable(cmd)
 
         # velocidade real
         for real_key in _ROBOT_REAL_MAP.get(self.robot_type, {}):
-            # print(f"Mapping real field '{real_key}' for robot type '{self.robot_type}'")
             result[real_key] = _get_nullable(real_key)
-        # print(result.keys())
+
         # goal
         goals = [f.goal for f in self.frames]
         if any(g is not None for g in goals):
@@ -183,7 +203,59 @@ class SimLog:
         return segs
 
     def plot_log(self):
-        _plot_log(self)
+        from .plot_window import show_interactive_plot
+        index = getattr(self, "robot_index", 0)
+        show_interactive_plot(MultiRobotLog(logs=OrderedDict([(index, self)])))
+
+
+# ──────────────────────────────────────────────────────────────
+# MultiRobotLog — container de vários robôs
+# ──────────────────────────────────────────────────────────────
+
+@dataclass
+class MultiRobotLog:
+    """Container com os logs de todos os robôs de uma simulação."""
+
+    logs: dict = field(default_factory=dict)   # {robot_index: SimLog}
+
+    # ── compatibilidade com a API antiga (robô único) ──────────
+
+    @property
+    def robot_type(self):
+        for log in self.logs.values():
+            return log.robot_type
+        return None
+
+    @property
+    def frames(self) -> list[Frame]:
+        return [f for log in self.logs.values() for f in log.frames]
+
+    @property
+    def planned_path(self):
+        for log in self.logs.values():
+            if log.planned_path:
+                return log.planned_path
+        return None
+
+    @property
+    def planned_curve(self):
+        for log in self.logs.values():
+            if log.planned_curve:
+                return log.planned_curve
+        return None
+
+    def __bool__(self) -> bool:
+        return any(log.frames for log in self.logs.values())
+
+    def to_numpy(self) -> dict[int, dict[str, np.ndarray]]:
+        return {i: log.to_numpy() for i, log in self.logs.items()}
+
+    def segments(self) -> dict[int, dict[int, list[Frame]]]:
+        return {i: log.segments() for i, log in self.logs.items()}
+
+    def plot_log(self):
+        from .plot_window import show_interactive_plot
+        show_interactive_plot(self)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -192,46 +264,61 @@ class SimLog:
 
 class DataLogger:
     """
-    Registra estado + comando + velocidade real a cada frame via draw_callback.
+    Registra estado + comando + velocidade real de cada robô a cada frame
+    via ``draw_callback``.
 
-    - Grava apenas quando há waypoints ativos.
-    - Cria novo segmento quando novos waypoints são adicionados.
-    - Suporta caminho planejado (waypoints ou curva paramétrica).
+    A gravação ocorre enquanto ``sim.running_simulation`` for verdadeiro.
+    Cada robô tem o seu próprio :class:`SimLog` e a sua própria sequência
+    de segmentos (novo segmento a cada waypoint adicionado).
     """
 
     def __init__(self, max_samples: int | None = None):
-        self.max_samples    = max_samples
-        self._t             = 0.0
-        self._log: SimLog | None = None
-        self._recording     = False
-        self._segment_idx   = -1
-        self._last_wp_count = 0
+        self.max_samples = max_samples
+        self._t = 0.0
+        self._logs: "OrderedDict[int, SimLog]" = OrderedDict()
+        self._segment_idx: dict[int, int] = {}
+        self._last_wp_count: dict[int, int] = {}
+        self._initialized = False
 
     # ── inicialização lazy ─────────────────────────────────────
 
-    def _init(self, robot):
-        state = robot.state()
-        rtype = state.get("type", "differential").lower()
-        rtype = _ROBOT_TYPE_ALIASES.get(rtype, rtype)
-        self._log = SimLog(robot_type=rtype)
+    def _init(self, sim):
+        for i, robot in enumerate(sim.robots):
+            try:
+                rtype = str(robot.state().get("type", "differential")).lower()
+            except Exception:
+                rtype = "differential"
+            rtype = _ROBOT_TYPE_ALIASES.get(rtype, rtype)
+            self._logs[i] = SimLog(
+                robot_type=rtype, robot_index=i, label=f"B-Bot{i}"
+            )
+            self._segment_idx[i] = -1
+            self._last_wp_count[i] = 0
+        self._initialized = True
 
     # ── reset ──────────────────────────────────────────────────
 
     def reset(self):
         """Descarta frames e reseta estado de gravação."""
-        robot_type = self._log.robot_type if self._log else None
-        self._t             = 0.0
-        self._recording     = False
-        self._segment_idx   = -1
-        self._last_wp_count = 0
-        self._log = SimLog(robot_type=robot_type) if robot_type else None
+        self._t = 0.0
+        self._logs = OrderedDict()
+        self._segment_idx = {}
+        self._last_wp_count = {}
+        self._initialized = False
         print("[DataLogger] Logger reiniciado.")
 
     # ── detecção de waypoints ──────────────────────────────────
 
-    def _waypoint_state(self, sim) -> tuple[bool, int]:
+    @staticmethod
+    def _waypoint_manager(sim, index):
+        managers = getattr(sim, "waypoint_managers", None)
+        if managers is not None and index < len(managers):
+            return managers[index]
+        return getattr(sim, "waypoints", None)
+
+    def _waypoint_state(self, sim, index) -> tuple[bool, int]:
         try:
-            wm = sim.waypoints
+            wm = self._waypoint_manager(sim, index)
             return wm.has_waypoint(), len(wm.waypoints)
         except Exception:
             return False, 0
@@ -239,40 +326,50 @@ class DataLogger:
     # ── extração de goal e waypoint ───────────────────────────
 
     @staticmethod
-    def _extract_goal(sim) -> tuple | None:
+    def _extract_goal(wm) -> tuple | None:
         try:
-            g = sim.waypoints.get_current_waypoint()
+            g = wm.get_current_waypoint() if wm is not None else None
             return tuple(float(v) for v in g) if g is not None else None
         except Exception:
             return None
 
     @staticmethod
-    def _extract_waypoint_info(sim) -> tuple[tuple | None, int | None]:
-        ctrl      = getattr(sim, "controller", None)
-        waypoints = getattr(ctrl, "_waypoints", None)
-        wp_idx    = getattr(ctrl, "_wp_idx",    None)
-        if not waypoints or wp_idx is None:
+    def _extract_waypoint_info(wm) -> tuple[tuple | None, int | None]:
+        try:
+            if wm is None:
+                return None, None
+            goal = wm.get_current_waypoint()
+            waypoint = tuple(float(v) for v in goal[:2]) if goal is not None else None
+            return waypoint, int(wm.current_index)
+        except Exception:
             return None, None
-        if wp_idx < len(waypoints):
-            return tuple(float(v) for v in waypoints[wp_idx]), int(wp_idx)
-        return None, int(wp_idx)
 
     # ── record ─────────────────────────────────────────────────
 
-    def _record(self, sim):
-        if self.max_samples and len(self._log.frames) >= self.max_samples:
+    def _record(self, sim, index, wm):
+        log = self._logs[index]
+        if self.max_samples and len(log.frames) >= self.max_samples:
             return
 
-        robot  = sim.robot
-        self._t += sim.dt
-        state  = robot.state()
-        rtype  = self._log.robot_type
+        robot = sim.robots[index]
+        state = robot.state()
+        rtype = log.robot_type
 
-        # ação de controle (o que o controller pediu)
-        cmd_fields = {
-            f: float(state.get(f, 0.0))
-            for f in _ROBOT_CMD_FIELDS.get(rtype, [])
-        }
+        # ação de controle (o que o controller pediu, antes do ruído)
+        last_cmds = getattr(sim, "last_commands", None)
+        raw_cmd = (last_cmds[index]
+                   if last_cmds is not None and index < len(last_cmds) else None)
+        cmd_keys = _ROBOT_CMD_KEYS.get(rtype, {})
+        if raw_cmd is not None:
+            cmd_fields = {
+                field: float(raw_cmd.get(key, 0.0))
+                for field, key in cmd_keys.items()
+            }
+        else:
+            cmd_fields = {
+                f: float(state.get(f, 0.0))
+                for f in _ROBOT_CMD_FIELDS.get(rtype, [])
+            }
 
         # velocidade real (o que o robô executou após saturação/cinemática)
         real_fields = {
@@ -280,10 +377,10 @@ class DataLogger:
             for real_key, state_key in _ROBOT_REAL_MAP.get(rtype, {}).items()
         }
 
-        goal           = self._extract_goal(sim)
-        waypoint, wp_i = self._extract_waypoint_info(sim)
+        goal = self._extract_goal(wm)
+        waypoint, wp_i = self._extract_waypoint_info(wm)
 
-        self._log.frames.append(Frame(
+        log.frames.append(Frame(
             t=self._t,
             x=float(robot.x),
             y=float(robot.y),
@@ -291,7 +388,7 @@ class DataLogger:
             goal=goal,
             waypoint=waypoint,
             wp_index=wp_i,
-            segment=self._segment_idx,
+            segment=self._segment_idx[index],
             **cmd_fields,
             **real_fields,
         ))
@@ -302,45 +399,42 @@ class DataLogger:
         if not sim.running_simulation:
             return
 
-        if self._log is None:
-            self._init(sim.robot)
+        if not self._initialized:
+            self._init(sim)
 
-        has_active, total_wp = self._waypoint_state(sim)
+        self._t += sim.dt
 
-        # Novos waypoints → novo segmento
-        if total_wp > self._last_wp_count and has_active:
-            self._segment_idx += 1
-            self._recording    = True
-            print(f"[DataLogger] Segmento {self._segment_idx} iniciado "
-                  f"({len(self._log.frames)} frames, {total_wp} waypoints).")
+        for index in range(len(sim.robots)):
+            _, total_wp = self._waypoint_state(sim, index)
 
-        self._last_wp_count = total_wp
+            # Novos waypoints -> novo segmento
+            if total_wp > self._last_wp_count.get(index, 0):
+                self._segment_idx[index] = self._segment_idx.get(index, -1) + 1
+                print(f"[DataLogger] B-Bot{index} — segmento "
+                      f"{self._segment_idx[index]} iniciado "
+                      f"({len(self._logs[index].frames)} frames, "
+                      f"{total_wp} waypoints).")
 
-        # Sem waypoints ativos → pausa
-        if not has_active:
-            if self._recording:
-                print(f"[DataLogger] Segmento {self._segment_idx} concluído "
-                      f"— {len(self._log.frames)} frames totais.")
-            self._recording = False
-            return
-
-        if self._recording:
-            self._record(sim)
+            self._last_wp_count[index] = total_wp
+            self._record(sim, index, self._waypoint_manager(sim, index))
 
     # ── caminho planejado ──────────────────────────────────────
 
-    def set_planned_path(self, path: list[tuple]):
-        """Registra caminho planejado como lista de (x,y) ou (x,y,theta)."""
-        if self._log is None:
-            print("[DataLogger] Não inicializado.")
+    def set_planned_path(self, path: list[tuple], robot_index: int = 0):
+        """Registra caminho planejado de um robô como lista de (x,y[,theta])."""
+        if robot_index not in self._logs:
+            print(f"[DataLogger] Robô {robot_index} não inicializado.")
             return
-        self._log.planned_path = [tuple(float(v) for v in p) for p in path]
-        print(f"[DataLogger] Caminho planejado: {len(path)} pontos.")
+        self._logs[robot_index].planned_path = [
+            tuple(float(v) for v in p) for p in path
+        ]
+        print(f"[DataLogger] Caminho planejado (B-Bot{robot_index}): "
+              f"{len(path)} pontos.")
 
-    def set_planned_curve(self, t, x, y, theta=None):
-        """Registra caminho planejado como curva paramétrica."""
-        if self._log is None:
-            print("[DataLogger] Não inicializado.")
+    def set_planned_curve(self, t, x, y, theta=None, robot_index: int = 0):
+        """Registra caminho planejado de um robô como curva paramétrica."""
+        if robot_index not in self._logs:
+            print(f"[DataLogger] Robô {robot_index} não inicializado.")
             return
         curve = {
             "t": np.array(t, dtype=float),
@@ -349,279 +443,85 @@ class DataLogger:
         }
         if theta is not None:
             curve["theta"] = np.array(theta, dtype=float)
-        self._log.planned_curve = curve
-        print(f"[DataLogger] Curva planejada: {len(curve['x'])} pontos.")
+        self._logs[robot_index].planned_curve = curve
+        print(f"[DataLogger] Curva planejada (B-Bot{robot_index}): "
+              f"{len(curve['x'])} pontos.")
 
     # ── exportação ─────────────────────────────────────────────
 
+    def result(self) -> MultiRobotLog:
+        return MultiRobotLog(logs=self._logs)
+
+    def _has_data(self) -> bool:
+        return bool(self._logs) and any(l.frames for l in self._logs.values())
+
     def save(self, path: str = "log.pkl"):
-        if self._log is None or not self._log.frames:
+        """Salva o log completo em pickle."""
+        if not self._has_data():
             print("[DataLogger] Nenhum dado para salvar.")
             return
         with open(path, "wb") as f:
-            pickle.dump(self._log, f)
-        print(f"[DataLogger] {len(self._log.frames)} frames / "
-              f"{self._segment_idx + 1} segmento(s) → '{path}'")
+            pickle.dump(self.result(), f)
+        total = sum(len(l.frames) for l in self._logs.values())
+        print(f"[DataLogger] {total} frames / {len(self._logs)} robô(s) -> '{path}'")
+
+    def save_csv(self, path: str = "log.csv"):
+        """Salva o log completo em CSV (uma linha por robô por frame)."""
+        if not self._has_data():
+            print("[DataLogger] Nenhum dado para salvar.")
+            return
+
+        columns = ["robot", "robot_type", "segment", "t", "x", "y", "theta"]
+        arrays: "OrderedDict[int, dict]" = OrderedDict()
+        for index in sorted(self._logs):
+            arr = self._logs[index].to_numpy()
+            arrays[index] = arr
+            for key in arr:
+                if key not in columns:
+                    columns.append(key)
+
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(columns)
+            for index, arr in arrays.items():
+                log = self._logs[index]
+                for row in range(len(log.frames)):
+                    writer.writerow([
+                        index if col == "robot"
+                        else log.robot_type if col == "robot_type"
+                        else arr[col][row] if col in arr
+                        else ""
+                        for col in columns
+                    ])
+
+        total = sum(len(l.frames) for l in self._logs.values())
+        print(f"[DataLogger] {total} frames / {len(self._logs)} robô(s) -> '{path}'")
+
+    def export(self, path: str):
+        """Exporta escolhendo o formato pela extensão (.csv ou .pkl)."""
+        if str(path).lower().endswith(".csv"):
+            self.save_csv(path)
+        else:
+            self.save(path)
 
     @staticmethod
-    def load(path: str) -> SimLog:
+    def load(path: str):
         with open(path, "rb") as f:
             log = pickle.load(f)
-        print(f"[DataLogger] '{path}': {len(log.frames)} frames, tipo={log.robot_type}")
+        if isinstance(log, MultiRobotLog):
+            total = sum(len(l.frames) for l in log.logs.values())
+            print(f"[DataLogger] '{path}': {total} frames, "
+                  f"{len(log.logs)} robô(s)")
+        else:
+            print(f"[DataLogger] '{path}': {len(log.frames)} frames, "
+                  f"tipo={log.robot_type}")
         return log
 
     # ── plot ───────────────────────────────────────────────────
 
     def plot(self):
-        if self._log is None or not self._log.frames:
+        if not self._has_data():
             print("[DataLogger] Nenhum dado para plotar.")
             return
-        _plot_log(self._log)
-
-
-# ──────────────────────────────────────────────────────────────
-# Helpers de plot
-# ──────────────────────────────────────────────────────────────
-
-def _safe_legend(ax, **kwargs):
-    """Só chama legend() se houver artistas com label — evita UserWarning."""
-    handles, labels = ax.get_legend_handles_labels()
-    if handles:
-        ax.legend(handles, labels, **kwargs)
-
-
-def _plot_log(log: SimLog):
-    import matplotlib.pyplot as plt
-    import matplotlib.cm as cm
-
-    h     = log.to_numpy()
-    t     = h["t"]
-    rtype = log.robot_type
-    segs  = np.unique(h["segment"])
-    cmap  = cm.get_cmap("tab10", max(len(segs), 1))
-
-    fig, axes = plt.subplots(3, 3, figsize=(18, 12))
-    # fig.suptitle(
-        # f"SimLog — {rtype}  |  {len(log.frames)} frames  |  {len(segs)} segmento(s)",
-        # fontsize=10,
-    # )
-
-    # ── [0,0] Trajetória XY ────────────────────────────────────
-    ax = axes[0, 0]
-    for i, seg in enumerate(segs):
-        mask = h["segment"] == seg
-        ax.plot(h["x"][mask], h["y"][mask], color=cmap(i), lw=1.5, label=f"seg {seg}")
-    if log.planned_path:
-        px = [p[0] for p in log.planned_path]
-        py = [p[1] for p in log.planned_path]
-        ax.plot(px, py, "--", color="gray", lw=1.5, alpha=0.8, label="planejado")
-        ax.scatter(px, py, s=20, color="gray", alpha=0.6, zorder=4)
-    if log.planned_curve:
-        ax.plot(log.planned_curve["x"], log.planned_curve["y"],
-                "--", color="purple", lw=1.5, alpha=0.8, label="curva planejada")
-    if "goal_x" in h:
-        ax.scatter(h["goal_x"], h["goal_y"], s=60, c="red", zorder=5, label="goal")
-    if "wp_x" in h:
-        ax.scatter(h["wp_x"], h["wp_y"], s=12, c="orange", alpha=0.3, zorder=3,
-                   label="waypoint atual")
-    ax.set_xlabel("x (m)"); ax.set_ylabel("y (m)")
-    ax.set_title("Trajetória", fontsize=11); ax.axis("equal"); ax.grid(True)
-    _safe_legend(ax, fontsize=7)
-
-    # ── [0,1] Orientação ───────────────────────────────────────
-    ax = axes[0, 1]
-    for i, seg in enumerate(segs):
-        mask = h["segment"] == seg
-        ax.plot(t[mask], np.degrees(h["theta"][mask]), color=cmap(i), label=f"seg {seg}")
-    if "goal_theta" in h:
-        ax.plot(t, np.degrees(h["goal_theta"]), "--", color="gray",
-                alpha=0.6, label="θ desejado")
-    if log.planned_curve and "theta" in log.planned_curve:
-        tc = np.linspace(t[0], t[-1], len(log.planned_curve["theta"]))
-        ax.plot(tc, np.degrees(log.planned_curve["theta"]),
-                "--", color="purple", alpha=0.6, label="θ planejado")
-    ax.set_xlabel("t (s)"); ax.set_ylabel("θ (°)")
-    ax.set_title("Orientação", fontsize=11); ax.grid(True)
-    _safe_legend(ax, fontsize=7)
-
-    # ── [0,2] Distância ao goal ────────────────────────────────
-    ax = axes[0, 2]
-    if "goal_x" in h:
-        rho = np.hypot(h["x"] - h["goal_x"], h["y"] - h["goal_y"])
-        for i, seg in enumerate(segs):
-            mask = h["segment"] == seg
-            ax.plot(t[mask], rho[mask], color=cmap(i), label=f"seg {seg}")
-        ax.set_ylabel("ρ (m)"); ax.set_title("Distância ao goal", fontsize=11)
-    else:
-        ax.set_title("Distância ao goal\n(sem goal registrado)", fontsize=11)
-    ax.set_xlabel("t (s)"); ax.grid(True)
-    _safe_legend(ax, fontsize=7)
-
-    # ── [1,0] Velocidade linear: cmd vs real ───────────────────
-    ax = axes[1, 0]
-    for i, seg in enumerate(segs):
-        mask = h["segment"] == seg
-        c = cmap(i)
-        if rtype == "holonomic":
-            cmd  = np.hypot(h.get("vx",      np.zeros_like(t)),
-                            h.get("vy",      np.zeros_like(t)))
-            real = np.hypot(h.get("vx_real", np.zeros_like(t)),
-                            h.get("vy_real", np.zeros_like(t)))
-            lbl = f"s{seg}"
-            ax.plot(t[mask], cmd[mask],  color=c, lw=1.5, label=f"cmd {lbl}")
-            ax.plot(t[mask], real[mask], color=c, lw=1.0, ls="--",
-                    alpha=0.7, label=f"real {lbl}")
-            ax.set_ylabel("|v| (m/s)")
-        elif rtype == "differential":
-            lbl = f"s{seg}"
-            ax.plot(t[mask], h["v"][mask],      color=c, lw=1.5, label=f"cmd {lbl}")
-            ax.plot(t[mask], h["v_real"][mask], color=c, lw=1.0, ls="--",
-                    alpha=0.7, label=f"real {lbl}")
-            ax.set_ylabel("v (m/s)")
-        elif rtype == "differential_firstorder":
-            lbl = f"s{seg}"
-            ax.plot(t[mask], h["v_ref"][mask],      color=c, lw=1.5, label=f"cmd {lbl}")
-            ax.plot(t[mask], h["v_real"][mask], color=c, lw=1.0, ls="--",
-                    alpha=0.7, label=f"real {lbl}")
-            ax.set_ylabel("v (m/s)")
-        else:
-            lbl = f"s{seg}"
-            ax.plot(t[mask], h["speed"][mask],      color=c, lw=1.5, label=f"cmd {lbl}")
-            ax.plot(t[mask], h["speed_real"][mask], color=c, lw=1.0, ls="--",
-                    alpha=0.7, label=f"real {lbl}")
-            ax.set_ylabel("speed (m/s)")
-    ax.set_xlabel("t (s)")
-    ax.set_title("Vel. linear  (— cmd  ╌ real)", fontsize=11)
-    ax.grid(True)
-    _safe_legend(ax, fontsize=7)
-
-    # ── [1,1] Velocidade angular / steer: cmd vs real ──────────
-    ax = axes[1, 1]
-    for i, seg in enumerate(segs):
-        mask = h["segment"] == seg
-        c = cmap(i)
-        lbl = f"s{seg}"
-        if rtype == "holonomic":
-            ax.plot(t[mask], h.get("vx",      np.zeros_like(t))[mask],
-                    color=c, lw=1.5, label=f"vx cmd {lbl}")
-            ax.plot(t[mask], h.get("vx_real", np.zeros_like(t))[mask],
-                    color=c, lw=1.0, ls="--", alpha=0.7, label=f"vx real {lbl}")
-            ax.plot(t[mask], h.get("vy",      np.zeros_like(t))[mask],
-                    color=c, lw=1.5, ls=":", label=f"vy cmd {lbl}")
-            ax.plot(t[mask], h.get("vy_real", np.zeros_like(t))[mask],
-                    color=c, lw=1.0, ls="-.", alpha=0.7, label=f"vy real {lbl}")
-            ax.set_ylabel("m/s"); ax.set_title("vx / vy  (— cmd  ╌ real)", fontsize=11)
-        elif rtype == "differential":
-            ax.plot(t[mask], np.degrees(h["omega"][mask]),
-                    color=c, lw=1.5, label=f"cmd {lbl}")
-            ax.plot(t[mask], np.degrees(h["omega_real"][mask]),
-                    color=c, lw=1.0, ls="--", alpha=0.7, label=f"real {lbl}")
-            ax.set_ylabel("ω (°/s)")
-            ax.set_title("Vel. angular  (— cmd  ╌ real)", fontsize=11)
-        elif rtype == "differential_firstorder":
-            ax.plot(t[mask], np.degrees(h["omega"][mask]),
-                    color=c, lw=1.5, label=f"cmd {lbl}")
-            ax.plot(t[mask], np.degrees(h["omega_real"][mask]),
-                    color=c, lw=1.0, ls="--", alpha=0.7, label=f"real {lbl}")
-            ax.set_ylabel("ω (°/s)")
-            ax.set_title("Vel. angular  (— cmd  ╌ real)", fontsize=11)
-        else:
-            ax.plot(t[mask], np.degrees(h["steer"][mask]),
-                    color=c, lw=1.5, label=f"cmd {lbl}")
-            ax.plot(t[mask], np.degrees(h["steer_real"][mask]),
-                    color=c, lw=1.0, ls="--", alpha=0.7, label=f"real {lbl}")
-            ax.set_ylabel("steer (°)")
-            ax.set_title("Esterçamento  (— cmd  ╌ real)", fontsize=11)
-    ax.set_xlabel("t (s)"); ax.grid(True)
-    _safe_legend(ax, fontsize=7)
-
-    # ── [1,2] Waypoint index ───────────────────────────────────
-    ax = axes[1, 2]
-    if "wp_index" in h:
-        for i, seg in enumerate(segs):
-            mask = h["segment"] == seg
-            ax.step(t[mask], h["wp_index"][mask], where="post",
-                    color=cmap(i), label=f"seg {seg}")
-        ax.set_ylabel("índice"); ax.set_title("Waypoint atual", fontsize=11)
-    else:
-        ax.set_title("Waypoint (sem planner conectado)", fontsize=11)
-    ax.set_xlabel("t (s)"); ax.grid(True)
-    _safe_legend(ax, fontsize=7)
-
-    # ── [2,0] Erro de posição por segmento ─────────────────────
-    ax = axes[2, 0]
-    if "goal_x" in h:
-        rho = np.hypot(h["x"] - h["goal_x"], h["y"] - h["goal_y"])
-        for i, seg in enumerate(segs):
-            mask = h["segment"] == seg
-            ax.fill_between(t[mask], rho[mask], alpha=0.3, color=cmap(i))
-            ax.plot(t[mask], rho[mask], color=cmap(i), lw=1.0, label=f"seg {seg}")
-        ax.set_ylabel("ρ (m)"); ax.set_title("Erro de posição (área)", fontsize=11)
-    else:
-        ax.set_title("Erro de posição\n(sem goal registrado)", fontsize=11)
-    ax.set_xlabel("t (s)"); ax.grid(True)
-    _safe_legend(ax, fontsize=7)
-
-    # ── [2,1] Diferença cmd - real (velocidade linear) ─────────
-    ax = axes[2, 1]
-    for i, seg in enumerate(segs):
-        mask = h["segment"] == seg
-        c = cmap(i)
-        if rtype == "holonomic":
-            cmd  = np.hypot(h.get("vx",      np.zeros_like(t)),
-                            h.get("vy",      np.zeros_like(t)))
-            real = np.hypot(h.get("vx_real", np.zeros_like(t)),
-                            h.get("vy_real", np.zeros_like(t)))
-            ax.plot(t[mask], (cmd - real)[mask], color=c, lw=1.0, label=f"seg {seg}")
-            ax.set_ylabel("Δ|v| (m/s)")
-        elif rtype == "differential":
-            ax.plot(t[mask], (h["v"] - h["v_real"])[mask],
-                    color=c, lw=1.0, label=f"seg {seg}")
-            ax.set_ylabel("Δv (m/s)")        
-        elif rtype == "differential_firstorder":
-            ax.plot(t[mask], (h["v_ref"] - h["v_real"])[mask],
-                    color=c, lw=1.0, label=f"seg {seg}")
-            ax.set_ylabel("Δv (m/s)")        
-        else:
-            ax.plot(t[mask], (h["speed"] - h["speed_real"])[mask],
-                    color=c, lw=1.0, label=f"seg {seg}")
-            ax.set_ylabel("Δspeed (m/s)")
-    ax.axhline(0, color="black", lw=0.8, ls="--")
-    ax.set_xlabel("t (s)"); ax.set_title("Diferença cmd − real (vel. linear)", fontsize=11)
-    ax.grid(True)
-    _safe_legend(ax, fontsize=7)
-
-    # ── [2,2] Diferença cmd - real (angular / steer) ───────────
-    ax = axes[2, 2]
-    for i, seg in enumerate(segs):
-        mask = h["segment"] == seg
-        c = cmap(i)
-        if rtype == "holonomic":
-            # norma do erro em (vx,vy) separado
-            dvx = (h.get("vx", np.zeros_like(t)) -
-                   h.get("vx_real", np.zeros_like(t)))
-            dvy = (h.get("vy", np.zeros_like(t)) -
-                   h.get("vy_real", np.zeros_like(t)))
-            ax.plot(t[mask], dvx[mask], color=c, lw=1.0, label=f"Δvx s{seg}")
-            ax.plot(t[mask], dvy[mask], color=c, lw=1.0, ls="--",
-                    alpha=0.7, label=f"Δvy s{seg}")
-            ax.set_ylabel("Δv (m/s)")
-            ax.set_title("Diferença cmd − real (vx, vy)", fontsize=11)
-        elif rtype == "differential" or rtype == "differential_firstorder":
-            ax.plot(t[mask],
-                    np.degrees(h["omega"] - h["omega_real"])[mask],
-                    color=c, lw=1.0, label=f"seg {seg}")
-            ax.set_ylabel("Δω (°/s)")
-            ax.set_title("Diferença cmd − real (vel. angular)", fontsize=11)
-        else:
-            ax.plot(t[mask],
-                    np.degrees(h["steer"] - h["steer_real"])[mask],
-                    color=c, lw=1.0, label=f"seg {seg}")
-            ax.set_ylabel("Δsteer (°)")
-            ax.set_title("Diferença cmd − real (esterçamento)", fontsize=11)
-    ax.axhline(0, color="black", lw=0.8, ls="--")
-    ax.set_xlabel("t (s)"); ax.grid(True)
-    _safe_legend(ax, fontsize=7)
-
-    plt.tight_layout()
-    plt.show()
+        from .plot_window import show_interactive_plot
+        show_interactive_plot(self.result())

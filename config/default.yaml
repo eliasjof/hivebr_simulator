@@ -45,8 +45,14 @@ lidar:
   num_rays: 101
   range: 12.0
   fov_deg: 360
+noise:
+  enabled: false
+  sigma_v: 0.10
+  sigma_omega: 0.10
+  limit: 3.0
+  seed: null
 waypoints:
-  goal_tolerance: 0.5
+  goal_tolerance: 0.1
   define_orientation: true
   show_tolerance_circle: false
   points: []
@@ -144,4 +150,4 @@ colors:
   - 230
   - 230
 obstacles: []
-theme: light
+theme: night

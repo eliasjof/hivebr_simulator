@@ -29,13 +29,16 @@ def normalize_angle(angle):
     return np.arctan2(np.sin(angle), np.cos(angle))
 
 
-def full_controller(robot, world, goal, cfg, dt, lidar_readings=None, r_tol=0.2):
+def full_controller(robot, world, goal, cfg, dt, lidar_readings=None, r_tol=None):
     """Non-holonomic position+orientation controller (Kanayama, 1990).
 
     Identical in spirit to the single-robot example, but receives the B-bot,
     its own goal and its own LiDAR readings because the engine dispatches one
     call per robot.
     """
+    if r_tol is None:
+        r_tol = float(cfg.get("waypoints", {}).get("goal_tolerance", 0.2))
+
     if goal is None:
         return {"v": 0.0, "omega": 0.0}
 
@@ -111,7 +114,7 @@ if __name__ == "__main__":
     sim = Simulator(config=config, controller=full_controller)
 
     sim.set_using_orientation(True)
-    sim.set_goal_tolerance(0.2)
+    # Goal tolerance comes from config/default.yaml (`waypoints.goal_tolerance`).
 
     # ------------------------------------------------------------------
     # One patrol route per B-bot

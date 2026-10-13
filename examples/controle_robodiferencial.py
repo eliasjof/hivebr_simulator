@@ -16,7 +16,10 @@ def normalize_angle(angle):
     return np.arctan2(np.sin(angle), np.cos(angle))
 
 
-def full_controller(robot,world,goal,cfg,dt,lidar_readings=None, r_tol = 0.2 ):
+def full_controller(robot,world,goal,cfg,dt,lidar_readings=None, r_tol = None ):
+
+    if r_tol is None:
+        r_tol = float(cfg.get("waypoints", {}).get("goal_tolerance", 0.2))
 
     if goal is None:
         return {
@@ -127,7 +130,7 @@ def simple_controller(robot,world,goal,cfg,dt,lidar_readings=None):
     # 1. Parâmetros de Controle (Sintonia)
     kp = 1.5       # Ganho de translação
     k_theta = 3.0  # Ganho de rotação
-    r_tol = 0.1    # Raio de tolerância (chegou no alvo)
+    r_tol = float(cfg.get("waypoints", {}).get("goal_tolerance", 0.1))  # Tolerância (config)
 
     # 2. Dinâmica do Erro Posicional
     ex = xd - x
@@ -169,10 +172,11 @@ if __name__ == "__main__":
 
     # logger = DataLogger()
 
-    sim = Simulator(controller=full_controller, type_robot="differential")     
-    
+    config = load_config(project_root / "config" / "default.yaml")
+    sim = Simulator(config=config, controller=full_controller)
+
     sim.set_using_orientation(True)  # Enable orientation control
-    sim.set_goal_tolerance(0.2)  # Position tolerance to consider target reached (m)
+    # Goal tolerance comes from config/default.yaml (`waypoints.goal_tolerance`).
     sim.robot.radius = 0.3
     # points = np.array([[13.78774011, 17.80954127],
     #    [11.40046318, 18.29715419],

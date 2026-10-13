@@ -16,8 +16,13 @@ class HiveBrAgent(ABC):
     frozen state snapshot plus the states of its neighbors.
     """
 
-    def __init__(self, robot_id: int | None = None, **params):
+    def __init__(self, robot_id: int | None = None, config: dict | None = None,
+                 **params):
         self.id = robot_id
+        # The engine config is exposed so controllers can read values such as
+        # `waypoints.goal_tolerance` straight from the YAML file.
+        self.cfg = config
+        self.config = config
         self.params = params
 
     def setup(self) -> None:
@@ -110,10 +115,22 @@ class SwarmExperiment:
             return
 
         self._mode = "decentralized"
-        self.agents = {
-            rid: cls(robot_id=rid, **self.agent_params.get(rid, {}))
-            for rid, cls in self.agent_classes.items()
-        }
+
+        # Build the effective engine config and hand it to every agent so
+        # controllers can read `waypoints.goal_tolerance` from the YAML file
+        # instead of a hard-coded value.
+        engine_cfg = self.build_engine_config()
+
+        goal_tol = self.goal_tolerance
+        if goal_tol is None and isinstance(engine_cfg, dict):
+            goal_tol = engine_cfg.get("waypoints", {}).get("goal_tolerance")
+
+        self.agents = {}
+        for rid, cls in self.agent_classes.items():
+            params = dict(self.agent_params.get(rid, {}))
+            if goal_tol is not None:
+                params.setdefault("goal_tolerance", float(goal_tol))
+            self.agents[rid] = cls(robot_id=rid, config=engine_cfg, **params)
         for agent in self.agents.values():
             agent.setup()
 

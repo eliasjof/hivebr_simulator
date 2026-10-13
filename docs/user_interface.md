@@ -25,11 +25,12 @@ and a **control panel** (right).
 | **Clear Obstacles** | Remove all circular obstacles. |
 | **Load Map** | Load an occupancy-grid image; a dialog asks for the resolution in `m/pixel`. |
 | **Toggle LiDAR** | Enable/disable LiDAR rendering. |
+| **Toggle Noise** | Enable/disable the Gaussian velocity noise (`noise` config section). |
 | **Toggle Theme** | Switch between the `dark` and `light` palettes. |
 | **Save Config** | Write the current world, obstacles and waypoints to `config/default.yaml`. |
 | **Center Camera** | Recenter the view on the world origin. |
-| **Plot Log** | Plot the recorded log with Matplotlib. |
-| **Export Log** | Save the recorded log to a `.pkl` file. |
+| **Plot Log** | Open the interactive plot window (Tk + Matplotlib) to inspect every B-bot: pick robots, signals (trajectory, position/orientation error, linear/angular velocity cmd vs real, ...), the subplot grid, and save the figure. |
+| **Export Log** | Save the recorded log of the whole fleet to `.pkl` (pickle) or `.csv`. |
 | **Reset Logger** | Discard the recorded log. |
 
 ## Sliders
@@ -40,6 +41,7 @@ and a **control panel** (right).
 | **Max Omega** | `max_omega` of differential B-bots. |
 | **Max Steering** | `max_steer` of Ackermann B-bots. |
 | **Grid Size** | World grid spacing. |
+| **Noise Sigma** | Gaussian velocity noise magnitude; moving it above 0 enables the noise and updates `sigma_v`/`sigma_omega`. |
 
 ## HUD
 

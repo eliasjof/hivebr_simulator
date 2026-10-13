@@ -37,7 +37,13 @@ class PatrolAgent(HiveBrAgent):
         self.kp = self.params.get("kp", 0.35)
         self.k_alpha = self.params.get("k_alpha", 1.5)
         self.k_beta = self.params.get("k_beta", -1.0)
-        self.r_tol = self.params.get("r_tol", 0.2)
+        # Goal tolerance straight from the engine config (YAML file), with an
+        # explicit r_tol parameter and a default as fallbacks.
+        self.r_tol = float(
+            (self.cfg or {}).get("waypoints", {}).get(
+                "goal_tolerance", self.params.get("r_tol", 0.2)
+            )
+        )
         self.sep_gain = self.params.get("sep_gain", 0.0)
         self.sep_margin = self.params.get("sep_margin", 0.35)
 
@@ -105,7 +111,6 @@ if __name__ == "__main__":
         backend="navsim2d",
         config=config,
         orientation=True,
-        goal_tolerance=0.2,
     )
 
     # Heterogeneous tuning: a bolder leader and more conservative followers

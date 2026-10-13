@@ -151,6 +151,13 @@ DEFAULT_CONFIG = {
         "comm_radius": None,
         "show_robot_links": False
     },
+    "noise": {
+        "enabled": False,
+        "sigma_v": 0.0,
+        "sigma_omega": 0.0,
+        "limit": 3.0,
+        "seed": None
+    },
     "obstacles": [],
     "theme": "dark"
 }
@@ -255,6 +262,12 @@ class Simulator:
 
         self.robot_lidar_readings = [[] for _ in range(self.num_robots)]
         self.collisions = [False] * self.num_robots
+
+        # Último comando cru emitido pelo controller (sem ruído), por robô.
+        # Usado pelo DataLogger para registrar "comando vs real".
+        self.last_commands = [{} for _ in range(self.num_robots)]
+
+        self._setup_noise()
 
         self.waypoint_managers = [WaypointManager(self.config) for _ in range(self.num_robots)]
 
@@ -493,6 +506,15 @@ class Simulator:
 
         elif event.ui_element == e["toggle_lidar"]:
             self.lidar.enabled = not self.lidar.enabled
+
+        elif event.ui_element == e["toggle_noise"]:
+            noise = self.config.setdefault("noise", {})
+            noise["enabled"] = not noise.get("enabled", False)
+            state = "enabled" if noise["enabled"] else "disabled"
+            print(f"[Simulator] Gaussian velocity noise {state} "
+                  f"(sigma_v={noise.get('sigma_v', 0.0)}, "
+                  f"sigma_omega={noise.get('sigma_omega', 0.0)}, "
+                  f"limit={noise.get('limit', 3.0)}).")
 
         elif event.ui_element == e["save_config"]:
             self.save_config()
@@ -836,6 +858,77 @@ class Simulator:
             commands.append(command or {})
         return commands
 
+    # ======================================================
+    # Ruído gaussiano de velocidades (atuação)
+    # ======================================================
+
+    def _setup_noise(self):
+        cfg = self.config.setdefault("noise", {})
+        # Allow the noise block to be declared under `robot` as well.
+        robot_noise = self.config.get("robot", {}).get("noise")
+        if isinstance(robot_noise, dict):
+            for key, value in robot_noise.items():
+                cfg.setdefault(key, value)
+        cfg.setdefault("enabled", False)
+        cfg.setdefault("sigma_v", 0.0)
+        cfg.setdefault("sigma_omega", 0.0)
+        cfg.setdefault("limit", 3.0)
+        cfg.setdefault("seed", None)
+        # `sigma` is a convenience alias applied to both velocities.
+        sigma = cfg.get("sigma")
+        if sigma is not None:
+            if not cfg.get("sigma_v"):
+                cfg["sigma_v"] = float(sigma)
+            if not cfg.get("sigma_omega"):
+                cfg["sigma_omega"] = float(sigma)
+        seed = cfg.get("seed")
+        if seed is not None:
+            np.random.seed(int(seed))
+
+    @staticmethod
+    def _gaussian(sigma, limit):
+        value = float(np.random.normal(0.0, sigma))
+        if limit is not None and float(limit) > 0.0:
+            bound = float(limit) * sigma
+            value = float(np.clip(value, -bound, bound))
+        return value
+
+    def _apply_noise(self, commands):
+        """Adiciona ruído gaussiano às velocidades de atuação.
+
+        ``sigma_v``/``sigma_omega`` são os desvios-padrão das velocidades
+        linear e angular. O erro é truncado em ``± limit * sigma``.
+        """
+        cfg = self.config.get("noise", {})
+        if not cfg.get("enabled", False):
+            return commands
+
+        sigma_v = float(cfg.get("sigma_v", 0.0) or 0.0)
+        sigma_w = float(cfg.get("sigma_omega", 0.0) or 0.0)
+        if sigma_v <= 0.0 and sigma_w <= 0.0:
+            return commands
+        limit = cfg.get("limit", 3.0)
+
+        linear_keys = ("v", "vx", "vy", "speed")
+        angular_keys = ("omega", "steer")
+
+        noisy_commands = []
+        for command in commands:
+            if not command:
+                noisy_commands.append(command)
+                continue
+            noisy = dict(command)
+            if sigma_v > 0.0:
+                for key in linear_keys:
+                    if key in noisy:
+                        noisy[key] = float(noisy[key]) + self._gaussian(sigma_v, limit)
+            if sigma_w > 0.0:
+                for key in angular_keys:
+                    if key in noisy:
+                        noisy[key] = float(noisy[key]) + self._gaussian(sigma_w, limit)
+            noisy_commands.append(noisy)
+        return noisy_commands
+
     def update_simulation(self):
         if not self.running_simulation:
             return
@@ -876,6 +969,11 @@ class Simulator:
         # Comandos a partir de um snapshot congelado da frota
         # ======================================================
         commands = self._compute_commands(goals)
+
+        # Guarda o comando cru (sem ruído) para o logger e aplica o ruído
+        # gaussiano de atuação antes de integrar a cinemática.
+        self.last_commands = commands
+        commands = self._apply_noise(commands)
 
         # ======================================================
         # Integração simultânea (independente de ordem)
@@ -1003,6 +1101,7 @@ class Simulator:
             self.camera,
             selected=self.selected_robot_index,
             collisions=self.collisions,
+            config=self.config,
         )
         self.manager.draw_ui(self.screen)
 
