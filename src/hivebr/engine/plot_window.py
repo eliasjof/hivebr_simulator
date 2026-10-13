@@ -94,20 +94,20 @@ def _angular_pair(data, robot_type):
 def _sig_trajectory(data, log):
     curves = [{"label": "path", "x": data["x"], "y": data["y"], "lw": 1.8}]
     points = []
-    if _has_finite(data.get("goal_x")):
-        points.append({"label": "goals", "x": data["goal_x"], "y": data["goal_y"],
-                       "marker": "o", "size": 36})
+    # if _has_finite(data.get("goal_x")):
+    #     points.append({"label": "goals", "x": data["goal_x"], "y": data["goal_y"],
+    #                    "marker": "o", "size": 36})
     if _has_finite(data.get("wp_x")):
         points.append({"label": "waypoints", "x": data["wp_x"], "y": data["wp_y"],
-                       "marker": "x", "size": 24})
+                       "marker": "x", "size": 12})
     if log.planned_path:
         px = np.array([p[0] for p in log.planned_path])
         py = np.array([p[1] for p in log.planned_path])
-        curves.append({"label": "planned", "x": px, "y": py, "ls": "--", "lw": 1.4})
+        curves.append({"label": "planned", "x": px, "y": py, "ls": "--", "lw": 1.1})
     if log.planned_curve:
         curves.append({"label": "planned curve",
                        "x": log.planned_curve["x"], "y": log.planned_curve["y"],
-                       "ls": "--", "lw": 1.4})
+                       "ls": "--", "lw": 1.1})
     return {
         "xy": {"kind": "xy", "xlabel": "x (m)", "ylabel": "y (m)",
                "title": "Trajectory XY", "curves": curves, "points": points},
@@ -273,7 +273,8 @@ def draw_panel(ax, entries, overlay, robot_colors):
     for index, panel in entries:
         color = robot_colors.get(index, "C0")
         for curve in panel.get("curves", []):
-            label = f"B{index} {curve['label']}" if overlay else curve["label"]
+            # label = f"B{index} {curve['label']}" if overlay else curve["label"]
+            label = f"B{index}" if overlay else curve["label"]
             if curve.get("axis") == "right":
                 if right_ax is None:
                     right_ax = ax.twinx()
@@ -297,7 +298,8 @@ def draw_panel(ax, entries, overlay, robot_colors):
 
     title = ref.get("title", "")
     if not overlay and len(entries) == 1:
-        title = f"B-Bot{entries[0][0]} - {title}"
+        # title = f"B-bot{entries[0][0]} - {title}"
+        title = f"B-bot{entries[0][0]}"
     ax.set_xlabel(ref.get("xlabel", ""))
     ax.set_ylabel(ref.get("ylabel", ""))
     ax.set_title(title, fontsize=10)
@@ -386,7 +388,7 @@ class InteractivePlotWindow:
                                      exportselection=False, height=6)
         for index in self.robot_indices:
             log = self.logs[index]
-            self.robot_list.insert("end", f"B-Bot {index}  ({log.robot_type})")
+            self.robot_list.insert("end", f"B-bot {index}  ({log.robot_type})")
         self.robot_list.pack(fill="x", pady=(0, 8))
         for position in range(len(self.robot_indices)):
             self.robot_list.selection_set(position)
@@ -429,6 +431,8 @@ class InteractivePlotWindow:
         # Actions
         tk.Button(left, text="Update", command=self._replot)\
             .pack(fill="x", pady=2)
+        tk.Button(left, text="Reset view", command=self._replot)\
+            .pack(fill="x", pady=2)
         tk.Button(left, text="Save plot", command=self._save_plot)\
             .pack(fill="x", pady=2)
         tk.Button(left, text="Close", command=self.root.destroy)\
@@ -441,9 +445,37 @@ class InteractivePlotWindow:
     def _build_canvas(self, FigureCanvasTkAgg, NavigationToolbar2Tk):
         container = self.right_frame
         self.canvas = FigureCanvasTkAgg(self.figure, master=container)
+        # The toolbar packs itself at the top: create it before packing the
+        # canvas so both stay visible.
+        self.toolbar = NavigationToolbar2Tk(self.canvas, container)
+        self.toolbar.update()
         self.canvas.get_tk_widget().pack(fill="both", expand=True)
-        toolbar = NavigationToolbar2Tk(self.canvas, container)
-        toolbar.update()
+        # Mouse-wheel zoom on the subplot under the cursor.
+        self.canvas.mpl_connect("scroll_event", self._on_scroll)
+
+    # ── zoom ───────────────────────────────────────────────────
+
+    def _on_scroll(self, event):
+        ax = event.inaxes
+        if ax is None or event.xdata is None or event.ydata is None:
+            return
+        factor = 0.8 if event.step > 0 else 1.25
+        self._zoom_axes(ax, event.xdata, event.ydata, factor)
+        self.canvas.draw_idle()
+
+    @staticmethod
+    def _zoom_axes(ax, cx, cy, factor):
+        try:
+            x_siblings = list(ax.get_shared_x_axes().get_siblings(ax))
+            y_siblings = list(ax.get_shared_y_axes().get_siblings(ax))
+        except Exception:
+            x_siblings, y_siblings = [ax], [ax]
+        for sibling in x_siblings:
+            x0, x1 = sibling.get_xlim()
+            sibling.set_xlim(cx + (x0 - cx) * factor, cx + (x1 - cx) * factor)
+        for sibling in y_siblings:
+            y0, y1 = sibling.get_ylim()
+            sibling.set_ylim(cy + (y0 - cy) * factor, cy + (y1 - cy) * factor)
 
     # ── selections ─────────────────────────────────────────────
 

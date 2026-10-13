@@ -168,7 +168,7 @@ class GUI:
             noise = config.setdefault("noise", {})
             noise["sigma_v"] = value
             noise["sigma_omega"] = value
-            noise.setdefault("limit", 3.0)
+            noise.setdefault("limit", 1.0)
             # Moving the slider enables the noise; setting it to 0 disables it.
             noise["enabled"] = value > 0.0
             e["noise_sigma_value"].set_text(f"{value:.3f}")
