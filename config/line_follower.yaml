@@ -75,4 +75,16 @@ line_pid:
   ki: 0.05
   kd: 0.9
   integral_limit: 1.0
+# Interação robô-robô. Para múltiplos robôs começando no mesmo ponto da pista
+# use collision_policy: none (ou robot_collision: false) para desativar por
+# completo a avaliação de colisão entre os robôs.
+interaction:
+  collision_policy: none
+  robot_collision: false
+  robot_safety_margin: 0.0
+  resolve_push: 0.0
+  comm_radius: null
+  show_robot_links: false
+# Exibe o tempo/voltas de cada robô no painel (botão "Toggle Times").
+show_times: true
 theme: light

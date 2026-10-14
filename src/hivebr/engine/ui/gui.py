@@ -63,6 +63,7 @@ class GUI:
             ("clear_track", "Clear Track"),
             ("toggle_lidar", "Toggle LiDAR"),
             ("toggle_noise", "Toggle Noise"),
+            ("toggle_times", "Toggle Times"),
             ("toggle_theme", "Toggle Theme"),
             ("save_config", "Save Config"),
             ("center_camera", "Center Camera"),
@@ -312,6 +313,18 @@ class GUI:
     def _robot_color(robot):
         return tuple(getattr(robot, "colors", {}).get("robot", (255, 255, 255)))
 
+    @staticmethod
+    def _time_suffix(robot, show_times):
+        """Coluna de tempo por robô (line follower), opcional via flag."""
+        if not show_times:
+            return ""
+        state = robot.state()
+        if not state.get("line_follower"):
+            return ""
+        if state.get("finished"):
+            return f" | t={state.get('finish_time', 0.0):6.2f}s LAP={state.get('lap_count', 0)} (FIM)"
+        return f" | t={state.get('time', 0.0):6.2f}s LAP={state.get('lap_count', 0)}"
+
     def update_info(self, robots, waypoint_managers, world, fps, running, lidar, camera, selected=0, collisions=None, config=None):
         collisions = collisions if collisions is not None else [False] * len(robots)
         selected = selected % max(len(robots), 1)
@@ -333,6 +346,7 @@ class GUI:
 
         if config is None:
             config = getattr(robot, "config", {})
+        show_times = bool(config.get("show_times", True))
         noise = config.get("noise", {})
         noise_on = bool(noise.get("enabled", False))
         noise_text = (
@@ -349,11 +363,12 @@ class GUI:
         rows.append((
             f"B-Bot{selected} ({rtype}) x={robot.x:.2f}, y={robot.y:.2f} θ={math.degrees(robot.theta):.1f}° "
             f"| {motion} | WP={waypoints.status_text()} | d={dist}"
-            + ("  [COLLISION]" if collisions[selected] else ""),
+            + ("  [COLLISION]" if collisions[selected] else "")
+            + self._time_suffix(robot, show_times),
             self._robot_color(robot),
         ))
 
-        if state.get("line_follower"):
+        if state.get("line_follower") and show_times:
             last = state.get("last_lap")
             avg = state.get("lap_avg")
             last_txt = f"{last:.2f}s" if last is not None else "--"
@@ -373,7 +388,8 @@ class GUI:
                 continue
             rows.append((
                 f"{'*' if collisions[index] else ' '} B-Bot{index} x={other.x:6.2f}, y={other.y:6.2f} "
-                f"θ={math.degrees(other.theta):6.1f}° WP={waypoint_managers[index].status_text()}",
+                f"θ={math.degrees(other.theta):6.1f}° WP={waypoint_managers[index].status_text()}"
+                + self._time_suffix(other, show_times),
                 self._robot_color(other),
             ))
 

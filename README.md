@@ -94,6 +94,7 @@ the same agent code on the physical arena.
 python examples/controle_robodiferencial.py
 python examples/decentralized_swarm.py
 python examples/multi_robot_differential.py
+python examples/multi_line_follower.py
 ```
 
 ## Links

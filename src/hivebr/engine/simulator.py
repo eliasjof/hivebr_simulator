@@ -147,6 +147,7 @@ DEFAULT_CONFIG = {
     },
     "interaction": {
         "collision_policy": "stop",
+        "robot_collision": True,
         "robot_safety_margin": 0.0,
         "resolve_push": 0.05,
         "comm_radius": None,
@@ -160,6 +161,7 @@ DEFAULT_CONFIG = {
         "seed": None
     },
     "obstacles": [],
+    "show_times": True,
     "theme": "dark"
 }
 
@@ -573,6 +575,12 @@ class Simulator:
                   f"(sigma_v={noise.get('sigma_v', 0.0)}, "
                   f"sigma_omega={noise.get('sigma_omega', 0.0)}, "
                   f"limit={noise.get('limit', 3.0)}).")
+
+        elif event.ui_element == e["toggle_times"]:
+            show = not self.config.get("show_times", True)
+            self.config["show_times"] = show
+            state = "ativada" if show else "desativada"
+            print(f"[Simulator] Visualizacao de tempos (line follower) {state}.")
 
         elif event.ui_element == e["save_config"]:
             self.save_config()
@@ -1016,6 +1024,7 @@ class Simulator:
         policies = self.config.get("interaction", {})
         safety_margin = float(policies.get("robot_safety_margin", 0.0))
         collision_policy = str(policies.get("collision_policy", "stop"))
+        robot_collision = bool(policies.get("robot_collision", True))
 
         # ======================================================
         # Recarga (por robô)
@@ -1075,7 +1084,15 @@ class Simulator:
         # ======================================================
         # Interação robô-robô
         # ======================================================
-        if self.num_robots > 1:
+        # ``robot_collision: false`` (ou ``collision_policy: none``) desliga
+        # completamente a avaliação de colisão entre os robôs - útil, por
+        # exemplo, para várias instâncias de line follower iniciando no mesmo
+        # ponto da pista.
+        if (
+            self.num_robots > 1
+            and robot_collision
+            and collision_policy not in ("none", "off", "ignore")
+        ):
             pairs = interaction.detect_robot_collisions(self.robots, safety_margin)
             if pairs:
                 if collision_policy == "stop":
