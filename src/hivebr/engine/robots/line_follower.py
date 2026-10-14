@@ -81,6 +81,25 @@ class LineFollowerRobot(DifferentialRobot):
         self.line_lost = True
         self._last_sign = 0.0
 
+        # ---- cronometragem de voltas / percurso ----
+        self.lap_detection_radius = float(c.get("lap_detection_radius", 0.15))
+        self.min_lap_distance = float(c.get("min_lap_distance", 1.0))
+        self.min_lap_time = float(c.get("min_lap_time", 1.0))
+        self.lost_timeout = float(c.get("lost_timeout", 1.0))
+        self.reset_laps()
+
+    def reset_laps(self):
+        """Zera o cronômetro e as estatísticas de voltas/percurso."""
+        self.time = 0.0
+        self.distance_traveled = 0.0
+        self.lap_times: list[float] = []
+        self.lap_start_time = 0.0
+        self.lap_origin = self.position.copy()
+        self._left_start = False
+        self.finished = False
+        self.finish_time = None
+        self._lost_time = 0.0
+
     def _build_sensor_positions(self) -> list[np.ndarray]:
         if self.num_sensors <= 1:
             offsets = [0.0]

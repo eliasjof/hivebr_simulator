@@ -108,3 +108,36 @@ class LineTrackMap:
 
         border = self.colors.get("line_border", [0, 0, 0])
         pygame.draw.rect(screen, tuple(border), (sx, sy, width_px, height_px), 2)
+
+    def to_gray(self) -> np.ndarray:
+        """Retorna a imagem em tons de cinza (``uint8``, linha 0 no topo)."""
+        return np.flipud((1.0 - self.darkness) * 255.0).astype(np.uint8)
+
+    @classmethod
+    def from_gray(cls, gray: np.ndarray, resolution: float, colors: dict = None):
+        """Cria um mapa de linha a partir de um array ``uint8`` (H, W).
+
+        A linha 0 do array corresponde ao topo da imagem (maior ``y`` do
+        mundo), como em uma imagem lida do disco.
+        """
+        instance = cls.__new__(cls)
+        instance.resolution = float(resolution)
+        instance.colors = colors if colors is not None else {}
+
+        gray = np.asarray(gray, dtype=np.uint8)
+        if gray.ndim == 3:
+            gray = gray[:, :, 0]
+        instance.height, instance.width = gray.shape
+        instance.width_m = instance.width * instance.resolution
+        instance.height_m = instance.height * instance.resolution
+        instance.darkness = np.flipud(1.0 - gray.astype(np.float32) / 255.0)
+
+        try:
+            rgb = np.ascontiguousarray(np.repeat(gray[:, :, None], 3, axis=2))
+            instance.pygame_image = pygame.image.frombuffer(
+                rgb.tobytes(), (instance.width, instance.height), "RGB"
+            ).copy()
+        except Exception:  # pragma: no cover - depends on pygame setup
+            instance.pygame_image = None
+
+        return instance

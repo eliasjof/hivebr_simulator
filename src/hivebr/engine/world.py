@@ -18,6 +18,10 @@ class World:
             config["world"].get("grid_size", 1.0)
         )
 
+        self.resolution = float(
+            config["world"].get("resolution", 0.1)
+        )
+
         # Raio padrão usado para novos obstáculos adicionados por mouse
         self.default_obstacle_radius = float(
             config["world"].get("default_obstacle_radius", 0.4)
@@ -107,6 +111,14 @@ class World:
         )
         self.width = self.line_map.width_m
         self.height = self.line_map.height_m
+        self.resolution = self.line_map.resolution
+
+    def set_line_map(self, line_map):
+        """Instala um :class:`LineTrackMap` já construído (ex.: desenhado na UI)."""
+        self.line_map = line_map
+        self.width = line_map.width_m
+        self.height = line_map.height_m
+        self.resolution = line_map.resolution
 
     def draw_line_map(self, screen, camera):
         if self.line_map is not None:

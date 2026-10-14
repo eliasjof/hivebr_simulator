@@ -40,7 +40,7 @@ def generate_random_track(
     width_m: float = 4.0,
     height_m: float = 3.0,
     resolution: float = 0.005,
-    line_width_m: float = 0.04,
+    line_width_m: float = 0.02,
     seed: int = 7,
 ):
     """Cria uma pista fechada aleatória e a desenha como linha preta.

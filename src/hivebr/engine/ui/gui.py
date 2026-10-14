@@ -49,7 +49,7 @@ class GUI:
     def create_buttons(self):
         x = self.panel_x + 35
         y = 12
-        w, h, gap = 230, 30, 32
+        w, h, gap = 230, 30, 31
         
         buttons = [
             ("start", "Start / Pause"),
@@ -58,6 +58,9 @@ class GUI:
             ("clear_waypoints", "Clear Waypoints"),
             ("clear_obstacles", "Clear Obstacles"),            
             ("load_map", "Load Map"),
+            ("draw_track", "Draw Track"),
+            ("apply_track", "Apply Track"),
+            ("clear_track", "Clear Track"),
             ("toggle_lidar", "Toggle LiDAR"),
             ("toggle_noise", "Toggle Noise"),
             ("toggle_theme", "Toggle Theme"),
@@ -316,15 +319,15 @@ class GUI:
         waypoints = waypoint_managers[selected]
 
         goal = waypoints.get_current_waypoint()
-        dist = "None" if goal is None else f"{distance_between(robot.position, goal[:2]):.2f}"
+        dist = "None" if goal is None else f"{distance_between(robot.position, goal[:2]):6.2f}"
         state = robot.state()
         rtype = state.get("type", "robot")
         if rtype == "holonomic":
-            motion = f"vx={state.get('vx', 0.0):.2f} | vy={state.get('vy', 0.0):.2f}"
+            motion = f"vx={state.get('vx', 0.0):6.2f} | vy={state.get('vy', 0.0):6.2f}"
         elif rtype == "differential" or rtype == "differential_firstorder":
-            motion = f"v={state.get('v', 0.0):.2f} | ω={state.get('omega', 0.0):.2f}"
+            motion = f"v={state.get('v', 0.0):6.2f} | ω={state.get('omega', 0.0):6.2f}"
         elif rtype == "ackermann":
-            motion = f"v={state.get('speed', 0.0):.2f} | δ={math.degrees(state.get('steer', 0.0)):.1f}°"
+            motion = f"v={state.get('speed', 0.0):6.2f} | δ={math.degrees(state.get('steer', 0.0)):6.1f}°"
         else:
             motion = "motion=None"
 
@@ -333,18 +336,18 @@ class GUI:
         noise = config.get("noise", {})
         noise_on = bool(noise.get("enabled", False))
         noise_text = (
-            f"  [NOISE ON  sigma={noise.get('sigma_v', 0.0):.3f}]"
+            f"  [NOISE ON  sigma={noise.get('sigma_v', 0.0):6.3f}]"
             if noise_on else ""
         )
 
         rows = [(
             f"{'RUN' if running else 'PAUSE'} | fleet={len(robots)} | selected=B-Bot{selected} "
-            f"| FPS={fps:.0f} | Obs={len(world.obstacles)} | Zoom={camera.zoom:.2f}"
+            f"| FPS={fps:.0f} | Obs={len(world.obstacles)} | Zoom={camera.zoom:6.2f}"
             f"{noise_text}",
             (255, 165, 0) if noise_on else (255, 255, 255),
         )]
         rows.append((
-            f"B-Bot{selected} ({rtype}) x={robot.x:.2f}, y={robot.y:.2f} θ={math.degrees(robot.theta):.1f}° "
+            f"B-Bot{selected} ({rtype}) x={robot.x:6.2f}, y={robot.y:6.2f} θ={math.degrees(robot.theta):6.1f}° "
             f"| {motion} | WP={waypoints.status_text()} | d={dist}"
             + ("  [COLLISION]" if collisions[selected] else ""),
             self._robot_color(robot),
@@ -353,8 +356,8 @@ class GUI:
             if index == selected:
                 continue
             rows.append((
-                f"{'*' if collisions[index] else ' '} B-Bot{index} x={other.x:.2f}, y={other.y:.2f} "
-                f"θ={math.degrees(other.theta):.1f}° WP={waypoint_managers[index].status_text()}",
+                f"{'*' if collisions[index] else ' '} B-Bot{index} x={other.x:6.2f}, y={other.y:6.2f} "
+                f"θ={math.degrees(other.theta):6.1f}° WP={waypoint_managers[index].status_text()}",
                 self._robot_color(other),
             ))
 

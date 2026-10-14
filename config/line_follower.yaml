@@ -1,0 +1,73 @@
+window:
+  width: 1300
+  height: 800
+  min_width: 1000
+  min_height: 650
+  panel_width: 300
+  title: HiveBr - Line Follower
+world:
+  width: 4.0
+  height: 3.0
+  grid_size: 0.5
+  show_origin: false
+  show_axes: true
+  default_obstacle_radius: 0.4
+  obstacles: []
+  # Imagem com a linha preta (2 cm) sobre fundo branco.
+  # Gerada automaticamente por examples/line_follower.py caso não exista.
+  line_map_image: config/line_track.png
+  resolution: 0.005
+  show_inflation: false
+camera:
+  initial_zoom: 1.0
+  min_zoom: 0.25
+  max_zoom: 8.0
+  zoom_step: 1.1
+  margin_x: 1.0
+  margin_y: 1.0
+robot:
+  type: line_follower
+  initial_pose:
+  - 2.0
+  - 1.5
+  - 0.0
+  # Corpo quadrado de 10 cm x 10 cm
+  length: 0.10
+  width: 0.10
+  radius: 0.05
+  max_speed: 0.6
+  max_omega: 3.5
+  path_max_length: 4000
+  # Sensores analógicos de linha (TCRT5000): use 2, 5 ou 8
+  num_sensors: 5
+  line_width: 0.02
+  sensor_offset: 0.05
+  # sensor_span: 0.08  # opcional; se omitido é calculado pela largura da linha
+  sensor_aperture: 0.004
+  sensor_noise: 0.0
+  line_threshold: 0.5
+lidar:
+  enabled: false
+  num_rays: 101
+  range: 12.0
+  fov_deg: 360
+noise:
+  enabled: false
+  sigma_v: 0.0
+  sigma_omega: 0.0
+  limit: 3.0
+  seed: null
+waypoints:
+  goal_tolerance: 0.1
+  define_orientation: false
+  show_tolerance_circle: false
+  points: []
+# Ganhos do controlador PID de seguimento de linha.
+# O erro é normalizado em [-1, 1]; positivo = linha à esquerda do robô.
+line_pid:
+  base_speed: 0.30
+  kp: 4.0
+  ki: 0.05
+  kd: 0.9
+  integral_limit: 1.0
+theme: light

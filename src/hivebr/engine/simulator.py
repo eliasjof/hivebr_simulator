@@ -13,6 +13,7 @@ from .world import World
 from .robots import create_robot, create_fleet
 from .lidar import Lidar
 from .waypoints import WaypointManager
+from .track_editor import TrackEditor
 from .ui.gui import GUI
 from . import interaction
 import yaml
@@ -258,6 +259,8 @@ class Simulator:
         self.robots = create_fleet(self.config)
         self.num_robots = len(self.robots)
 
+        self.track_editor = TrackEditor(self.world, self.config)
+
         self.lidar = Lidar(self.config)
 
         self.robot_lidar_readings = [[] for _ in range(self.num_robots)]
@@ -403,6 +406,52 @@ class Simulator:
         for manager in self.waypoint_managers:
             manager.define_orientation = define_orientation
 
+    # ======================================================
+    # Editor de pista (line follower)
+    # ======================================================
+    def toggle_track_editor(self):
+        if self.track_editor is None:
+            return
+        self.track_editor.active = not self.track_editor.active
+        if self.track_editor.active:
+            # Pausa a simulação para facilitar o desenho.
+            self.running_simulation = False
+        state = "ON" if self.track_editor.active else "OFF"
+        print(
+            f"[TrackEditor] Draw mode {state}. Arraste com o botao esquerdo; "
+            f"clique em 'Apply Track' para o robo seguir a pista."
+        )
+
+    def clear_track(self):
+        if self.track_editor is not None:
+            self.track_editor.clear()
+            print("[TrackEditor] Pista limpa.")
+
+    def apply_track(self):
+        if self.track_editor is None:
+            return
+        path = self.config.get("world", {}).get(
+            "drawn_line_map_image", "config/line_drawn.png"
+        )
+        line_map = self.track_editor.apply(path)
+        self.config.setdefault("world", {})["line_map_image"] = path
+
+        pose = self.track_editor.start_pose
+        if pose is not None:
+            x, y, theta = pose
+            for robot in self.robots:
+                if hasattr(robot, "set_initial_pose"):
+                    robot.set_initial_pose(x, y, theta)
+
+        print(
+            f"[TrackEditor] Pista aplicada ({line_map.width_m:.2f}x"
+            f"{line_map.height_m:.2f} m, res={line_map.resolution}). Salva em '{path}'."
+        )
+        if pose is not None:
+            print(f"[TrackEditor] Robo posicionado em ({x:.2f}, {y:.2f}).")
+        else:
+            print("[TrackEditor] Dica: desenhe uma linha antes de aplicar.")
+
 
     def save_config(self, path="config/default.yaml"):
 
@@ -491,6 +540,15 @@ class Simulator:
 
         elif event.ui_element == e["clear_obstacles"]:
             self.world.clear_obstacles()
+
+        elif event.ui_element == e["draw_track"]:
+            self.toggle_track_editor()
+
+        elif event.ui_element == e["apply_track"]:
+            self.apply_track()
+
+        elif event.ui_element == e["clear_track"]:
+            self.clear_track()
 
         elif event.ui_element == e["toggle_theme"]:
             self.toggle_theme()
@@ -744,6 +802,28 @@ class Simulator:
 
             if self.manager.get_hovering_any_element():
                 continue
+
+            # ==================================================
+            # MODO DE DESENHO DA PISTA (LINE FOLLOWER)
+            # ==================================================
+            if (
+                self.track_editor is not None
+                and self.track_editor.active
+                and self.mouse_inside_world(pygame.mouse.get_pos())
+            ):
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    pos = self.camera.screen_to_world(*event.pos)
+                    self.track_editor.begin(pos[0], pos[1])
+                    continue
+
+                if event.type == pygame.MOUSEMOTION and self.track_editor.drawing:
+                    pos = self.camera.screen_to_world(*event.pos)
+                    self.track_editor.extend(pos[0], pos[1])
+                    continue
+
+                if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                    self.track_editor.end()
+                    continue
 
             # ==================================================
             # EVENTOS DO MUNDO
@@ -1071,6 +1151,9 @@ class Simulator:
         else:
             self.world.draw_line_map(self.screen, self.camera)
             self.world.draw_grid(self.screen, self.camera)
+
+        if self.track_editor is not None and self.track_editor.active:
+            self.track_editor.draw(self.screen, self.camera)
             
         self.world.draw_origin(self.screen, self.camera)
         self.world.draw_axes(self.screen, self.camera)
@@ -1105,6 +1188,9 @@ class Simulator:
             config=self.config,
         )
         self.manager.draw_ui(self.screen)
+
+        if self.track_editor is not None and self.track_editor.active:
+            self.track_editor.draw_cursor_hint(self.screen)
 
         
         # ==================================================
