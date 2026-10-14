@@ -347,11 +347,27 @@ class GUI:
             (255, 165, 0) if noise_on else (255, 255, 255),
         )]
         rows.append((
-            f"B-Bot{selected} ({rtype}) x={robot.x:6.2f}, y={robot.y:6.2f} θ={math.degrees(robot.theta):6.1f}° "
+            f"B-Bot{selected} ({rtype}) x={robot.x:.2f}, y={robot.y:.2f} θ={math.degrees(robot.theta):.1f}° "
             f"| {motion} | WP={waypoints.status_text()} | d={dist}"
             + ("  [COLLISION]" if collisions[selected] else ""),
             self._robot_color(robot),
         ))
+
+        if state.get("line_follower"):
+            last = state.get("last_lap")
+            avg = state.get("lap_avg")
+            last_txt = f"{last:.2f}s" if last is not None else "--"
+            avg_txt = f"{avg:.2f}s" if avg is not None else "--"
+            if state.get("finished"):
+                timing = f"FIM em {state['finish_time']:.2f}s"
+            else:
+                timing = f"volta atual {state.get('current_lap', 0.0):.2f}s"
+            rows.append((
+                f"  Line: voltas={state.get('lap_count', 0)} | última={last_txt} "
+                f"| média={avg_txt} | {timing}",
+                (255, 220, 120),
+            ))
+
         for index, other in enumerate(robots):
             if index == selected:
                 continue

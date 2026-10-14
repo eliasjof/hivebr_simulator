@@ -180,6 +180,19 @@ def main():
 
     sim.run()
 
+    stats = sim.robot.lap_statistics()
+    if stats["count"]:
+        print(
+            f"\nResumo das voltas: {stats['count']} volta(s) | "
+            f"média={stats['mean']:.2f}s | melhor={stats['best']:.2f}s | "
+            f"pior={stats['worst']:.2f}s"
+        )
+        print("Tempos por volta (s):", [f"{t:.2f}" for t in sim.robot.lap_times])
+    elif getattr(sim.robot, "finished", False):
+        print(f"\nPercurso concluído em {sim.robot.finish_time:.2f}s.")
+    else:
+        print("\nSimulação encerrada sem voltas completas.")
+
 
 if __name__ == "__main__":
     main()

@@ -46,6 +46,11 @@ robot:
   sensor_aperture: 0.004
   sensor_noise: 0.0
   line_threshold: 0.5
+  # Cronometragem: volta completa (retorno ao início) e fim de pista
+  lap_detection_radius: 0.15   # raio p/ considerar que voltou ao início (m)
+  min_lap_distance: 1.0        # distância mínima para validar volta/fim (m)
+  min_lap_time: 1.0            # tempo mínimo de uma volta (s)
+  lost_timeout: 1.0            # tempo sem linha p/ declarar fim de pista (s)
 lidar:
   enabled: false
   num_rays: 101

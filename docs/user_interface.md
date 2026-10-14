@@ -8,6 +8,7 @@ and a **control panel** (right).
 | Input | Action |
 | ----- | ------ |
 | **Left click** (world) | Add a waypoint for the selected B-bot. If `waypoints.define_orientation` is on, a dialog asks for the final heading. |
+| **Left drag** (draw mode) | Draw the line-follower track (while **Draw Track** is active). |
 | **Right click** (world) | Add a circular obstacle; a dialog asks for its radius. |
 | **Middle drag** | Pan the camera. |
 | **`Shift` + right drag** | Pan the camera (alternative). |
@@ -24,6 +25,9 @@ and a **control panel** (right).
 | **Clear Waypoints** | Remove the routes of all B-bots. |
 | **Clear Obstacles** | Remove all circular obstacles. |
 | **Load Map** | Load an occupancy-grid image; a dialog asks for the resolution in `m/pixel`. |
+| **Draw Track** | Toggle the line-follower track editor. While on, the simulation pauses and left-drag paints the black line on a white canvas. |
+| **Apply Track** | Convert the drawing into a `LineTrackMap`, install it in the world, save it to `world.drawn_line_map_image`, and place the B-bot at the start of the stroke (aligned with its tangent). |
+| **Clear Track** | Erase the drawing canvas. |
 | **Toggle LiDAR** | Enable/disable LiDAR rendering. |
 | **Toggle Noise** | Enable/disable the Gaussian velocity noise (`noise` config section). |
 | **Toggle Theme** | Switch between the `dark` and `light` palettes. |

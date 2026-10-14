@@ -118,19 +118,51 @@ class LineFollowerRobot(DifferentialRobot):
         self.line_position = 0.0
         self.line_lost = True
         self._last_sign = 0.0
+        self.reset_laps()
+
+    def set_initial_pose(self, x, y, theta=0.0):
+        super().set_initial_pose(x, y, theta)
+        self.reset_laps()
 
     def state(self):
         state = super().state()
+        current_lap = (
+            self.finish_time
+            if self.finished
+            else (self.time - self.lap_start_time)
+        )
         state.update(
             {
+                "line_follower": True,
                 "num_sensors": self.num_sensors,
                 "sensors": self.sensor_readings.tolist(),
                 "line_error": self.line_error,
                 "line_position": self.line_position,
                 "line_lost": self.line_lost,
+                "time": self.time,
+                "finished": self.finished,
+                "finish_time": self.finish_time,
+                "lap_count": len(self.lap_times),
+                "lap_times": list(self.lap_times),
+                "last_lap": self.lap_times[-1] if self.lap_times else None,
+                "lap_avg": float(np.mean(self.lap_times)) if self.lap_times else None,
+                "current_lap": current_lap,
             }
         )
         return state
+
+    def lap_statistics(self) -> dict:
+        """Resumo das voltas (contagem, última, média, melhor, pior)."""
+        if not self.lap_times:
+            return {"count": 0, "last": None, "mean": None, "best": None, "worst": None}
+        times = np.asarray(self.lap_times, dtype=float)
+        return {
+            "count": int(times.size),
+            "last": float(times[-1]),
+            "mean": float(times.mean()),
+            "best": float(times.min()),
+            "worst": float(times.max()),
+        }
 
     def sensor_world_position(self, index: int) -> np.ndarray:
         """Posição no mundo do sensor ``index``."""
@@ -193,6 +225,57 @@ class LineFollowerRobot(DifferentialRobot):
 
     # aliases convenientes
     read_sensors = read_line_sensors
+
+    def step(self, command: dict, dt: float):
+        if self.finished:
+            command = {"v": 0.0, "omega": 0.0}
+        super().step(command, dt)
+        self._update_progress(dt)
+
+    def _update_progress(self, dt: float):
+        """Cronometra voltas (pista fechada) e fim de percurso (pista aberta)."""
+        self.time += dt
+        self.distance_traveled += abs(self.v) * dt
+
+        # ---- fim de pista: linha perdida por tempo suficiente ----
+        if not self.finished and self.line_lost:
+            self._lost_time += dt
+            if (
+                self._lost_time >= self.lost_timeout
+                and self.distance_traveled >= self.min_lap_distance
+            ):
+                self.finished = True
+                self.finish_time = self.time
+                print(
+                    f"[LineFollower] Fim da pista em {self.finish_time:.2f} s "
+                    f"({self.distance_traveled:.2f} m percorridos)."
+                )
+        elif not self.line_lost:
+            self._lost_time = 0.0
+
+        if self.finished:
+            return
+
+        # ---- volta completa: retorno ao ponto inicial (com histerese) ----
+        distance_to_origin = float(np.linalg.norm(self.position - self.lap_origin))
+        exit_radius = 2.5 * self.lap_detection_radius
+        if distance_to_origin > exit_radius:
+            self._left_start = True
+
+        if (
+            self._left_start
+            and distance_to_origin <= self.lap_detection_radius
+            and (self.time - self.lap_start_time) >= self.min_lap_time
+        ):
+            lap = self.time - self.lap_start_time
+            self.lap_times.append(lap)
+            self.lap_start_time = self.time
+            self._left_start = False
+            stats = self.lap_statistics()
+            print(
+                f"[LineFollower] Volta {stats['count']} concluída em {lap:.2f} s "
+                f"(média {stats['mean']:.2f} s, melhor {stats['best']:.2f} s)."
+            )
 
     @staticmethod
     def _sensor_color(value: float):

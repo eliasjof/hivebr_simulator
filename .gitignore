@@ -15,3 +15,7 @@ venv/
 # Logs
 logs/
 *.pkl
+
+# Generated line-following tracks
+config/line_track.png
+config/line_drawn.png
