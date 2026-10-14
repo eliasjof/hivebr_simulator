@@ -180,6 +180,40 @@ class SwarmExperiment:
         self._build()
         self._ensure_backend().run()
 
+    # ── logging (data logger do engine) ────────────────────────
+    @property
+    def simulator(self):
+        """Simulador (engine) usado pelo backend navsim2d, se já criado.
+
+        Útil para acessar ``sim.logger`` depois de ``run()``, inclusive em
+        experimentos descentralizados.
+        """
+        return getattr(self._backend, "_sim", None) if self._backend is not None else None
+
+    def save_log(self, path: str = "log.pkl") -> None:
+        """Salva o DataLogger do simulador (``.pkl`` ou ``.csv`` pela extensão)."""
+        sim = self.simulator
+        if sim is None or getattr(sim, "logger", None) is None:
+            print("[SwarmExperiment] Nenhum log disponível (rode o experimento antes).")
+            return
+        sim.logger.export(path)
+
+    def plot_log(self) -> None:
+        """Abre a janela de plot do DataLogger do simulador."""
+        sim = self.simulator
+        if sim is None or getattr(sim, "logger", None) is None:
+            print("[SwarmExperiment] Nenhum log disponível (rode o experimento antes).")
+            return
+        sim.logger.plot()
+
+    def print_collisions(self) -> None:
+        """Imprime as colisões registradas no DataLogger do simulador."""
+        sim = self.simulator
+        if sim is None or getattr(sim, "logger", None) is None:
+            print("[SwarmExperiment] Nenhum log disponível (rode o experimento antes).")
+            return
+        sim.logger.print_collisions()
+
     def close(self) -> None:
         if self._backend is not None:
             self._backend.close()

@@ -93,11 +93,15 @@ if __name__ == "__main__":
     config = load_config(project_root / "config" / "default.yaml")
     config["interaction"] = {
         "collision_policy": "stop",
+        "robot_collision": True,
         "robot_safety_margin": 0.0,
         "resolve_push": 0.05,
         "comm_radius": 2.0,
         "show_robot_links": True,
     }
+    # With robot_collision active, the LiDAR treats the other B-bots as
+    # moving obstacles.
+    config["lidar"]["enabled"] = True
 
     fleet = [
         {"id": 0, "type": "differential", "initial_pose": [2.0, 2.0, 0.0], "radius": 0.25},
@@ -128,3 +132,9 @@ if __name__ == "__main__":
 
     print(f"Decentralized swarm ready: {len(fleet)} agents. Keys 1..{len(fleet)} select a B-bot.")
     exp.run()
+
+    # In the decentralized mode the DataLogger lives inside the engine's
+    # Simulator, created by the navsim2d backend. Use the experiment helpers to
+    # save/plot it after the run (pickle by default, CSV via `save_log("x.csv")`).
+    exp.save_log("decentralized_swarm_log.pkl")
+    exp.print_collisions()

@@ -14,9 +14,10 @@ The window allows the user to:
 - overlay several B-bots in the same subplot or split one B-bot per subplot;
 - save the current figure (png/pdf/svg).
 
-Two variables can share the same subplot through dual y-axes (one on the left,
-one on the right): the commanded and the actual velocities, or the orientation
-and its desired value, are drawn together with a dedicated axis each.
+Two variables can share the same subplot on a single pair of axes, so the
+commanded and the actuated velocity are overlaid in the same plot for easy
+comparison. The commanded and the actual velocities are also offered as
+separate signals.
 
 The window is opened by :func:`show_interactive_plot`, usually from the
 **Plot Log** button of the simulator or from ``DataLogger.plot()``.
@@ -154,13 +155,31 @@ def _sig_linear(data, log):
     if _has_finite(cmd):
         curves.append({"label": "command", "x": t, "y": cmd, "lw": 1.6})
     if _has_finite(real):
-        curves.append({"label": "actual", "x": t, "y": real, "axis": "right",
+        curves.append({"label": "actual", "x": t, "y": real,
                        "ls": "--", "lw": 1.2})
-    panel = {"kind": "time", "xlabel": "t (s)", "ylabel": ylabel,
-             "title": "Linear velocity - command vs actual", "curves": curves}
-    if _has_finite(real):
-        panel["ylabel_right"] = ylabel
-    return {"linear": panel}
+    return {"linear": {"kind": "time", "xlabel": "t (s)", "ylabel": ylabel,
+                       "title": "Linear velocity - command vs actual",
+                       "curves": curves}}
+
+
+def _sig_linear_cmd(data, log):
+    cmd, _, ylabel = _linear_pair(data, log.robot_type)
+    if not _has_finite(cmd):
+        return None
+    return {"linear_cmd": {"kind": "time", "xlabel": "t (s)", "ylabel": ylabel,
+                           "title": "Linear velocity - command",
+                           "curves": [{"label": "command", "x": data["t"],
+                                       "y": cmd, "lw": 1.6}]}}
+
+
+def _sig_linear_real(data, log):
+    _, real, ylabel = _linear_pair(data, log.robot_type)
+    if not _has_finite(real):
+        return None
+    return {"linear_real": {"kind": "time", "xlabel": "t (s)", "ylabel": ylabel,
+                            "title": "Linear velocity - actual",
+                            "curves": [{"label": "actual", "x": data["t"],
+                                        "y": real, "lw": 1.6}]}}
 
 
 def _sig_angular(data, log):
@@ -175,12 +194,32 @@ def _sig_angular(data, log):
     if _has_finite(real):
         curves.append({"label": "actual", "x": t,
                        "y": np.degrees(real) if to_deg else real,
-                       "axis": "right", "ls": "--", "lw": 1.2})
-    panel = {"kind": "time", "xlabel": "t (s)", "ylabel": ylabel,
-             "title": "Angular velocity - command vs actual", "curves": curves}
-    if _has_finite(real):
-        panel["ylabel_right"] = ylabel
-    return {"angular": panel}
+                       "ls": "--", "lw": 1.2})
+    return {"angular": {"kind": "time", "xlabel": "t (s)", "ylabel": ylabel,
+                        "title": "Angular velocity - command vs actual",
+                        "curves": curves}}
+
+
+def _sig_angular_cmd(data, log):
+    cmd, _, ylabel, to_deg = _angular_pair(data, log.robot_type)
+    if not _has_finite(cmd):
+        return None
+    return {"angular_cmd": {"kind": "time", "xlabel": "t (s)", "ylabel": ylabel,
+                            "title": "Angular velocity - command",
+                            "curves": [{"label": "command", "x": data["t"],
+                                        "y": np.degrees(cmd) if to_deg else cmd,
+                                        "lw": 1.6}]}}
+
+
+def _sig_angular_real(data, log):
+    _, real, ylabel, to_deg = _angular_pair(data, log.robot_type)
+    if not _has_finite(real):
+        return None
+    return {"angular_real": {"kind": "time", "xlabel": "t (s)", "ylabel": ylabel,
+                             "title": "Angular velocity - actual",
+                             "curves": [{"label": "actual", "x": data["t"],
+                                         "y": np.degrees(real) if to_deg else real,
+                                         "lw": 1.6}]}}
 
 
 def _sig_linear_error(data, log):
@@ -228,7 +267,11 @@ SIGNALS = [
     ("pos_error", "Position error (distance to goal)", _sig_pos_error),
     ("ori_error", "Orientation error", _sig_ori_error),
     ("linear", "Linear velocity (command vs actual)", _sig_linear),
+    ("linear_cmd", "Linear velocity (command)", _sig_linear_cmd),
+    ("linear_real", "Linear velocity (actual)", _sig_linear_real),
     ("angular", "Angular velocity (command vs actual)", _sig_angular),
+    ("angular_cmd", "Angular velocity (command)", _sig_angular_cmd),
+    ("angular_real", "Angular velocity (actual)", _sig_angular_real),
     ("linear_error", "Linear velocity error", _sig_linear_error),
     ("angular_error", "Angular velocity error", _sig_angular_error),
     ("commands", "Control commands", _sig_commands),

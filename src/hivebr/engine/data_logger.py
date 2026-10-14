@@ -14,6 +14,10 @@ Comportamento de gravação
 - Um novo segmento é iniciado sempre que novos waypoints são adicionados
   àquele robô.
 - Cada segmento é identificado pelo campo ``segment`` nos frames.
+- Cada frame guarda uma flag ``collision`` (por robô). Além disso, toda
+  colisão (robô-robô, obstáculo ou mapa) é registrada em
+  ``MultiRobotLog.collision_events`` com o instante ``t`` e os participantes;
+  no CSV, essas colisões vão para um arquivo ``*_collisions.csv``.
 
 Uso
 ---
@@ -86,6 +90,28 @@ _ROBOT_TYPE_ALIASES = {
 _COMMON_FIELDS = ["t", "x", "y", "theta"]
 
 
+def format_collision_event(event: dict) -> str:
+    """Formata um evento de colisão em uma linha legível."""
+    t = float(event.get("t", 0.0))
+    kind = event.get("kind", "?")
+    robots = event.get("robots", []) or []
+    if kind == "robot":
+        pair = " <-> ".join(f"B-Bot{r}" for r in robots)
+        dist = event.get("distance")
+        dist_txt = f" (d={float(dist):.3f} m)" if dist is not None else ""
+        return f"[{t:8.2f}s] COLISÃO robô-robô: {pair}{dist_txt}"
+    if kind == "obstacle":
+        xy = event.get("obstacle_xy")
+        xy_txt = f" em ({float(xy[0]):.2f}, {float(xy[1]):.2f})" if xy else ""
+        return (
+            f"[{t:8.2f}s] COLISÃO B-Bot{robots[0]} com obstáculo "
+            f"#{event.get('obstacle_index')}{xy_txt}"
+        )
+    if kind == "grid":
+        return f"[{t:8.2f}s] COLISÃO B-Bot{robots[0]} com o mapa (inflado)"
+    return f"[{t:8.2f}s] COLISÃO {event}"
+
+
 # ──────────────────────────────────────────────────────────────
 # Frame — uma amostra no tempo
 # ──────────────────────────────────────────────────────────────
@@ -116,6 +142,9 @@ class Frame:
     omega_real: float | None = None   # differential
     speed_real: float | None = None   # ackermann
     steer_real: float | None = None   # ackermann
+
+    # ── colisão (robô-robô, obstáculo ou grid) ─────────────────
+    collision:  bool         = False
 
     # ── planejamento ───────────────────────────────────────────
     goal:       tuple | None = None   # (x, y) ou (x, y, theta)
@@ -161,6 +190,7 @@ class SimLog:
             "y":       _get("y"),
             "theta":   _get("theta"),
             "segment": np.array([f.segment for f in self.frames], dtype=int),
+            "collision": np.array([1 if f.collision else 0 for f in self.frames], dtype=int),
         }
 
         # ação de controle
@@ -217,6 +247,10 @@ class MultiRobotLog:
     """Container com os logs de todos os robôs de uma simulação."""
 
     logs: dict = field(default_factory=dict)   # {robot_index: SimLog}
+
+    # ── colisões registradas durante o experimento ─────────────
+    # Cada item: {"t", "kind", "robots", ...}
+    collision_events: list = field(default_factory=list)
 
     # ── compatibilidade com a API antiga (robô único) ──────────
 
@@ -279,10 +313,12 @@ class DataLogger:
         self._segment_idx: dict[int, int] = {}
         self._last_wp_count: dict[int, int] = {}
         self._initialized = False
+        self._sim = None
 
     # ── inicialização lazy ─────────────────────────────────────
 
     def _init(self, sim):
+        self._sim = sim
         for i, robot in enumerate(sim.robots):
             try:
                 rtype = str(robot.state().get("type", "differential")).lower()
@@ -305,6 +341,7 @@ class DataLogger:
         self._segment_idx = {}
         self._last_wp_count = {}
         self._initialized = False
+        self._sim = None
         print("[DataLogger] Logger reiniciado.")
 
     # ── detecção de waypoints ──────────────────────────────────
@@ -380,6 +417,13 @@ class DataLogger:
         goal = self._extract_goal(wm)
         waypoint, wp_i = self._extract_waypoint_info(wm)
 
+        collisions = getattr(sim, "collisions", None)
+        in_collision = bool(
+            collisions[index]
+            if collisions is not None and index < len(collisions)
+            else False
+        )
+
         log.frames.append(Frame(
             t=self._t,
             x=float(robot.x),
@@ -389,6 +433,7 @@ class DataLogger:
             waypoint=waypoint,
             wp_index=wp_i,
             segment=self._segment_idx[index],
+            collision=in_collision,
             **cmd_fields,
             **real_fields,
         ))
@@ -450,20 +495,36 @@ class DataLogger:
     # ── exportação ─────────────────────────────────────────────
 
     def result(self) -> MultiRobotLog:
-        return MultiRobotLog(logs=self._logs)
+        events = list(getattr(self._sim, "collision_events", []) or [])
+        return MultiRobotLog(logs=self._logs, collision_events=events)
+
+    def collision_summary(self) -> list[str]:
+        """Linhas legíveis descrevendo cada colisão registrada."""
+        return [format_collision_event(e) for e in self.result().collision_events]
+
+    def print_collisions(self):
+        lines = self.collision_summary()
+        if not lines:
+            print("[DataLogger] Nenhuma colisão registrada.")
+            return
+        print(f"[DataLogger] {len(lines)} colisão(ões) registrada(s):")
+        for line in lines:
+            print("  " + line)
 
     def _has_data(self) -> bool:
         return bool(self._logs) and any(l.frames for l in self._logs.values())
 
     def save(self, path: str = "log.pkl"):
-        """Salva o log completo em pickle."""
+        """Salva o log completo (incluindo colisões) em pickle."""
         if not self._has_data():
             print("[DataLogger] Nenhum dado para salvar.")
             return
+        result = self.result()
         with open(path, "wb") as f:
-            pickle.dump(self.result(), f)
+            pickle.dump(result, f)
         total = sum(len(l.frames) for l in self._logs.values())
         print(f"[DataLogger] {total} frames / {len(self._logs)} robô(s) -> '{path}'")
+        self._write_collisions(result.collision_events, path)
 
     def save_csv(self, path: str = "log.csv"):
         """Salva o log completo em CSV (uma linha por robô por frame)."""
@@ -496,6 +557,38 @@ class DataLogger:
 
         total = sum(len(l.frames) for l in self._logs.values())
         print(f"[DataLogger] {total} frames / {len(self._logs)} robô(s) -> '{path}'")
+        self._write_collisions(self.result().collision_events, path)
+
+    def _write_collisions(self, events, path: str):
+        """Grava as colisões em um CSV companheiro e imprime o resumo."""
+        if not events:
+            print("[DataLogger] Nenhuma colisão registrada.")
+            return
+        base = str(path)
+        for ext in (".pkl", ".pickle", ".csv"):
+            if base.lower().endswith(ext):
+                base = base[: -len(ext)]
+                break
+        collisions_path = base + "_collisions.csv"
+        with open(collisions_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["t", "kind", "robot_a", "robot_b",
+                             "obstacle_index", "obstacle_x", "obstacle_y",
+                             "distance", "description"])
+            for e in events:
+                robots = list(e.get("robots", []) or [])
+                xy = e.get("obstacle_xy") or [None, None]
+                writer.writerow([
+                    e.get("t"), e.get("kind"),
+                    robots[0] if len(robots) > 0 else "",
+                    robots[1] if len(robots) > 1 else "",
+                    e.get("obstacle_index", ""),
+                    xy[0] if xy and xy[0] is not None else "",
+                    xy[1] if xy and xy[1] is not None else "",
+                    e.get("distance", ""),
+                    format_collision_event(e),
+                ])
+        print(f"[DataLogger] {len(events)} colisão(ões) -> '{collisions_path}'")
 
     def export(self, path: str):
         """Exporta escolhendo o formato pela extensão (.csv ou .pkl)."""

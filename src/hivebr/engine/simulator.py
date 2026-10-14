@@ -268,6 +268,11 @@ class Simulator:
         self.robot_lidar_readings = [[] for _ in range(self.num_robots)]
         self.collisions = [False] * self.num_robots
 
+        # Histórico de colisões (robô-robô, obstáculo ou grid) para o logger.
+        self.sim_time = 0.0
+        self.collision_events: list[dict] = []
+        self._active_collision_keys: set = set()
+
         # Último comando cru emitido pelo controller (sem ruído), por robô.
         # Usado pelo DataLogger para registrar "comando vs real".
         self.last_commands = [{} for _ in range(self.num_robots)]
@@ -398,6 +403,9 @@ class Simulator:
         self.camera.reset()
         self.collisions = [False] * self.num_robots
         self.robot_lidar_readings = [[] for _ in range(self.num_robots)]
+        self.sim_time = 0.0
+        self.collision_events = []
+        self._active_collision_keys = set()
 
     def set_goal_tolerance(self, tolerance):
         for manager in self.waypoint_managers:
@@ -645,6 +653,65 @@ class Simulator:
                 return True
 
         return False
+
+    # ======================================================
+    # Colisão robô-robô: política e LiDAR
+    # ======================================================
+    def robot_collision_enabled(self) -> bool:
+        """True se a colisão entre robôs deve ser avaliada."""
+        policies = self.config.get("interaction", {})
+        if not bool(policies.get("robot_collision", True)):
+            return False
+        policy = str(policies.get("collision_policy", "stop")).lower()
+        return policy not in ("none", "off", "ignore")
+
+    def lidar_obstacle_robots(self):
+        """Lista de robôs a tratar como obstáculos móveis no LiDAR.
+
+        Retorna a frota quando a avaliação de colisão robô-robô está ativa;
+        ``None`` caso contrário (LiDAR ignora os demais robôs).
+        """
+        if self.num_robots > 1 and self.robot_collision_enabled():
+            return self.robots
+        return None
+
+    def _static_collision_source(self, robot, index):
+        """Detecta colisão estática e devolve ``(chave, evento)`` ou ``None``."""
+        q = robot.position
+        r_robot = robot.radius
+
+        if self.world.grid_map is not None:
+            if self.world.grid_map.is_occupied(q[0], q[1], use_inflated=True):
+                return (
+                    ("grid", index),
+                    {"kind": "grid", "robots": [index]},
+                )
+
+        for obs_index, obs in enumerate(self.world.obstacles):
+            center = self.world.get_position(obs)
+            r_obs = self.world.obstacle_radius(obs)
+            dist = float(np.linalg.norm(q - center))
+            if dist < (r_obs + r_robot):
+                return (
+                    ("obstacle", index, obs_index),
+                    {
+                        "kind": "obstacle",
+                        "robots": [index],
+                        "obstacle_index": obs_index,
+                        "obstacle_xy": [float(center[0]), float(center[1])],
+                        "distance": dist,
+                    },
+                )
+
+        return None
+
+    def _emit_collision(self, key, event):
+        """Registra o início de uma colisão (borda de subida), com timestamp."""
+        if key in self._active_collision_keys:
+            return
+        record = dict(event)
+        record["t"] = float(self.sim_time)
+        self.collision_events.append(record)
 
     def confirm_waypoint_orientation(self):
 
@@ -1023,8 +1090,11 @@ class Simulator:
 
         policies = self.config.get("interaction", {})
         safety_margin = float(policies.get("robot_safety_margin", 0.0))
-        collision_policy = str(policies.get("collision_policy", "stop"))
-        robot_collision = bool(policies.get("robot_collision", True))
+        collision_policy = str(policies.get("collision_policy", "stop")).lower()
+        evaluate_robot_collision = self.robot_collision_enabled()
+
+        self.sim_time += self.dt
+        current_collision_keys: set = set()
 
         # ======================================================
         # Recarga (por robô)
@@ -1048,11 +1118,16 @@ class Simulator:
         # ======================================================
         # Waypoints e LiDAR (por robô)
         # ======================================================
+        # Quando a colisão robô-robô está ativa, os demais B-bots são
+        # considerados obstáculos móveis no LiDAR.
+        lidar_robots = self.lidar_obstacle_robots()
         goals = []
         for index, robot in enumerate(self.robots):
             self.waypoint_managers[index].update(robot.position)
             goals.append(self.waypoint_managers[index].get_current_waypoint())
-            self.robot_lidar_readings[index] = self.lidar.cast_rays(robot, self.world)
+            self.robot_lidar_readings[index] = self.lidar.cast_rays(
+                robot, self.world, lidar_robots
+            )
 
         # ======================================================
         # Comandos a partir de um snapshot congelado da frota
@@ -1078,8 +1153,12 @@ class Simulator:
         for index, robot in enumerate(self.robots):
             if self.collisions[index]:
                 continue
-            if self.check_collision(robot):
+            source = self._static_collision_source(robot, index)
+            if source is not None:
+                key, event = source
                 self.collisions[index] = True
+                current_collision_keys.add(key)
+                self._emit_collision(key, event)
 
         # ======================================================
         # Interação robô-robô
@@ -1088,11 +1167,7 @@ class Simulator:
         # completamente a avaliação de colisão entre os robôs - útil, por
         # exemplo, para várias instâncias de line follower iniciando no mesmo
         # ponto da pista.
-        if (
-            self.num_robots > 1
-            and robot_collision
-            and collision_policy not in ("none", "off", "ignore")
-        ):
+        if self.num_robots > 1 and evaluate_robot_collision:
             pairs = interaction.detect_robot_collisions(self.robots, safety_margin)
             if pairs:
                 if collision_policy == "stop":
@@ -1105,6 +1180,19 @@ class Simulator:
                         safety_margin,
                         float(policies.get("resolve_push", 0.05)),
                     )
+                for i, j, distance in pairs:
+                    key = ("robot", min(i, j), max(i, j))
+                    current_collision_keys.add(key)
+                    self._emit_collision(
+                        key,
+                        {
+                            "kind": "robot",
+                            "robots": [int(i), int(j)],
+                            "distance": float(distance),
+                        },
+                    )
+
+        self._active_collision_keys = current_collision_keys
 
     def go_to_recharge_place(self, id, angle=0.0, robot_index=None):
         index = self.selected_robot_index if robot_index is None else int(robot_index)
@@ -1185,8 +1273,9 @@ class Simulator:
         self.world.draw_recharge_places(self.screen, self.camera)
         for manager in self.waypoint_managers:
             manager.draw(self.screen, self.camera)
+        lidar_robots = self.lidar_obstacle_robots()
         for index, robot in enumerate(self.robots):
-            self.lidar.draw(self.screen, self.camera, robot, self.world)
+            self.lidar.draw(self.screen, self.camera, robot, self.world, lidar_robots)
         for index, robot in enumerate(self.robots):
             robot.draw(self.screen, self.camera)
             if self.collisions[index]:

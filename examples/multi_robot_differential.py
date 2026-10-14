@@ -105,11 +105,16 @@ if __name__ == "__main__":
     # Robot-robot interaction policy
     config["interaction"] = {
         "collision_policy": "stop",
+        "robot_collision": True,
         "robot_safety_margin": 0.0,
         "resolve_push": 0.05,
         "comm_radius": None,
         "show_robot_links": True,
     }
+
+    # With robot_collision active, the LiDAR treats the other B-bots as
+    # moving obstacles (only visible when the sensor is enabled).
+    config["lidar"]["enabled"] = True
 
     sim = Simulator(config=config, controller=full_controller)
 

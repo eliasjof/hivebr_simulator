@@ -51,9 +51,9 @@ TRACK_PATH = project_root / "config" / "line_track.png"
 # ---------------------------------------------------------------------------
 GAIN_SETS = [
     {"base_speed": 0.30, "kp": 3.0, "ki": 0.00, "kd": 0.6, "integral_limit": 1.0},
-    {"base_speed": 0.30, "kp": 4.0, "ki": 0.05, "kd": 0.9, "integral_limit": 1.0},
+    {"base_speed": 0.30, "kp": 10.0, "ki": 0.00, "kd": 0.0, "integral_limit": 1.0},
     {"base_speed": 0.30, "kp": 6.0, "ki": 0.00, "kd": 0.0, "integral_limit": 1.0},
-    {"base_speed": 0.30, "kp": 8.0, "ki": 0.20, "kd": 1.6, "integral_limit": 1.0},
+    {"base_speed": 0.30, "kp": 28.0, "ki": 0.20, "kd": 1.6, "integral_limit": 1.0},
 ]
 
 # Estado do termo integral por robô (chave = id(robot)).
