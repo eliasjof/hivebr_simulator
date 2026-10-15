@@ -57,3 +57,7 @@ state.
 ```
 
 See the [OpenLab API](../openlab_api.md) for the full `SwarmExperiment` surface.
+
+To spread the same fleet over several CPU cores with the engine's
+`fleet_controller` seam, see the
+[Decentralized Swarm across CPU cores](decentralized_multiprocess.md) example.

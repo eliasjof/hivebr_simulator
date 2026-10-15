@@ -58,13 +58,82 @@ from a **line map**: a grayscale image whose dark pixels are the track. The
 analog reading is `1.0` over the black line and `0.0` over the white background.
 
 ```python
-robot.read_line_sensors(world.line_map)
-values = robot.sensor_readings     # array in [0, 1], one entry per sensor
+values = robot.read_line_sensors(world.line_map)   # array in [0, 1]
 error  = robot.line_error          # normalised lateral error in [-1, 1]
 offset = robot.line_position       # lateral offset in metres
 if robot.line_lost:
     ...                            # no sensor currently sees the line
 ```
+
+### How `line_error` is computed
+
+1. **Sample each sensor.** Sensor `i` sits at a local offset of
+   `sensor_offset` ahead of the body centre and `y_i` sideways, with
+   `y_i` spanning the bar from `-sensor_span/2` (the robot's right, `-y`) to
+   `+sensor_span/2` (its left, `+y`). Each sensor reads the line map over a
+   disk of radius `sensor_aperture` and returns an analog value
+   `value_i` in `[0, 1]`.
+
+2. **Weight the sensors** from right to left:
+
+   ```text
+   weights = linspace(-1, +1, num_sensors)
+   # index 0 (y = -span/2, right) -> -1 ; last index (y = +span/2, left) -> +1
+   ```
+
+3. **Normalised, intensity-weighted centroid** — the error is the mean of the
+   weights weighted by how strongly each sensor sees the line:
+
+   ```text
+   total      = sum(value_i)
+   line_error = sum(weights_i * value_i) / total      # in [-1, +1]
+   ```
+
+   The sign convention is:
+
+   - `line_error > 0` → the line is to the **left** of the robot (its centre of
+     mass lies under the left sensors);
+   - `line_error < 0` → the line is to the **right**;
+   - `line_error = 0` → the line is centred (or symmetric under the bar);
+   - `|line_error| = 1` → only the extreme sensor sees the line.
+
+   Because a differential B-bot turns left with a positive `omega`, the natural
+   controller is `{"v": base, "omega": kp * line_error}`.
+
+4. **Metric offset.** Multiply by half the lateral span to get a distance:
+
+   ```text
+   line_position = line_error * (sensor_span / 2)      # metres, + = to the left
+   ```
+
+5. **Lost line.** If `total ~ 0` (no sensor sees the line) `line_lost` becomes
+   `True` and `line_error` keeps the sign of the **last** non-zero error, so a
+   controller can keep turning toward where the line was. That last sign is
+   `_last_sign`, updated on every step where the line is still visible.
+
+!!! tip "Choosing the number of sensors"
+    Use 2, 5 or 8 sensors. With more sensors the weighted centroid resolves the
+    lateral error more finely (smaller quantisation steps). If `sensor_span` is
+    omitted it is derived from `line_width` so the line always crosses
+    neighbouring sensors.
+
+### What you have available
+
+| Attribute / method | Description |
+| ------------------ | ----------- |
+| `robot.read_line_sensors(line_map)` | Samples the array and updates the fields below; returns the values. |
+| `robot.sensor_readings` | `numpy` array in `[0, 1]`, one entry per sensor (`1` = line). |
+| `robot.line_error` | Normalised lateral error in `[-1, +1]`; **positive = line to the left**. |
+| `robot.line_position` | Lateral offset in **metres** (`line_error * sensor_span / 2`); positive = left. |
+| `robot.line_lost` | `True` when no sensor sees the line (error keeps the last sign). |
+| `robot.num_sensors` | Number of sensors. |
+| `robot.sensor_offset` | Forward distance of the bar from the body centre (m). |
+| `robot.sensor_span` | Total lateral span of the bar (m). |
+| `robot.sensor_aperture` | Radius of the area sampled by each sensor (m). |
+| `robot.sensor_weights` | The weights used in the centroid (`linspace(-1, 1, N)`). |
+| `robot.sensor_local` | Local `(x, y)` of each sensor on the robot body. |
+| `robot.sensor_world_position(i)` | World `(x, y)` of sensor `i`. |
+| `robot.line_threshold` | Reading above which a sensor counts as "on the line". |
 
 Configure the array under `robot` (`num_sensors`, `sensor_offset`,
 `sensor_span`, `sensor_aperture`, `sensor_noise`, `line_width`). The line map is
