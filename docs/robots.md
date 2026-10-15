@@ -66,8 +66,10 @@ robot:
   line_width: 0.02          # physical line width (used to space the sensors)
   num_sensors: 5            # 2, 5 or 8 TCRT5000
   sensor_offset: 0.05       # distance ahead of the body centre
+  # sensor_span: 0.08       # optional; derived from line_width when omitted
   sensor_aperture: 0.004    # sampled area radius
   sensor_noise: 0.0
+  line_threshold: 0.5       # above this a sensor counts as "on the line"
 ```
 
 Read the sensors from a control callback; each reading is analog in `[0, 1]`
@@ -85,6 +87,65 @@ lateral offset in metres and `robot.line_lost` is `True` when no sensor sees the
 line. If `sensor_span` is omitted it is derived from `line_width` so that the
 line always crosses neighbouring sensors. See
 `examples/line_follower.py` for a full PID demo on a random track.
+
+### Lap timing and progress
+
+The B-bot times itself while it follows the line. `reset_laps()` starts a new
+measurement, and the running state is exposed through `robot.state()` and
+`robot.lap_statistics()`:
+
+```yaml
+robot:
+  lap_detection_radius: 0.15   # "back to start" radius for a closed track (m)
+  min_lap_distance: 1.0        # min distance before a lap/finish is valid (m)
+  min_lap_time: 1.0            # min lap duration (s)
+  lost_timeout: 1.0            # line lost for this long => end of open track (s)
+```
+
+```python
+stats = robot.lap_statistics()
+# {"count": 3, "last": 12.84, "mean": 13.02, "best": 12.41, "worst": 13.55}
+```
+
+On a **closed** track the B-bot records a lap every time it returns near the
+start; on an **open** track it declares `finished = True` and sets `finish_time`
+after the line has been lost for `lost_timeout` seconds. `robot.state()` adds:
+`line_error`, `line_lost`, `time`, `lap_count`, `lap_times`, `last_lap`,
+`lap_avg`, `current_lap`, `finished` and `finish_time`.
+
+### Comparing several line followers at once
+
+You can run several `line_follower` B-bots on the **same track from the same
+start point**, each with different gains, to compare techniques under identical
+conditions. Because they start overlapped, turn off the robot–robot collision
+evaluation so the B-bots do not stop on each other:
+
+```python
+config["interaction"] = {"collision_policy": "none", "robot_collision": False}
+config["show_times"] = True     # show each B-bot's time in the HUD
+```
+
+Attach per-B-bot gains (the controller receives the B-bot object) and run one PID
+per robot:
+
+```python
+for i, robot in enumerate(sim.robots):
+    robot.pid_params = GAIN_SETS[i]     # e.g. {"kp": 4.0, "ki": 0.05, "kd": 0.9, ...}
+```
+
+After the run, each B-bot reports its own result:
+
+```python
+for i, robot in enumerate(sim.robots):
+    print(f"B-Bot{i}: {robot.lap_statistics()}")
+```
+
+The **Toggle Times** button (or `config["show_times"]`) hides/shows the per-B-bot
+timing in the HUD. See the
+[Multi Line Follower example](examples/multi_line_follower.md) and the
+[collision flag](multi_robot.md#robot-robot-interaction) for details. Pair this
+with the [data logger](logging.md) to save the comparison.
+
 
 ## Battery model (differential)
 

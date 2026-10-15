@@ -27,13 +27,28 @@ Uso
     sim    = Simulator(controller=ctrl)
     sim.run()
 
-    logger.save("run_01.pkl")     # pickle
-    logger.save_csv("run_01.csv") # csv
-    logger.plot()                 # janela interativa de plot
+    logger.save("run_01.pkl")      # pickle (recommended)
+    logger.save_csv("run_01.csv")  # CSV (+ *_collisions.csv)
+    logger.export("run_01.csv")    # pick format by extension
+    logger.print_collisions()      # human-readable collision summary
+    logger.plot()                  # interactive plot window
 
     # Carregar e plotar depois
     log = DataLogger.load("run_01.pkl")
     log.plot_log()
+
+Colisões
+--------
+Cada frame guarda uma flag ``collision`` por robô. Além disso, cada colisão
+(robô-robô, obstáculo ou mapa) é registrada uma única vez, na borda de subida,
+em :attr:`MultiRobotLog.collision_events` no formato
+
+    {"t": 0.03, "kind": "robot", "robots": [0, 1], "distance": 0.0}
+
+com ``kind`` em ``{"robot", "obstacle", "grid"}``, o instante ``t`` e os
+participantes (índices de robô, ``obstacle_index``/``obstacle_xy``). No CSV,
+os eventos vão para um arquivo ``*_collisions.csv``. Ver
+``DataLogger.print_collisions`` e ``format_collision_event``.
 """
 
 from __future__ import annotations

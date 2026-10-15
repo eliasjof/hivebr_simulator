@@ -34,7 +34,16 @@ from hivebr.engine import Simulator, load_config
 
 sim = Simulator(config=load_config("config/default.yaml"))
 readings = sim.lidar.cast_rays(sim.robot, sim.world)
+# include the other B-bots (with collision enabled) as moving obstacles:
+readings = sim.lidar.cast_rays(sim.robot, sim.world, sim.lidar_obstacle_robots())
 ```
+
+!!! note "Other B-bots as moving obstacles"
+    When robot-robot collision is active (`interaction.robot_collision: true`,
+    the default), the engine feeds the whole fleet to the LiDAR, so every B-bot
+    is seen as a moving circular obstacle with its own radius. If you disable it
+    (`robot_collision: false` or `collision_policy: none`), the LiDAR ignores the
+    other B-bots. See [Multi-Robot Fleets](multi_robot.md#disabling-robot-robot-collision).
 
 !!! note "Per-robot scans in a fleet"
     The engine stores one scan per B-bot in `sim.robot_lidar_readings`. A

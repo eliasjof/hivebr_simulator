@@ -79,10 +79,13 @@ waypoints:
 
 interaction:
   collision_policy: stop     # "stop" | "resolve" | "none"
+  robot_collision: true      # master switch for robot-robot collision checks
   robot_safety_margin: 0.0
   resolve_push: 0.05
   comm_radius: null          # null = full visibility
   show_robot_links: false
+
+show_times: true             # HUD per-B-bot timing (line followers)
 
 obstacles:
   - { x: 6.0, y: 5.0, radius: 1.2 }
@@ -122,7 +125,8 @@ theme: dark                  # "dark" | "light"
 | | `radius` | Collision radius. |
 | | `max_speed`, `max_omega`, `max_steer` | Actuation limits. |
 | | `tau_v` | First-order velocity time constant. |
-| | `num_sensors`, `line_width`, `sensor_offset`, `sensor_span`, `sensor_aperture`, `sensor_noise` | Line-follower TCRT5000 array. |
+| | `num_sensors`, `line_width`, `sensor_offset`, `sensor_span`, `sensor_aperture`, `sensor_noise`, `line_threshold` | Line-follower TCRT5000 array. |
+| | `lap_detection_radius`, `min_lap_distance`, `min_lap_time`, `lost_timeout` | Line-follower lap timing / end-of-track detection. |
 | `robots` | list of specs | Fleet; each overrides `robot` and may set `color`. |
 | `lidar` | `enabled`, `num_rays`, `range`, `fov_deg` | Sensor settings. |
 | `noise` | `enabled` | Inject Gaussian noise on the actuated velocities. |
@@ -133,9 +137,11 @@ theme: dark                  # "dark" | "light"
 | `waypoints` | `goal_tolerance` | Distance to consider a waypoint reached. |
 | | `define_orientation` | Ask for a final heading when adding waypoints. |
 | `interaction` | `collision_policy` | `stop`, `resolve` or `none` for B-bot pairs. |
+| | `robot_collision` | Master switch; `false` disables robot-robot collision checks entirely. |
 | | `robot_safety_margin` | Extra separation added to `r_i + r_j`. |
 | | `comm_radius` | Visibility radius for decentralized neighbors. |
 | | `show_robot_links` | Draw communication links between neighbors. |
+| `show_times` | | Show per-B-bot timing in the HUD (toggled by **Toggle Times**). |
 | `theme` | | `dark` or `light` palette. |
 
 !!! note "Mono is fleet with N = 1"

@@ -30,11 +30,12 @@ and a **control panel** (right).
 | **Clear Track** | Erase the drawing canvas. |
 | **Toggle LiDAR** | Enable/disable LiDAR rendering. |
 | **Toggle Noise** | Enable/disable the Gaussian velocity noise (`noise` config section). |
+| **Toggle Times** | Show/hide the per-B-bot timing in the HUD (line followers). Toggles `config["show_times"]`. |
 | **Toggle Theme** | Switch between the `dark` and `light` palettes. |
 | **Save Config** | Write the current world, obstacles and waypoints to `config/default.yaml`. |
 | **Center Camera** | Recenter the view on the world origin. |
-| **Plot Log** | Open the interactive plot window (Tk + Matplotlib) to inspect every B-bot: pick robots, signals (trajectory, position/orientation error, linear/angular velocity cmd vs real, ...), the subplot grid, and save the figure. |
-| **Export Log** | Save the recorded log of the whole fleet to `.pkl` (pickle) or `.csv`. |
+| **Plot Log** | Open the interactive plot window (Tk + Matplotlib) to inspect every B-bot: pick robots, signals (trajectory, position/orientation error, linear/angular velocity **command** vs **actual**, ...), the subplot grid, and save the figure. |
+| **Export Log** | Save the recorded log of the whole fleet to `.pkl` (pickle) or `.csv`; collisions go to a companion `*_collisions.csv`. See [Data Logging & Analysis](logging.md). |
 | **Reset Logger** | Discard the recorded log. |
 
 ## Sliders
@@ -54,9 +55,13 @@ The heads-up display shows:
 - A **header** with run state, fleet size, selected B-bot, FPS, obstacle count
   and zoom.
 - A **detail line** for the selected B-bot: type, pose, motion command, waypoint
-  progress, distance to the goal and a `[COLLISION]` marker.
+  progress, distance to the goal and a `[COLLISION]` marker. For line followers
+  it also shows laps and timing when `show_times` is on.
 - One **compact line per B-bot**, color-coded with its fleet color. A leading
-  `*` marks a B-bot in collision.
+  `*` marks a B-bot in collision. For line followers, each line also shows the
+  elapsed time and lap count when **Toggle Times** is active.
+- A **line follower detail row** for the selected B-bot: lap count, last lap,
+  average and current lap (or the finish time).
 
 ## Collision indicator
 

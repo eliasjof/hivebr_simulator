@@ -96,12 +96,14 @@ nav:
       - Controllers: controllers.md
       - Path Planners: planners.md
       - Multi-Robot Fleets: multi_robot.md
+      - Data Logging & Analysis: logging.md
   - OpenLab API:
       - Overview: openlab_api.md
   - Examples:
       - Single Robot: examples/single_robot.md
       - Decentralized Swarm: examples/decentralized.md
       - Multi-Robot Fleet: examples/multi_robot.md
+      - Multi Line Follower: examples/multi_line_follower.md
   - API Reference:
       - api/index.md
       - OpenLab API:

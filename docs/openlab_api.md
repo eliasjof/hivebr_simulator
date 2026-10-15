@@ -85,11 +85,34 @@ command per B-bot, so it can run global optimization over the whole fleet.
 | `set_controller(controller)` | Bind a `SwarmController` (centralized mode). |
 | `assign_route(robot_id, waypoints)` | Give a B-bot its route. |
 | `run()` | Build and run on the selected backend. |
+| `simulator` | The engine `Simulator` created by the `navsim2d` backend (after `run()`), giving access to `simulator.logger`. |
+| `save_log(path)` | Save the `DataLogger` (`.pkl` or `.csv` by extension). |
+| `plot_log()` | Open the interactive plot window of the recorded log. |
+| `print_collisions()` | Print the collision summary of the experiment. |
 | `reset()` / `close()` | Reset agents and backend / tear down. |
 
 `orientation` and `goal_tolerance` are injected into the engine config, and
 `comm_radius` controls neighbor visibility (defaulting to
 `config["interaction"]["comm_radius"]`).
+
+## Saving the log in decentralized mode
+
+In decentralized mode the `DataLogger` lives inside the engine's `Simulator`,
+created by the `navsim2d` backend, so there is no agent-level logger. After
+`run()` the experiment exposes it:
+
+```python
+exp.run()
+
+exp.save_log("swarm.pkl")     # .pkl (pickle) or .csv by extension
+exp.print_collisions()        # timestamped robot-robot / obstacle / grid events
+exp.plot_log()                # interactive plot window
+
+# or reach the logger directly
+exp.simulator.logger.save_csv("swarm.csv")
+```
+
+See [Data Logging & Analysis](logging.md) for the file formats.
 
 ## How the goal reaches the agent
 
