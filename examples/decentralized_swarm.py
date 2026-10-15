@@ -45,6 +45,7 @@ class PatrolAgent(HiveBrAgent):
             )
         )
         self.sep_gain = self.params.get("sep_gain", 0.0)
+        self.sep_steer = self.params.get("sep_steer", 1.2)
         self.sep_margin = self.params.get("sep_margin", 0.35)
 
     def loop(self, state, neighbors):
@@ -71,12 +72,21 @@ class PatrolAgent(HiveBrAgent):
         v = kp * rho
         w = self.k_beta * beta + self.k_alpha * alpha
 
-        # Local reactive separation from surrounding B-bots
+        # Local reactive separation from surrounding B-bots. Only neighbors that
+        # are *ahead* brake the forward speed; braking on every neighbor makes
+        # two B-bots whose paths cross cancel each other's speed and deadlock. A
+        # small steering term biases the heading away so they go around instead.
         for neighbor in neighbors.values():
             d = float(np.hypot(state.x - neighbor.x, state.y - neighbor.y))
             safe = state.radius + neighbor.radius + self.sep_margin
             if 0.0 < d < safe:
-                v -= self.sep_gain * (safe - d)
+                shortfall = safe - d
+                bearing = wrap(
+                    np.arctan2(neighbor.y - state.y, neighbor.x - state.x)
+                    - state.theta
+                )
+                v -= self.sep_gain * shortfall * max(0.0, np.cos(bearing))
+                w -= self.sep_steer * shortfall * np.sin(bearing)
 
         return (v, w)
 
@@ -92,11 +102,11 @@ def route_with_orientation(points):
 if __name__ == "__main__":
     config = load_config(project_root / "config" / "default.yaml")
     config["interaction"] = {
-        "collision_policy": "stop",
+        "collision_policy": "resolve",
         "robot_collision": True,
         "robot_safety_margin": 0.0,
         "resolve_push": 0.05,
-        "comm_radius": 2.0,
+        "comm_radius": 3.0,
         "show_robot_links": True,
     }
     # With robot_collision active, the LiDAR treats the other B-bots as
@@ -125,7 +135,11 @@ if __name__ == "__main__":
         0: [(2, 2), (5, 2), (5, 6), (2, 6)],
         1: [(5, 5), (10, 5), (10, 9), (5, 9)],
         2: [(18, 2), (15, 2), (15, 6), (18, 6)],
-        3: [(18, 10), (14, 10), (14, 6), (18, 6)],
+        # B-bot 3 patrols the upper right. Its route must stay clear of B-bot 2:
+        # two B-bots heading to the same (or nearly the same) point can never
+        # both sit inside the goal tolerance without overlapping, so they would
+        # deadlock against each other's separation term.
+        3: [(18, 10), (14, 10), (14, 8), (18, 8)],
     }
     for index, points in routes.items():
         exp.assign_route(index, route_with_orientation(points))

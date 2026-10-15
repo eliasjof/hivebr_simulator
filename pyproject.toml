@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hivebr"
-version = "0.1.1"
+version = "0.1.3"
 description = "Hivebr simulator - 2D simulator and OpenLab API for single- and multi-robot (B-bot) navigation."
 readme = "README.md"
 requires-python = ">=3.8"

@@ -102,6 +102,7 @@ nav:
   - Examples:
       - Single Robot: examples/single_robot.md
       - Decentralized Swarm: examples/decentralized.md
+      - Decentralized (multi-core): examples/decentralized_multiprocess.md
       - Multi-Robot Fleet: examples/multi_robot.md
       - Multi Line Follower: examples/multi_line_follower.md
   - API Reference:
