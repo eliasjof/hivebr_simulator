@@ -51,7 +51,7 @@ class GUI:
         y = 12
         w, h, gap = 230, 30, 31
         
-        buttons = [
+        all_buttons = [
             ("start", "Start / Pause"),
             ("reset", "Reset"),
             ("clear_path", "Clear Path"),
@@ -71,6 +71,12 @@ class GUI:
             ("export_log", "Export Log"),
             ("reset_logger", "Reset Logger")
         ]
+        
+        # Lê a configuração de quais botões mostrar
+        gui_config = self.layout.get("config", {}).get("gui", {})
+        enabled_buttons = set(gui_config.get("buttons", [key for key, _ in all_buttons]))
+        
+        buttons = [(key, text) for key, text in all_buttons if key in enabled_buttons]
 
         for i, (key, text) in enumerate(buttons):
             self.elements[key] = pygame_gui.elements.UIButton(pygame.Rect(x, y + i*gap, w, h), text, self.manager)
@@ -132,13 +138,23 @@ class GUI:
 
     def create_sliders(self):
         cfg = self.layout["config"]
+        gui_config = cfg.get("gui", {})
+        enabled_sliders = set(gui_config.get("sliders", ["max_speed", "max_omega", "max_steer", "grid_size", "noise_sigma"]))
+        
         start_y = self.buttons_bottom_y + 2
         spacing = 44
-        self.add_slider("max_speed", "Max Speed", start_y, cfg["robot"].get("max_speed", 2.0), (0.2, 8.0))
-        self.add_slider("max_omega", "Max Omega", start_y + spacing, cfg["robot"].get("max_omega", 2.0), (0.1, 6.0))
-        self.add_slider("max_steer", "Max Steering", start_y + 2*spacing, cfg["robot"].get("max_steer", 0.6), (0.1, 1.2))
-        self.add_slider("grid_size", "Grid Size", start_y + 3*spacing, cfg["world"].get("grid_size", 1.0), (0.1, 5.0))
-        self.add_slider("noise_sigma", "Noise Sigma", start_y + 4*spacing, cfg.get("noise", {}).get("sigma_v", 0.0), (0.0, 1.0))
+        
+        slider_defs = [
+            ("max_speed", "Max Speed", cfg["robot"].get("max_speed", 2.0), (0.2, 8.0)),
+            ("max_omega", "Max Omega", cfg["robot"].get("max_omega", 2.0), (0.1, 6.0)),
+            ("max_steer", "Max Steering", cfg["robot"].get("max_steer", 0.6), (0.1, 1.2)),
+            ("grid_size", "Grid Size", cfg["world"].get("grid_size", 1.0), (0.1, 5.0)),
+            ("noise_sigma", "Noise Sigma", cfg.get("noise", {}).get("sigma_v", 0.0), (0.0, 1.0)),
+        ]
+        
+        for i, (key, label, start, value_range) in enumerate(slider_defs):
+            if key in enabled_sliders:
+                self.add_slider(key, label, start_y + i*spacing, start, value_range)
 
     def create_info_labels(self):
         x = self.panel_x + 20
@@ -150,24 +166,25 @@ class GUI:
         if event.type != pygame_gui.UI_HORIZONTAL_SLIDER_MOVED:
             return
         e = self.elements
-        if event.ui_element == e["max_speed"]:
+        
+        if "max_speed" in e and event.ui_element == e["max_speed"]:
             value = e["max_speed"].get_current_value(); config["robot"]["max_speed"] = value; e["max_speed_value"].set_text(f"{value:.2f}")
             for robot in robots:
                 if hasattr(robot, "max_speed"):
                     robot.max_speed = value
-        elif event.ui_element == e["max_omega"]:
+        elif "max_omega" in e and event.ui_element == e["max_omega"]:
             value = e["max_omega"].get_current_value(); config["robot"]["max_omega"] = value; e["max_omega_value"].set_text(f"{value:.2f}")
             for robot in robots:
                 if hasattr(robot, "max_omega"):
                     robot.max_omega = value
-        elif event.ui_element == e["max_steer"]:
+        elif "max_steer" in e and event.ui_element == e["max_steer"]:
             value = e["max_steer"].get_current_value(); config["robot"]["max_steer"] = value; e["max_steer_value"].set_text(f"{value:.2f}")
             for robot in robots:
                 if hasattr(robot, "max_steer"):
                     robot.max_steer = value
-        elif event.ui_element == e["grid_size"]:
+        elif "grid_size" in e and event.ui_element == e["grid_size"]:
             world.grid_size = e["grid_size"].get_current_value(); config["world"]["grid_size"] = world.grid_size; e["grid_size_value"].set_text(f"{world.grid_size:.2f}")
-        elif event.ui_element == e["noise_sigma"]:
+        elif "noise_sigma" in e and event.ui_element == e["noise_sigma"]:
             value = e["noise_sigma"].get_current_value()
             noise = config.setdefault("noise", {})
             noise["sigma_v"] = value

@@ -162,7 +162,19 @@ DEFAULT_CONFIG = {
     },
     "obstacles": [],
     "show_times": True,
-    "theme": "dark"
+    "theme": "dark",
+    "running_simulation": False,
+    "gui": {
+        "buttons": [
+            "start", "reset", "clear_path", "clear_waypoints", "clear_obstacles",
+            "load_map", "draw_track", "apply_track", "clear_track",
+            "toggle_lidar", "toggle_noise", "toggle_times", "toggle_theme",
+            "save_config", "center_camera", "plot_log", "export_log", "reset_logger"
+        ],
+        "sliders": [
+            "max_speed", "max_omega", "max_steer", "grid_size", "noise_sigma"
+        ]
+    }
 }
 
 THEMES = {
@@ -298,7 +310,7 @@ class Simulator:
         self.fleet_controller = fleet_controller
         self.gui = GUI(self.screen, self.manager, self._layout())
         self.running = True
-        self.running_simulation = False
+        self.running_simulation = self.config.get("running_simulation", False)
         self.dt = 0.03
         self.dragging = False
         self.last_mouse_pos = None
@@ -533,37 +545,37 @@ class Simulator:
 
         e = self.gui.elements
 
-        if event.ui_element == e["start"]:
+        if "start" in e and event.ui_element == e["start"]:
             self.running_simulation = not self.running_simulation
 
-        elif event.ui_element == e["reset"]:
+        elif "reset" in e and event.ui_element == e["reset"]:
             self.running_simulation = False
             self.reset()
 
-        elif event.ui_element == e["clear_path"]:
+        elif "clear_path" in e and event.ui_element == e["clear_path"]:
             for robot in self.robots:
                 robot.clear_path()
 
-        elif event.ui_element == e["clear_waypoints"]:
+        elif "clear_waypoints" in e and event.ui_element == e["clear_waypoints"]:
             for manager in self.waypoint_managers:
                 manager.clear()
 
-        elif event.ui_element == e["clear_obstacles"]:
+        elif "clear_obstacles" in e and event.ui_element == e["clear_obstacles"]:
             self.world.clear_obstacles()
 
-        elif event.ui_element == e["draw_track"]:
+        elif "draw_track" in e and event.ui_element == e["draw_track"]:
             self.toggle_track_editor()
 
-        elif event.ui_element == e["apply_track"]:
+        elif "apply_track" in e and event.ui_element == e["apply_track"]:
             self.apply_track()
 
-        elif event.ui_element == e["clear_track"]:
+        elif "clear_track" in e and event.ui_element == e["clear_track"]:
             self.clear_track()
 
-        elif event.ui_element == e["toggle_theme"]:
+        elif "toggle_theme" in e and event.ui_element == e["toggle_theme"]:
             self.toggle_theme()
 
-        elif event.ui_element == e["load_map"]:
+        elif "load_map" in e and event.ui_element == e["load_map"]:
             self.map_file_dialog = pygame_gui.windows.UIFileDialog(
                 rect=pygame.Rect(160, 50, 600, 500),
                 manager=self.manager,
@@ -572,10 +584,10 @@ class Simulator:
                 allowed_suffixes={".png", ".jpg", ".jpeg"}
             )
 
-        elif event.ui_element == e["toggle_lidar"]:
+        elif "toggle_lidar" in e and event.ui_element == e["toggle_lidar"]:
             self.lidar.enabled = not self.lidar.enabled
 
-        elif event.ui_element == e["toggle_noise"]:
+        elif "toggle_noise" in e and event.ui_element == e["toggle_noise"]:
             noise = self.config.setdefault("noise", {})
             noise["enabled"] = not noise.get("enabled", False)
             state = "enabled" if noise["enabled"] else "disabled"
@@ -584,25 +596,25 @@ class Simulator:
                   f"sigma_omega={noise.get('sigma_omega', 0.0)}, "
                   f"limit={noise.get('limit', 3.0)}).")
 
-        elif event.ui_element == e["toggle_times"]:
+        elif "toggle_times" in e and event.ui_element == e["toggle_times"]:
             show = not self.config.get("show_times", True)
             self.config["show_times"] = show
             state = "ativada" if show else "desativada"
             print(f"[Simulator] Visualizacao de tempos (line follower) {state}.")
 
-        elif event.ui_element == e["save_config"]:
+        elif "save_config" in e and event.ui_element == e["save_config"]:
             self.save_config()
 
-        elif event.ui_element == e["center_camera"]:
+        elif "center_camera" in e and event.ui_element == e["center_camera"]:
             self.camera.center_on_origin_with_margin()
         
-        elif event.ui_element == e["plot_log"]:
+        elif "plot_log" in e and event.ui_element == e["plot_log"]:
             self.logger.plot()
 
-        elif event.ui_element == e["reset_logger"]:
+        elif "reset_logger" in e and event.ui_element == e["reset_logger"]:
             self.logger.reset()
 
-        elif event.ui_element == e["export_log"]:
+        elif "export_log" in e and event.ui_element == e["export_log"]:
             # self.gui.process_file_dialog_event(event, self.logger)
             
             self.gui.export_log(self.logger)

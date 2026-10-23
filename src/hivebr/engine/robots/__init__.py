@@ -6,12 +6,15 @@ from .ackermann import AckermannRobot
 from .boat import BoatRobot
 from .differential_firstorder import DifferentialRobotFirstOrder
 from .line_follower import LineFollowerRobot
+from .hexagonal_holonomic import HexagonalHolonomicRobot
 
 
 def create_robot(config: dict):
     robot_type = config["robot"].get("type", "ackermann").lower()
     if robot_type in ["holonomic", "omni", "omnidirectional"]:
         return HolonomicRobot(config)    
+    elif robot_type in ["hexagonal_holonomic", "hexagonal", "hex_holonomic", "3wheel_holonomic"]:
+        return HexagonalHolonomicRobot(config)
     elif robot_type in ["ackermann", "car", "racecar"]:
         return AckermannRobot(config)
     elif robot_type == "boat":
@@ -62,4 +65,4 @@ def create_fleet(config: dict) -> list:
         robots.append(create_robot(merged))
     return robots
 
-__all__ = ["create_robot", "create_fleet", "HolonomicRobot", "DifferentialRobot", "DifferentialRobotFirstOrder", "AckermannRobot", "BoatRobot", "LineFollowerRobot"]
+__all__ = ["create_robot", "create_fleet", "HolonomicRobot", "DifferentialRobot", "DifferentialRobotFirstOrder", "AckermannRobot", "BoatRobot", "LineFollowerRobot", "HexagonalHolonomicRobot"]

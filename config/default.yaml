@@ -150,4 +150,32 @@ colors:
   - 230
   - 230
 obstacles: []
+
+gui:
+  buttons:
+    - start
+    - reset
+    - clear_path
+    - clear_waypoints
+    - clear_obstacles
+    - load_map
+    # - draw_track
+    # - apply_track
+    # - clear_track
+    - toggle_lidar
+    - toggle_noise
+    # - toggle_times
+    - toggle_theme
+    - save_config
+    - center_camera
+    - plot_log
+    - export_log
+    - reset_logger
+  sliders:
+    - max_speed
+    - max_omega
+    # - max_steer
+    - grid_size
+    - noise_sigma
+
 theme: night

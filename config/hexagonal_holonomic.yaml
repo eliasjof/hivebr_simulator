@@ -1,0 +1,160 @@
+# Hexagonal Holonomic Robot Configuration
+# 3 omni wheels at 120 degrees (standard configuration)
+# 
+# Kinematics:
+#   [ẋ]   [ -r/√3   0     r/√3  ] [ω1]
+#   [ẏ] = [  r/3   -2r/3   r/3  ] [ω2]
+#   [θ̇]   [ r/3L   r/3L   r/3L  ] [ω3]
+#
+# Where:
+#   r = wheel_radius (m)
+#   L = radius (distance from center to wheel) (m)
+#   ω1, ω2, ω3 = wheel angular velocities (rad/s)
+
+window:
+  width: 1400
+  height: 750
+  min_width: 1100
+  min_height: 650
+  panel_width: 300
+  title: HiveBr Simulator - Hexagonal Holonomic
+
+world:
+  width: 20.0
+  height: 12.0
+  grid_size: 1.0
+  obstacle_radius: 0.4
+  show_origin: true
+  show_axes: true
+  default_obstacle_radius: 0.4
+  obstacles: []
+  resolution: 0.1
+
+camera:
+  initial_zoom: 1.0
+  min_zoom: 0.25
+  max_zoom: 8.0
+  zoom_step: 1.1
+  margin_x: 1.0
+  margin_y: 1.0
+
+robot:
+  type: hexagonal_holonomic
+  initial_pose: [0.0, 0.0, 0.0]
+  
+  # Physical parameters
+  radius: 0.3              # Robot radius (L) - distance from center to wheel center (m)
+  wheel_radius: 0.05       # Wheel radius (r) (m)
+  max_wheel_speed: 20.0    # Maximum wheel angular velocity (rad/s)
+  max_speed: 2.0           # Maximum linear speed (m/s)
+  max_omega: 4.0           # Maximum angular speed (rad/s)
+  
+  # MG996R Servo parameters (for realistic simulation)
+  servo_max_speed: 20.0     # Higher for demo (MG996R ~ 6.28 rad/s = 60 RPM)
+  servo_torque: 1.5        # Stall torque (Nm) at 6V
+  
+  path_max_length: 4000
+
+lidar:
+  enabled: true
+  num_rays: 36
+  range: 5.0
+  fov_deg: 360
+
+noise:
+  enabled: false
+  sigma_v: 0.10
+  sigma_omega: 0.10
+  limit: 3.0
+  seed: null
+
+waypoints:
+  goal_tolerance: 0.15
+  define_orientation: true
+  show_tolerance_circle: true
+  points:
+    - [3.0, 2.0]
+    - [5.0, -1.0]
+    - [-2.0, -2.0]
+    - [0.0, 0.0]
+
+controller:
+  enabled: true
+  attractive_gain: 1.0
+  repulsive_gain: 2.0
+  repulsive_radius: 2.0
+  max_repulsive_force: 8.0
+  force_filter_alpha: 0.35
+  command_filter_alpha: 0.4
+  obstacle_slowdown_distance: 2.0
+  min_obstacle_speed_factor: 0.2
+  min_lidar_distance: 0.08
+  linear_gain: 0.6
+  angular_gain: 0.6
+  max_steer_rate: 0.52
+  curvature_speed_gain: 2.0
+  tangential_gain: 1.5
+  stagnation_radius: 0.15
+  local_minima_angle_deg: 90.0
+  virtual_subgoal_offset: 2.0
+  emergency_brake_distance: 0.5
+  emergency_safe_distance: 0.65
+  emergency_rear_clearance: 0.5
+  reverse_speed: -0.25
+  reverse_duration_s: 1.2
+
+colors:
+  background: [30, 30, 30]
+  grid: [50, 50, 50]
+  panel: [20, 20, 20]
+  robot: [30, 144, 255]
+  obstacle: [0, 100, 0]
+  waypoint: [255, 165, 0]
+  goal: [57, 255, 20]
+  path: [30, 144, 255]
+  lidar: [0, 255, 255]
+  red: [220, 50, 50]
+  green: [0, 255, 0]
+  white: [255, 255, 255]
+  black: [0, 0, 0]
+  silver: [192, 192, 186]
+  fleet:
+    - [30, 144, 255]
+    - [220, 20, 60]
+    - [50, 205, 50]
+    - [255, 165, 0]
+    - [148, 0, 211]
+    - [0, 206, 209]
+    - [255, 105, 180]
+    - [255, 215, 0]
+
+obstacles: []
+
+gui:
+  buttons:
+    - start
+    - reset
+    - clear_path
+    - clear_waypoints
+    - clear_obstacles
+    - load_map
+    # - draw_track
+    # - apply_track
+    # - clear_track
+    - toggle_lidar
+    - toggle_noise
+    # - toggle_times
+    - toggle_theme
+    - save_config
+    - center_camera
+    - plot_log
+    - export_log
+    - reset_logger
+  sliders:
+    # - max_speed
+    # - max_omega
+    # - max_steer
+    - grid_size
+    - noise_sigma
+
+theme: dark
