@@ -13,7 +13,7 @@ Every B-bot derives from `BaseRobot` and exposes a uniform interface:
 
 The **command** you return from a controller depends on the model.
 
-## Supported models
+## Supported Models
 
 | `type` (aliases) | Command keys | Notes |
 | ---------------- | ------------ | ----- |
@@ -21,6 +21,7 @@ The **command** you return from a controller depends on the model.
 | `line_follower` (`line`, `linefollower`, `line_tracker`, `tcrt5000`) | `{"v": …, "omega": …}` | Differential kinematics + 2/5/8 analog line sensors (TCRT5000). |
 | `differential_firstorder` (`firstorder`, `diff_tau`) | `{"v": …, "omega": …}` | Adds a first-order lag on the linear speed (`tau_v`). |
 | `holonomic` (`omni`, `omnidirectional`) | `{"vx": …, "vy": …}` | Velocity is set directly in world frame. |
+| `hexagonal_holonomic` (`hexagonal`, `hex_holonomic`, `3wheel_holonomic`) | `{"omega1": …, "omega2": …, "omega3": …}` or `{"vx": …, "vy": …}` or `{"v": …, "omega": …}` | 3 omni-wheels at 120° (hexagon sides), direct servo control or world-frame velocity. |
 | `ackermann` (`car`, `racecar`) | `{"speed": …, "steer": …}` | Bicycle model with front steering. |
 | `boat` | `{"v": …, "omega": …}` | Like a differential drive, drawn as a hull. |
 
@@ -31,28 +32,320 @@ return {"v": 0.5, "omega": 0.1}
 return {"vx": 0.5, "vy": 0.0}
 # ackermann
 return {"speed": 0.5, "steer": 0.2}
+# hexagonal holonomic - direct servo control
+return {"omega1": 10.0, "omega2": -5.0, "omega3": 3.0}
+# hexagonal holonomic - world frame velocity
+return {"vx": 0.5, "vy": 0.2, "omega": 0.1}
 ```
 
-## Selecting a model
+## Kinematic Equations
 
+### 1. Differential Drive (Unicycle)
+
+**Command**: `{"v": v, "omega": ω}`
+
+```
+ẋ = v · cos(θ)
+ẏ = v · sin(θ)
+θ̇ = ω
+```
+
+**Parameters**:
+- `max_speed`: max linear velocity (m/s)
+- `max_omega`: max angular velocity (rad/s)
+- `tau_v`: first-order lag time constant (s) — only for `differential_firstorder`
+
+---
+
+### 2. Holonomic (Omnidirectional)
+
+**Command**: `{"vx": vx, "vy": vy}` (world frame)
+
+```
+ẋ = vx
+ẏ = vy
+θ̇ = 0  (independent rotation not supported directly)
+```
+
+For rotation while translating, use world-frame `vx, vy` with appropriate values, or use `hexagonal_holonomic` which supports independent rotation.
+
+---
+
+### 3. Hexagonal Holonomic (3-Wheel Omni)
+
+**Geometry**: 3 omni-wheels at 60°, 180°, 300° (aligned with hexagon flat sides)
+
+**Wheel tangent directions** (velocity = tangent to circle):
+- Wheel 1 (60°): tangent = 150°  `(-√3/2, 1/2)`
+- Wheel 2 (180°): tangent = 270°  `(0, -1)`
+- Wheel 3 (300°): tangent = 30°   `(√3/2, 1/2)`
+
+#### Forward Kinematics
+```
+[ ẋ  ]   [ -r√3/2    0      r√3/2  ] [ ω₁ ]
+[ ẏ  ] = [  r/2     -r      r/2    ] [ ω₂ ]
+[ θ̇  ]   [ r/3L    r/3L    r/3L    ] [ ω₃ ]
+```
+
+Where:
+- `r` = wheel radius (`wheel_radius`)
+- `L` = distance from robot center to wheel center (`radius`)
+- `ω₁, ω₂, ω₃` = wheel angular velocities (rad/s)
+
+#### Inverse Kinematics
+```
+[ ω₁ ]   [ -2/3r    √3/3r    L/r ] [ ẋ  ]
+[ ω₂ ] = [ -2/3r   -√3/3r    L/r ] [ ẏ  ]
+[ ω₃ ]   [  4/3r       0      L/r ] [ θ̇  ]
+```
+
+#### Control Modes
+
+| Mode | Command keys | Description |
+|------|--------------|-------------|
+| **Servo (direct)** | `omega1`, `omega2`, `omega3` | Direct wheel speed control (rad/s) |
+| **World frame** | `vx`, `vy`, `omega` | World-frame linear + angular velocity |
+| **Robot frame** | `v`, `omega` | Forward speed + angular velocity in robot frame |
+
+**Parameters**:
+- `radius`: robot radius (distance center → wheel) [m]
+- `wheel_radius`: omni wheel radius `r` [m]
+- `max_wheel_speed`: max wheel angular velocity [rad/s]
+- `max_speed`: max robot linear speed [m/s]
+- `max_omega`: max robot angular speed [rad/s]
+- `servo_max_speed`: max servo speed for control allocation [rad/s]
+
+---
+
+### 4. Ackermann (Car-like)
+
+**Command**: `{"speed": v, "steer": δ}`
+
+```
+ẋ = v · cos(θ)
+ẏ = v · sin(θ)
+θ̇ = v / L · tan(δ)
+```
+
+**Parameters**:
+- `max_speed`: max linear velocity [m/s]
+- `max_steer`: max steering angle [rad]
+- `wheel_base`: distance between axles `L` [m]
+
+---
+
+### 5. Boat
+
+Same as differential drive kinematics, rendered as a boat hull.
+
+---
+
+## Selecting a Model
+
+### Via YAML Config
 ```yaml
 robot:
-  type: differential
+  type: hexagonal_holonomic
+  radius: 0.3           # distance center to wheel (m)
+  wheel_radius: 0.05    # wheel radius (m)
+  max_wheel_speed: 20.0 # max wheel angular speed (rad/s)
+  max_speed: 2.0        # max robot linear speed (m/s)
+  max_omega: 4.0        # max robot angular speed (rad/s)
+  servo_max_speed: 20.0 # max servo speed (rad/s)
 ```
 
-or programmatically:
+### Programmatically
+```python
+sim = Simulator(config=config, controller=ctrl, type_robot="hexagonal_holonomic")
+```
+
+---
+
+## Hexagonal Holonomic — Complete Example
+
+### `examples/run_hexagonal_holonomic.py`
 
 ```python
-sim = Simulator(config=config, controller=ctrl, type_robot="ackermann")
+from pathlib import Path
+import sys
+import math
+import numpy as np
+from hivebr.engine import Simulator, load_config
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
+
+def servo_controller(robot, world, goal, config, dt, lidar_readings):
+    """Direct servo control using inverse kinematics with control allocation."""
+    if goal is None:
+        return {"omega1": 0.0, "omega2": 0.0, "omega3": 0.0}
+    
+    goal_pos = np.array(goal[:2])
+    pos = robot.position
+    to_goal = goal_pos - pos
+    dist = np.linalg.norm(to_goal)
+    
+    tolerance = 0.15
+    if dist < tolerance:
+        return {"omega1": 0.0, "omega2": 0.0, "omega3": 0.0}
+    
+    # World-frame velocity control
+    kv = 2.0
+    vx_des = kv * to_goal[0]
+    vy_des = kv * to_goal[1]
+    
+    # Limit linear speed
+    speed = math.hypot(vx_des, vy_des)
+    if speed > robot.max_speed:
+        scale = robot.max_speed / speed
+        vx_des *= scale
+        vy_des *= scale
+    
+    # Angular velocity to align with goal
+    goal_angle = math.atan2(to_goal[1], to_goal[0])
+    angle_diff = (goal_angle - robot.theta + math.pi) % (2 * math.pi) - math.pi
+    kw = 3.0
+    omega_des = kw * angle_diff
+    omega_des = max(-robot.max_omega, min(robot.max_omega, omega_des))
+    
+    # Control allocation: scale until wheels fit within servo limits
+    max_servo = robot.servo_max_speed
+    
+    for _ in range(5):
+        omega1, omega2, omega3 = robot._inverse_kinematics(vx_des, vy_des, omega_des)
+        max_wheel = max(abs(omega1), abs(omega2), abs(omega3))
+        if max_wheel <= max_servo:
+            break
+        scale = max_servo / max_wheel
+        vx_des *= scale
+        vy_des *= scale
+        omega_des *= scale
+    
+    # Final inverse kinematics
+    omega1, omega2, omega3 = robot._inverse_kinematics(vx_des, vy_des, omega_des)
+    
+    # Final clamp
+    omega1 = max(-max_servo, min(max_servo, omega1))
+    omega2 = max(-max_servo, min(max_servo, omega2))
+    omega3 = max(-max_servo, min(max_servo, omega3))
+    
+    return {"omega1": omega1, "omega2": omega2, "omega3": omega3}
+
+if __name__ == "__main__":
+    config = load_config(ROOT / "config" / "hexagonal_holonomic.yaml")
+    sim = Simulator(config=config, controller=servo_controller)
+    sim.running_simulation = sim.config.get("running_simulation", False)
+    sim.run()
 ```
 
-## Line follower (TCRT5000)
+### Configuration: `config/hexagonal_holonomic.yaml`
 
-`LineFollowerRobot` keeps the differential-drive kinematics, but the body is a
-square (default `10cm x 10cm`) carrying a horizontal bar of analog line sensors
-in front. The line is *not* an obstacle: it is read from a **line map** — a
-grayscale image whose dark pixels are the track (see
-[`world.line_map_image`](configuration.md)).
+```yaml
+window:
+  width: 1400
+  height: 750
+  title: "HiveBr Simulator - Hexagonal Holonomic"
+
+world:
+  width: 20.0
+  height: 12.0
+  grid_size: 1.0
+
+robot:
+  type: hexagonal_holonomic
+  initial_pose: [0.0, 0.0, 0.0]
+  radius: 0.3              # Robot radius (L)
+  wheel_radius: 0.05       # Wheel radius (r)
+  max_wheel_speed: 20.0    # Max wheel angular velocity (rad/s)
+  max_speed: 2.0           # Max linear speed (m/s)
+  max_omega: 4.0           # Max angular speed (rad/s)
+  servo_max_speed: 20.0    # Servo max speed (rad/s)
+
+lidar:
+  enabled: true
+  num_rays: 36
+  range: 5.0
+  fov_deg: 360
+
+waypoints:
+  goal_tolerance: 0.15
+  define_orientation: true
+  show_tolerance_circle: true
+  points:
+    - [3.0, 2.0]
+    - [5.0, -1.0]
+    - [-2.0, -2.0]
+    - [0.0, 0.0]
+
+gui:
+  sliders:
+    - grid_size
+    - noise_sigma
+    - servo_max_speed    # Adjust max servo speed at runtime
+
+theme: dark
+```
+
+Run with:
+```bash
+python examples/run_hexagonal_holonomic.py
+```
+
+---
+
+## UI Sliders (Runtime Configuration)
+
+The sidebar includes sliders to adjust robot parameters at runtime. Enable/disable via `config["gui"]["sliders"]`:
+
+### Available Sliders
+
+| Slider Key | Label | Config Path | Range | Applies To |
+|------------|-------|-------------|-------|------------|
+| `max_speed` | Max Speed | `robot.max_speed` | 0.2 – 8.0 | All except line_follower |
+| `max_omega` | Max Omega | `robot.max_omega` | 0.1 – 6.0 | All except line_follower |
+| `max_steer` | Max Steering | `robot.max_steer` | 0.1 – 1.2 | Ackermann |
+| `grid_size` | Grid Size | `world.grid_size` | 0.1 – 5.0 | All |
+| `noise_sigma` | Noise Sigma | `noise.sigma_v`, `noise.sigma_omega` | 0.0 – 1.0 | All (enables noise when > 0) |
+| `servo_max_speed` | Max Servo Speed | `robot.servo_max_speed` | 0.5 – 30.0 | **Hexagonal Holonomic only** |
+
+### Example: Enable Sliders in Config
+
+```yaml
+gui:
+  buttons:
+    - start
+    - reset
+    - clear_path
+    - toggle_lidar
+    - toggle_noise
+    - toggle_theme
+    - save_config
+  sliders:
+    - max_speed
+    - max_omega
+    - grid_size
+    - noise_sigma
+    - servo_max_speed    # Visible when robot is hexagonal_holonomic
+```
+
+### Using Sliders in Controller
+
+```python
+def controller(robot, world, goal, config, dt, lidar_readings):
+    # Access runtime-adjusted values
+    max_servo = robot.servo_max_speed  # Updated by slider
+    max_speed = robot.max_speed        # Updated by slider
+    
+    # Your control logic here
+    return {"omega1": ..., "omega2": ..., "omega3": ...}
+```
+
+---
+
+## Line Follower (TCRT5000)
+
+`LineFollowerRobot` keeps differential-drive kinematics but adds analog line sensors.
 
 ```yaml
 world:
@@ -63,132 +356,64 @@ robot:
   type: line_follower
   length: 0.10
   width: 0.10
-  line_width: 0.02          # physical line width (used to space the sensors)
+  line_width: 0.02
   num_sensors: 5            # 2, 5 or 8 TCRT5000
-  sensor_offset: 0.05       # distance ahead of the body centre
-  # sensor_span: 0.08       # optional; derived from line_width when omitted
-  sensor_aperture: 0.004    # sampled area radius
+  sensor_offset: 0.05
+  sensor_aperture: 0.004
   sensor_noise: 0.0
-  line_threshold: 0.5       # above this a sensor counts as "on the line"
+  line_threshold: 0.5
 ```
 
-Read the sensors from a control callback; each reading is analog in `[0, 1]`
-(`1` = black line):
-
+Read sensors in controller:
 ```python
 def controller(robot, world, goal, cfg, dt, lidar_readings=None):
-    robot.read_line_sensors(world.line_map)   # updates readings/error
-    error = robot.line_error                  # -1 (right) .. +1 (left)
+    robot.read_line_sensors(world.line_map)
+    error = robot.line_error          # -1 (right) .. +1 (left)
     return {"v": 0.3, "omega": 3.0 * error}
 ```
 
-`robot.sensor_readings` holds the per-sensor values, `robot.line_position` is the
-lateral offset in metres and `robot.line_lost` is `True` when no sensor sees the
-line. If `sensor_span` is omitted it is derived from `line_width` so that the
-line always crosses neighbouring sensors. See
-`examples/line_follower.py` for a full PID demo on a random track.
+See `examples/line_follower.py` for full PID demo.
 
-### Lap timing and progress
+---
 
-The B-bot times itself while it follows the line. `reset_laps()` starts a new
-measurement, and the running state is exposed through `robot.state()` and
-`robot.lap_statistics()`:
-
-```yaml
-robot:
-  lap_detection_radius: 0.15   # "back to start" radius for a closed track (m)
-  min_lap_distance: 1.0        # min distance before a lap/finish is valid (m)
-  min_lap_time: 1.0            # min lap duration (s)
-  lost_timeout: 1.0            # line lost for this long => end of open track (s)
-```
-
-```python
-stats = robot.lap_statistics()
-# {"count": 3, "last": 12.84, "mean": 13.02, "best": 12.41, "worst": 13.55}
-```
-
-On a **closed** track the B-bot records a lap every time it returns near the
-start; on an **open** track it declares `finished = True` and sets `finish_time`
-after the line has been lost for `lost_timeout` seconds. `robot.state()` adds:
-`line_error`, `line_lost`, `time`, `lap_count`, `lap_times`, `last_lap`,
-`lap_avg`, `current_lap`, `finished` and `finish_time`.
-
-### Comparing several line followers at once
-
-You can run several `line_follower` B-bots on the **same track from the same
-start point**, each with different gains, to compare techniques under identical
-conditions. Because they start overlapped, turn off the robot–robot collision
-evaluation so the B-bots do not stop on each other:
-
-```python
-config["interaction"] = {"collision_policy": "none", "robot_collision": False}
-config["show_times"] = True     # show each B-bot's time in the HUD
-```
-
-Attach per-B-bot gains (the controller receives the B-bot object) and run one PID
-per robot:
-
-```python
-for i, robot in enumerate(sim.robots):
-    robot.pid_params = GAIN_SETS[i]     # e.g. {"kp": 4.0, "ki": 0.05, "kd": 0.9, ...}
-```
-
-After the run, each B-bot reports its own result:
-
-```python
-for i, robot in enumerate(sim.robots):
-    print(f"B-Bot{i}: {robot.lap_statistics()}")
-```
-
-The **Toggle Times** button (or `config["show_times"]`) hides/shows the per-B-bot
-timing in the HUD. See the
-[Multi Line Follower example](examples/multi_line_follower.md) and the
-[collision flag](multi_robot.md#robot-robot-interaction) for details. Pair this
-with the [data logger](logging.md) to save the comparison.
-
-
-## Battery model (differential)
-
-Differential B-bots can model energy. It is disabled by default.
+## Battery Model (Differential)
 
 ```python
 robot.set_battery_parameters(
     c_idle=0.1,        # %/s at rest
-    c_v=4.0,           # %/s per (m/s)^2
-    c_w=1.0,           # %/s per (rad/s)^2
+    c_v=4.0,           # %/s per (m/s)²
+    c_w=1.0,           # %/s per (rad/s)²
     critical_battery=50,
     working_battery=90,
 )
-
-# or derive coefficients from hardware specs:
-robot.set_battery_parameters_from_specs(
-    voltage=11.1, ah=5.0, power_electronics=1.0,
-    power_motors_cruise=15.0, v_cruise=0.5,
-)
 ```
 
-Charging spots come from `world.recharge_places`. The engine charges a B-bot
-while `robot.is_charging` is `True` and it sits within `goal_tolerance` of a
-spot, until `battery_percent >= working_battery`.
+---
 
-## Building a fleet
+## Building a Fleet
 
-`create_fleet(config)` reads `config["robots"]`; each spec overrides the base
-`robot` block and may set a `color`.
+```yaml
+robots:
+  - type: differential
+    initial_pose: [2.0, 2.0, 0.0]
+    color: [30, 144, 255]
+  - type: hexagonal_holonomic
+    initial_pose: [-2.0, 2.0, 0.0]
+    color: [220, 20, 60]
+    radius: 0.3
+    wheel_radius: 0.05
+```
 
 ```python
 from hivebr.engine import create_fleet
-
 robots = create_fleet(config)   # list[BaseRobot]
 ```
 
-If `config["robots"]` is absent, a single B-bot is built from `config["robot"]`,
-so **mono-robot is simply a fleet with N = 1**.
+---
 
-## Custom models
+## Custom Models
 
-Subclass `BaseRobot` and implement `position`, `reset`, `state`, `step` and
-`draw`, then add a branch in `hivebr.engine.robots.create_robot`:
+Subclass `BaseRobot` and implement `position`, `reset`, `state`, `step`, `draw`, then register in `hivebr.engine.robots.create_robot`.
 
 ```python
 from hivebr.engine.robots.base import BaseRobot
@@ -204,4 +429,4 @@ class MyRobot(BaseRobot):
     def draw(self, screen, camera): ...
 ```
 
-See the API reference for [Robot classes](api/robots.md).
+See [API Reference](api/robots.md) for class documentation.

@@ -37,6 +37,12 @@ overview and command dictionaries.
     options:
       inherited_members: true
 
+## Hexagonal Holonomic (3-wheel omni)
+
+::: hivebr.engine.robots.hexagonal_holonomic.HexagonalHolonomicRobot
+    options:
+      inherited_members: true
+
 ## Ackermann
 
 ::: hivebr.engine.robots.ackermann.AckermannRobot

@@ -122,9 +122,12 @@ theme: dark                  # "dark" | "light"
 | `camera` | `initial_zoom`, `min_zoom`, `max_zoom` | Zoom limits. |
 | `robot` | `type` | Kinematic model (see [Robot Models](robots.md)). |
 | | `initial_pose` | `[x, y, theta]` spawn pose. |
-| | `radius` | Collision radius. |
+| | `radius` | Collision radius (for differential/ackermann/boat). For hexagonal_holonomic: distance from center to wheel center `L` (m). |
+| | `wheel_radius` | (hexagonal_holonomic) Wheel radius `r` (m). |
+| | `max_wheel_speed` | (hexagonal_holonomic) Max wheel angular velocity (rad/s). |
 | | `max_speed`, `max_omega`, `max_steer` | Actuation limits. |
 | | `tau_v` | First-order velocity time constant. |
+| | `servo_max_speed` | (hexagonal_holonomic) Max servo speed for control allocation (rad/s). |
 | | `num_sensors`, `line_width`, `sensor_offset`, `sensor_span`, `sensor_aperture`, `sensor_noise`, `line_threshold` | Line-follower TCRT5000 array. |
 | | `lap_detection_radius`, `min_lap_distance`, `min_lap_time`, `lost_timeout` | Line-follower lap timing / end-of-track detection. |
 | `robots` | list of specs | Fleet; each overrides `robot` and may set `color`. |
@@ -143,6 +146,70 @@ theme: dark                  # "dark" | "light"
 | | `show_robot_links` | Draw communication links between neighbors. |
 | `show_times` | | Show per-B-bot timing in the HUD (toggled by **Toggle Times**). |
 | `theme` | | `dark` or `light` palette. |
+| `gui` | `buttons` | List of sidebar buttons to show (see below). |
+| | `sliders` | List of sidebar sliders to show (see below). |
+
+### GUI Buttons (optional)
+
+Control which buttons appear in the right sidebar. Default shows all.
+
+| Key | Button | Description |
+|-----|--------|-------------|
+| `start` | Start / Pause | Toggle simulation |
+| `reset` | Reset | Reset robot poses |
+| `clear_path` | Clear Path | Erase drawn path |
+| `clear_waypoints` | Clear Waypoints | Remove all waypoints |
+| `clear_obstacles` | Clear Obstacles | Remove all obstacles |
+| `load_map` | Load Map | Open file dialog for map image |
+| `draw_track` | Draw Track | Enable track drawing mode |
+| `apply_track` | Apply Track | Save drawn track |
+| `clear_track` | Clear Track | Erase drawn track |
+| `toggle_lidar` | Toggle LiDAR | Enable/disable LiDAR |
+| `toggle_noise` | Toggle Noise | Enable/disable actuation noise |
+| `toggle_times` | Toggle Times | Show/hide per-robot timing |
+| `toggle_theme` | Toggle Theme | Switch dark/light |
+| `save_config` | Save Config | Save current config to YAML |
+| `center_camera` | Center Camera | Reset camera view |
+| `plot_log` | Plot Log | Plot data logger |
+| `export_log` | Export Log | Save log to file |
+| `reset_logger` | Reset Logger | Clear logger data |
+
+Example:
+```yaml
+gui:
+  buttons:
+    - start
+    - reset
+    - clear_path
+    - toggle_lidar
+    - toggle_noise
+    - toggle_theme
+    - save_config
+```
+
+### GUI Sliders (optional)
+
+Control which parameter sliders appear in the right sidebar. Default shows common sliders.
+
+| Key | Slider | Config Path | Range | Applies To |
+|-----|--------|-------------|-------|------------|
+| `max_speed` | Max Speed | `robot.max_speed` | 0.2 – 8.0 | All except line_follower |
+| `max_omega` | Max Omega | `robot.max_omega` | 0.1 – 6.0 | All except line_follower |
+| `max_steer` | Max Steering | `robot.max_steer` | 0.1 – 1.2 | Ackermann |
+| `grid_size` | Grid Size | `world.grid_size` | 0.1 – 5.0 | All |
+| `noise_sigma` | Noise Sigma | `noise.sigma_v`, `noise.sigma_omega` | 0.0 – 1.0 | All |
+| `servo_max_speed` | Max Servo Speed | `robot.servo_max_speed` | 0.5 – 30.0 | **Hexagonal Holonomic** |
+
+Example:
+```yaml
+gui:
+  sliders:
+    - max_speed
+    - max_omega
+    - grid_size
+    - noise_sigma
+    - servo_max_speed
+```
 
 !!! note "Mono is fleet with N = 1"
     If `robots` is omitted, the engine builds a single B-bot from `robot`.

@@ -55,9 +55,13 @@ def full_controller(robot, world, goal, cfg, dt, lidar_readings=None):
     return {"v": v, "omega": w}
 ```
 
-The command keys depend on the robot model — `v`/`omega` for differential,
-`vx`/`vy` for holonomic, `speed`/`steer` for Ackermann. See
-[Robot Models](robots.md).
+The command keys depend on the robot model:
+- `v`/`omega` for differential, differential_firstorder, line_follower, boat
+- `vx`/`vy` for holonomic
+- `speed`/`steer` for ackermann
+- `omega1`/`omega2`/`omega3` or `vx`/`vy`/`omega` or `v`/`omega` for **hexagonal_holonomic**
+
+See [Robot Models](robots.md) for all kinematic equations.
 
 ## 3. Run
 

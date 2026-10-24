@@ -40,13 +40,18 @@ and a **control panel** (right).
 
 ## Sliders
 
-| Slider | Applies to |
-| ------ | ---------- |
-| **Max Speed** | `max_speed` of the whole fleet. |
-| **Max Omega** | `max_omega` of differential B-bots. |
-| **Max Steering** | `max_steer` of Ackermann B-bots. |
-| **Grid Size** | World grid spacing. |
-| **Noise Sigma** | Gaussian velocity noise magnitude; moving it above 0 enables the noise and updates `sigma_v`/`sigma_omega`. |
+The control panel shows parameter sliders that modify the running configuration. Which sliders appear is controlled by `config["gui"]["sliders"]` (see [Configuration](configuration.md#gui-sliders-optional)).
+
+| Slider | Config Key | Range | Applies To |
+| ------ | ---------- | ----- | ---------- |
+| **Max Speed** | `max_speed` | 0.2 – 8.0 | All except line_follower |
+| **Max Omega** | `max_omega` | 0.1 – 6.0 | All except line_follower |
+| **Max Steering** | `max_steer` | 0.1 – 1.2 | Ackermann |
+| **Grid Size** | `world.grid_size` | 0.1 – 5.0 | All |
+| **Noise Sigma** | `noise.sigma_v`, `noise.sigma_omega` | 0.0 – 1.0 | All (enables noise when > 0) |
+| **Max Servo Speed** | `robot.servo_max_speed` | 0.5 – 30.0 | **Hexagonal Holonomic** |
+
+The sliders update the config dictionary and the robot objects in real time.
 
 ## HUD
 
