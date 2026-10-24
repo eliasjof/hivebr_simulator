@@ -102,12 +102,21 @@ For rotation while translating, use world-frame `vx, vy` with appropriate values
 
 ### 3. Hexagonal Holonomic (3-Wheel Omni)
 
-**Geometry**: 3 omni-wheels at 60°, 180°, 300° (aligned with hexagon flat sides)
+**Geometry**: 3 omni-wheels at 60°, 180°, 300° (aligned with hexagon flat sides, distance $L$ from center)
 
-**Wheel tangent directions** (velocity = tangent to circle = perpendicular to radius):
-- Wheel 1 (60°):  tangent = 150°  $\left(-\frac{\sqrt{3}}{2}, \frac{1}{2}\right)$
-- Wheel 2 (180°): tangent = 270°  $(0, -1)$
-- Wheel 3 (300°): tangent = 30°   $\left(\frac{\sqrt{3}}{2}, \frac{1}{2}\right)$
+For an omni-wheel at angle $\phi$ (measured from +x axis), the **tangent direction** (direction of force/velocity applied to the ground) is perpendicular to the radius vector:
+
+$$
+\mathbf{t}(\phi) = \begin{bmatrix} -\sin\phi \\ \cos\phi \end{bmatrix}
+$$
+
+This gives the wheel tangent vectors:
+
+| Wheel | Position $\phi$ | Tangent angle $\phi + 90^\circ$ | Tangent vector $\mathbf{t}$ |
+|-------|-----------------|--------------------------------|----------------------------|
+| 1 | $60^\circ$  | $150^\circ$ | $\begin{bmatrix} -\sin 60^\circ \\ \cos 60^\circ \end{bmatrix} = \begin{bmatrix} -\frac{\sqrt{3}}{2} \\ \frac{1}{2} \end{bmatrix}$ |
+| 2 | $180^\circ$ | $270^\circ$ | $\begin{bmatrix} -\sin 180^\circ \\ \cos 180^\circ \end{bmatrix} = \begin{bmatrix} 0 \\ -1 \end{bmatrix}$ |
+| 3 | $300^\circ$ | $30^\circ$  | $\begin{bmatrix} -\sin 300^\circ \\ \cos 300^\circ \end{bmatrix} = \begin{bmatrix} \frac{\sqrt{3}}{2} \\ \frac{1}{2} \end{bmatrix}$ |
 
 #### Forward Kinematics
 

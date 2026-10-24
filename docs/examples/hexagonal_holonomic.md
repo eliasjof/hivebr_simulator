@@ -13,15 +13,21 @@ A hexagonal holonomic robot with 3 omni-wheels at 120° (aligned with hexagon si
 
 ## Kinematics
 
-**Wheel geometry**: 3 omni-wheels at 60°, 180°, 300° (flat hexagon sides)
+**Wheel geometry**: 3 omni-wheels at 60°, 180°, 300° (flat hexagon sides, distance $L$ from center)
 
-| Wheel | Position | Tangent (velocity direction) |
-|-------|----------|------------------------------|
-| 1 | 60° | 150° |
-| 2 | 180° | 270° |
-| 3 | 300° | 30° |
+For an omni-wheel at angle $\phi$, the tangent direction (force/velocity applied to ground) is perpendicular to the radius:
 
-**Forward kinematics** (wheel speeds → robot velocity):
+$$
+\mathbf{t}(\phi) = \begin{bmatrix} -\sin\phi \\ \cos\phi \end{bmatrix}
+$$
+
+| Wheel | Position $\phi$ | Tangent angle $\phi + 90^\circ$ | Tangent vector $\mathbf{t}$ |
+|-------|-----------------|--------------------------------|----------------------------|
+| 1 | $60^\circ$  | $150^\circ$ | $\begin{bmatrix} -\sin 60^\circ \\ \cos 60^\circ \end{bmatrix} = \begin{bmatrix} -\frac{\sqrt{3}}{2} \\ \frac{1}{2} \end{bmatrix}$ |
+| 2 | $180^\circ$ | $270^\circ$ | $\begin{bmatrix} -\sin 180^\circ \\ \cos 180^\circ \end{bmatrix} = \begin{bmatrix} 0 \\ -1 \end{bmatrix}$ |
+| 3 | $300^\circ$ | $30^\circ$  | $\begin{bmatrix} -\sin 300^\circ \\ \cos 300^\circ \end{bmatrix} = \begin{bmatrix} \frac{\sqrt{3}}{2} \\ \frac{1}{2} \end{bmatrix}$ |
+
+**Forward kinematics** (wheel speeds $\omega_i$ → robot velocity):
 
 $$
 \begin{bmatrix} \dot{x} \\ \dot{y} \\ \dot{\theta} \end{bmatrix}
