@@ -18,8 +18,8 @@ The **command** you return from a controller depends on the model.
 | `type` (aliases) | Command keys | Notes |
 | ---------------- | ------------ | ----- |
 | `differential` (`diff`, `unicycle`, `nonholonomic`) | `{"v": …, "omega": …}` | Classic unicycle, with optional battery model. |
-| `line_follower` (`line`, `linefollower`, `line_tracker`, `tcrt5000`) | `{"v": …, "omega": …}` | Differential kinematics + 2/5/8 analog line sensors (TCRT5000). |
 | `differential_firstorder` (`firstorder`, `diff_tau`) | `{"v": …, "omega": …}` | Adds a first-order lag on the linear speed (`tau_v`). |
+| `line_follower` (`line`, `linefollower`, `line_tracker`, `tcrt5000`) | `{"v": …, "omega": …}` | Differential kinematics + 2/5/8 analog line sensors (TCRT5000). |
 | `holonomic` (`omni`, `omnidirectional`) | `{"vx": …, "vy": …}` | Velocity is set directly in world frame. |
 | `hexagonal_holonomic` (`hexagonal`, `hex_holonomic`, `3wheel_holonomic`) | `{"omega1": …, "omega2": …, "omega3": …}` or `{"vx": …, "vy": …}` or `{"v": …, "omega": …}` | 3 omni-wheels at 120° (hexagon sides), direct servo control or world-frame velocity. |
 | `ackermann` (`car`, `racecar`) | `{"speed": …, "steer": …}` | Bicycle model with front steering. |
@@ -56,6 +56,31 @@ $$
 - `max_speed`: max linear velocity (m/s)
 - `max_omega`: max angular velocity (rad/s)
 - `tau_v`: first-order lag time constant (s) — only for `differential_firstorder`
+
+---
+
+### 1b. Differential Drive (First-Order Lag)
+
+**Command**: `{"v": v, "omega": ω}`
+
+Same kinematics as differential drive, but with a first-order filter on the linear velocity command:
+
+$$
+\begin{aligned}
+\dot{x} &= v_{\text{act}} \cos\theta \\
+\dot{y} &= v_{\text{act}} \sin\theta \\
+\dot{\theta} &= \omega \\
+\tau_v \dot{v}_{\text{act}} + v_{\text{act}} &= v_{\text{cmd}}
+\end{aligned}
+$$
+
+Where:
+- $v_{\text{cmd}}$ = commanded linear velocity (from controller)
+- $v_{\text{act}}$ = actual linear velocity (after lag)
+- $\tau_v$ = time constant (`tau_v` config parameter)
+
+**Parameters** (in addition to differential):
+- `tau_v`: first-order velocity time constant (s)
 
 ---
 
@@ -158,6 +183,41 @@ $$
 ### 5. Boat
 
 Same as differential drive kinematics, rendered as a boat hull.
+
+---
+
+### 6. Line Follower (TCRT5000)
+
+**Command**: `{"v": v, "omega": ω}`
+
+Uses the **same differential-drive kinematics** as the differential model:
+
+$$
+\begin{aligned}
+\dot{x} &= v \cos\theta \\
+\dot{y} &= v \sin\theta \\
+\dot{\theta} &= \omega
+\end{aligned}
+$$
+
+**Line Sensor Model**: The robot carries $N$ TCRT5000 analog sensors (typically $N \in \{2, 5, 8\}$) arranged linearly ahead of the body center. Each sensor returns a normalized reading $s_i \in [0, 1]$ where:
+- $s_i \approx 1$ = over black line
+- $s_i \approx 0$ = over white background
+
+The **line position error** is computed as a weighted centroid:
+$$
+e = \frac{\sum_{i=1}^N w_i s_i}{\sum_{i=1}^N s_i} \in [-1, 1]
+$$
+where $w_i$ are lateral positions of sensors normalized to $[-1, 1]$.
+
+**Parameters** (in addition to differential):
+- `num_sensors`: number of TCRT5000 sensors (2, 5, or 8)
+- `line_width`: physical line width [m]
+- `sensor_offset`: distance from body center to sensor bar [m]
+- `sensor_span`: total width of sensor array [m] (auto from `line_width` if omitted)
+- `sensor_aperture`: sensing area radius [m]
+- `sensor_noise`: Gaussian noise std on readings
+- `line_threshold`: threshold for "on line" detection
 
 ---
 
