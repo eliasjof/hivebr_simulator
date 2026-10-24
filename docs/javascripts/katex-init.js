@@ -1,33 +1,42 @@
 /**
  * KaTeX auto-render initialization
- * Renders LaTeX math delimiters in the page content
+ * Renders LaTeX math from both text delimiters and arithmatex output
  */
 document.addEventListener("DOMContentLoaded", function () {
+    // First, render math from arithmatex output: <div class="arithmatex"><script type="math/tex">...</script></div>
+    document.querySelectorAll('.arithmatex script[type="math/tex"]').forEach(function(script) {
+        var display = script.getAttribute('mode') === 'display';
+        var math = script.textContent;
+        try {
+            katex.render(math, script.parentElement, {
+                displayMode: display,
+                throwOnError: false,
+                trust: true,
+                macros: {
+                    "\\R": "\\mathbb{R}",
+                    "\\N": "\\mathbb{N}",
+                    "\\Z": "\\mathbb{Z}",
+                    "\\C": "\\mathbb{C}",
+                }
+            });
+        } catch (e) {
+            console.warn("KaTeX render error:", e, math);
+        }
+    });
+
+    // Also render text delimiters for any raw math
     renderMathInElement(document.body, {
-        // Custom delimiters for inline and display math
         delimiters: [
-            { left: "$$", right: "$$", display: true },      // Display: $$...$$
-            { left: "\\[", right: "\\]", display: true },    // Display: \[...\]
-            { left: "$", right: "$", display: false },       // Inline: $...$
-            { left: "\\(", right: "\\)", display: false },   // Inline: \(...\)
+            { left: "$$", right: "$$", display: true },
+            { left: "\\[", right: "\\]", display: true },
+            { left: "$", right: "$", display: false },
+            { left: "\\(", right: "\\)", display: false },
         ],
-        // Ignore these tags (don't render math inside them)
         ignoredTags: [
             "script", "noscript", "style", "textarea", "pre", "code",
             "option", "input", "select", "span.katex"
         ],
-        // Throw error on parse error (set false to ignore)
         throwOnError: false,
-        // Trust context for unsafe commands
         trust: true,
-        // Macro definitions
-        macros: {
-            "\\R": "\\mathbb{R}",
-            "\\N": "\\mathbb{N}",
-            "\\Z": "\\mathbb{Z}",
-            "\\C": "\\mathbb{C}",
-            "\\dot": "\\dot{#1}",
-            "\\ddot": "\\ddot{#1}",
-        }
     });
 });
