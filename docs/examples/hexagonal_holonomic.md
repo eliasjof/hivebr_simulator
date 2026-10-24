@@ -22,20 +22,35 @@ A hexagonal holonomic robot with 3 omni-wheels at 120° (aligned with hexagon si
 | 3 | 300° | 30° |
 
 **Forward kinematics** (wheel speeds → robot velocity):
-```
-[ ẋ  ]   [ -r√3/2    0      r√3/2  ] [ ω₁ ]
-[ ẏ  ] = [  r/2     -r      r/2    ] [ ω₂ ]
-[ θ̇  ]   [ r/3L    r/3L    r/3L    ] [ ω₃ ]
-```
+
+$$
+\begin{bmatrix} \dot{x} \\ \dot{y} \\ \dot{\theta} \end{bmatrix}
+=
+\underbrace{\begin{bmatrix}
+-r\frac{\sqrt{3}}{2} & 0 & r\frac{\sqrt{3}}{2} \\[4pt]
+\frac{r}{2} & -r & \frac{r}{2} \\[4pt]
+\frac{r}{3L} & \frac{r}{3L} & \frac{r}{3L}
+\end{bmatrix}}_{\mathbf{J}_f}
+\begin{bmatrix} \omega_1 \\ \omega_2 \\ \omega_3 \end{bmatrix}
+$$
 
 **Inverse kinematics** (robot velocity → wheel speeds):
-```
-[ ω₁ ]   [ -2/3r    √3/3r    L/r ] [ ẋ  ]
-[ ω₂ ] = [ -2/3r   -√3/3r    L/r ] [ ẏ  ]
-[ ω₃ ]   [  4/3r       0      L/r ] [ θ̇  ]
-```
 
-Where `r` = wheel radius, `L` = robot radius (center to wheel).
+$$
+\begin{bmatrix} \omega_1 \\ \omega_2 \\ \omega_3 \end{bmatrix}
+=
+\mathbf{J}_f^{\dagger}
+\begin{bmatrix} \dot{x} \\ \dot{y} \\ \dot{\theta} \end{bmatrix}
+=
+\begin{bmatrix}
+-\frac{2}{3r} & \frac{\sqrt{3}}{3r} & \frac{L}{r} \\[4pt]
+-\frac{2}{3r} & -\frac{\sqrt{3}}{3r} & \frac{L}{r} \\[4pt]
+\frac{4}{3r} & 0 & \frac{L}{r}
+\end{bmatrix}
+\begin{bmatrix} \dot{x} \\ \dot{y} \\ \dot{\theta} \end{bmatrix}
+$$
+
+Where $r$ = wheel radius, $L$ = robot radius (center to wheel).
 
 ## Key Parts
 

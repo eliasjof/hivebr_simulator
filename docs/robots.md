@@ -44,11 +44,13 @@ return {"vx": 0.5, "vy": 0.2, "omega": 0.1}
 
 **Command**: `{"v": v, "omega": ω}`
 
-```
-ẋ = v · cos(θ)
-ẏ = v · sin(θ)
-θ̇ = ω
-```
+$$
+\begin{aligned}
+\dot{x} &= v \cos\theta \\
+\dot{y} &= v \sin\theta \\
+\dot{\theta} &= \omega
+\end{aligned}
+$$
 
 **Parameters**:
 - `max_speed`: max linear velocity (m/s)
@@ -59,13 +61,15 @@ return {"vx": 0.5, "vy": 0.2, "omega": 0.1}
 
 ### 2. Holonomic (Omnidirectional)
 
-**Command**: `{"vx": vx, "vy": vy}` (world frame)
+**Command**: `{"vx": v_x, "vy": v_y}` (world frame)
 
-```
-ẋ = vx
-ẏ = vy
-θ̇ = 0  (independent rotation not supported directly)
-```
+$$
+\begin{aligned}
+\dot{x} &= v_x \\
+\dot{y} &= v_y \\
+\dot{\theta} &= 0 \quad \text{(independent rotation not directly supported)}
+\end{aligned}
+$$
 
 For rotation while translating, use world-frame `vx, vy` with appropriate values, or use `hexagonal_holonomic` which supports independent rotation.
 
@@ -75,29 +79,44 @@ For rotation while translating, use world-frame `vx, vy` with appropriate values
 
 **Geometry**: 3 omni-wheels at 60°, 180°, 300° (aligned with hexagon flat sides)
 
-**Wheel tangent directions** (velocity = tangent to circle):
-- Wheel 1 (60°): tangent = 150°  `(-√3/2, 1/2)`
-- Wheel 2 (180°): tangent = 270°  `(0, -1)`
-- Wheel 3 (300°): tangent = 30°   `(√3/2, 1/2)`
+**Wheel tangent directions** (velocity = tangent to circle = perpendicular to radius):
+- Wheel 1 (60°):  tangent = 150°  $\left(-\frac{\sqrt{3}}{2}, \frac{1}{2}\right)$
+- Wheel 2 (180°): tangent = 270°  $(0, -1)$
+- Wheel 3 (300°): tangent = 30°   $\left(\frac{\sqrt{3}}{2}, \frac{1}{2}\right)$
 
 #### Forward Kinematics
-```
-[ ẋ  ]   [ -r√3/2    0      r√3/2  ] [ ω₁ ]
-[ ẏ  ] = [  r/2     -r      r/2    ] [ ω₂ ]
-[ θ̇  ]   [ r/3L    r/3L    r/3L    ] [ ω₃ ]
-```
+
+$$
+\begin{bmatrix} \dot{x} \\ \dot{y} \\ \dot{\theta} \end{bmatrix}
+=
+\underbrace{\begin{bmatrix}
+-r\frac{\sqrt{3}}{2} & 0 & r\frac{\sqrt{3}}{2} \\[4pt]
+\frac{r}{2} & -r & \frac{r}{2} \\[4pt]
+\frac{r}{3L} & \frac{r}{3L} & \frac{r}{3L}
+\end{bmatrix}}_{\mathbf{J}_f}
+\begin{bmatrix} \omega_1 \\ \omega_2 \\ \omega_3 \end{bmatrix}
+$$
 
 Where:
-- `r` = wheel radius (`wheel_radius`)
-- `L` = distance from robot center to wheel center (`radius`)
-- `ω₁, ω₂, ω₃` = wheel angular velocities (rad/s)
+- $r$ = wheel radius (`wheel_radius`)
+- $L$ = distance from robot center to wheel center (`radius`)
+- $\omega_1, \omega_2, \omega_3$ = wheel angular velocities (rad/s)
 
 #### Inverse Kinematics
-```
-[ ω₁ ]   [ -2/3r    √3/3r    L/r ] [ ẋ  ]
-[ ω₂ ] = [ -2/3r   -√3/3r    L/r ] [ ẏ  ]
-[ ω₃ ]   [  4/3r       0      L/r ] [ θ̇  ]
-```
+
+$$
+\begin{bmatrix} \omega_1 \\ \omega_2 \\ \omega_3 \end{bmatrix}
+=
+\mathbf{J}_f^{\dagger}
+\begin{bmatrix} \dot{x} \\ \dot{y} \\ \dot{\theta} \end{bmatrix}
+=
+\begin{bmatrix}
+-\frac{2}{3r} & \frac{\sqrt{3}}{3r} & \frac{L}{r} \\[4pt]
+-\frac{2}{3r} & -\frac{\sqrt{3}}{3r} & \frac{L}{r} \\[4pt]
+\frac{4}{3r} & 0 & \frac{L}{r}
+\end{bmatrix}
+\begin{bmatrix} \dot{x} \\ \dot{y} \\ \dot{\theta} \end{bmatrix}
+$$
 
 #### Control Modes
 
@@ -108,8 +127,8 @@ Where:
 | **Robot frame** | `v`, `omega` | Forward speed + angular velocity in robot frame |
 
 **Parameters**:
-- `radius`: robot radius (distance center → wheel) [m]
-- `wheel_radius`: omni wheel radius `r` [m]
+- `radius`: robot radius (distance center → wheel) $L$ [m]
+- `wheel_radius`: omni wheel radius $r$ [m]
 - `max_wheel_speed`: max wheel angular velocity [rad/s]
 - `max_speed`: max robot linear speed [m/s]
 - `max_omega`: max robot angular speed [rad/s]
@@ -119,18 +138,20 @@ Where:
 
 ### 4. Ackermann (Car-like)
 
-**Command**: `{"speed": v, "steer": δ}`
+**Command**: `{"speed": v, "steer": \delta}`
 
-```
-ẋ = v · cos(θ)
-ẏ = v · sin(θ)
-θ̇ = v / L · tan(δ)
-```
+$$
+\begin{aligned}
+\dot{x} &= v \cos\theta \\
+\dot{y} &= v \sin\theta \\
+\dot{\theta} &= \frac{v}{L} \tan\delta
+\end{aligned}
+$$
 
 **Parameters**:
 - `max_speed`: max linear velocity [m/s]
 - `max_steer`: max steering angle [rad]
-- `wheel_base`: distance between axles `L` [m]
+- `wheel_base`: distance between axles $L$ [m]
 
 ---
 
