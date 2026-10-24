@@ -150,6 +150,7 @@ class GUI:
             ("max_steer", "Max Steering", cfg["robot"].get("max_steer", 0.6), (0.1, 1.2)),
             ("grid_size", "Grid Size", cfg["world"].get("grid_size", 1.0), (0.1, 5.0)),
             ("noise_sigma", "Noise Sigma", cfg.get("noise", {}).get("sigma_v", 0.0), (0.0, 1.0)),
+            ("servo_max_speed", "Max Servo Speed", cfg["robot"].get("servo_max_speed", 6.28), (0.5, 30.0)),
         ]
         
         for i, (key, label, start, value_range) in enumerate(slider_defs):
@@ -193,6 +194,13 @@ class GUI:
             # Moving the slider enables the noise; setting it to 0 disables it.
             noise["enabled"] = value > 0.0
             e["noise_sigma_value"].set_text(f"{value:.3f}")
+        elif "servo_max_speed" in e and event.ui_element == e["servo_max_speed"]:
+            value = e["servo_max_speed"].get_current_value()
+            config["robot"]["servo_max_speed"] = value
+            e["servo_max_speed_value"].set_text(f"{value:.2f}")
+            for robot in robots:
+                if hasattr(robot, "servo_max_speed"):
+                    robot.servo_max_speed = value
 
     def close_obstacle_radius_window(self):
         if self.obstacle_radius_window is not None:

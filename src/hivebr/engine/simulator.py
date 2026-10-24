@@ -115,7 +115,7 @@ DEFAULT_CONFIG = {
     },
     "waypoints": {
         "goal_tolerance": 0.5,
-        "define_orientation": True,
+        "define_orientation": False,
         "show_tolerance_circle": False,
         "points": []
     },
@@ -172,7 +172,7 @@ DEFAULT_CONFIG = {
             "save_config", "center_camera", "plot_log", "export_log", "reset_logger"
         ],
         "sliders": [
-            "max_speed", "max_omega", "max_steer", "grid_size", "noise_sigma"
+            "max_speed", "max_omega", "max_steer", "grid_size", "noise_sigma", "servo_max_speed"
         ]
     }
 }

@@ -177,5 +177,6 @@ gui:
     # - max_steer
     - grid_size
     - noise_sigma
+    - servo_max_speed
 
 theme: night

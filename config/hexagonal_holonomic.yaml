@@ -70,13 +70,12 @@ noise:
 
 waypoints:
   goal_tolerance: 0.15
-  define_orientation: true
+  define_orientation: false
   show_tolerance_circle: true
   points:
     - [3.0, 2.0]
     - [5.0, -1.0]
     - [-2.0, -2.0]
-    - [0.0, 0.0]
 
 controller:
   enabled: true
@@ -156,5 +155,6 @@ gui:
     # - max_steer
     - grid_size
     - noise_sigma
+    - servo_max_speed
 
 theme: dark

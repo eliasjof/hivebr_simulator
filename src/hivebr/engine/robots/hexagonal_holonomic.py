@@ -370,112 +370,40 @@ class HexagonalHolonomicRobot(BaseRobot):
                                 camera.world_to_screen(ex, ey), 2)
     
     def _draw_wheel_velocities(self, screen, camera):
-        """Draw wheel velocity vectors for debugging with theme-adaptive colors."""
+        """Draw robot frame axes (X forward = theta, Y left = theta+90°)."""
         colors = self.config["colors"]
         
-        # Wheel positions (matching _draw_wheels) - 60°, 180°, 300°
-        wheel_angles = [
-            self.theta + math.pi / 3,        # 60°
-            self.theta + math.pi,            # 180°
-            self.theta + 5 * math.pi / 3,    # 300°
-        ]
-        
-        # Wheel tangent directions (velocity directions) - 150°, 270°, 30°
-        tangent_angles = [
-            self.theta + 5 * math.pi / 6,    # 150°
-            self.theta + 3 * math.pi / 2,    # 270°
-            self.theta + math.pi / 6,        # 30°
-        ]
-        
-        wheel_speeds = [self.omega1, self.omega2, self.omega3]
-        max_speed = self.max_wheel_speed
-        
-        # Theme-adaptive colors - use text color that works on both themes
-        # In light theme: black text, in dark theme: white text
-        is_light = colors.get("background", [0,0,0])[0] > 128
-        text_color = tuple(colors["black"] if is_light else colors["white"])
-        
-        # Velocity vector colors - use theme colors
-        pos_color = tuple(colors.get("green", (0, 200, 0)))   # Forward
-        neg_color = tuple(colors.get("red", (200, 0, 0)))     # Reverse
-        
-        for i, (pos_angle, tang_angle, omega) in enumerate(zip(wheel_angles, tangent_angles, wheel_speeds)):
-            wx = self.x + self.radius * math.cos(pos_angle)
-            wy = self.y + self.radius * math.sin(pos_angle)
-            wheel_center = camera.world_to_screen(wx, wy)
-            
-            # Use the EXACT same tangent vector as the wheel rectangle
-            cos_t = math.cos(tang_angle)
-            sin_t = math.sin(tang_angle)
-            cos_r = math.cos(pos_angle)
-            sin_r = math.sin(pos_angle)
-            
-            # Arrow runs along the wheel's long side (tangent direction)
-            # Matching wheel rectangle's exact center line
-            half_len_px = (self.wheel_radius * 3.5 / 2) * camera.scale
-            dir_sign = 1 if omega >= 0 else -1
-            
-            # Start/end points: exact ends of wheel's long side (center line)
-            start_x = wheel_center[0] - dir_sign * half_len_px * cos_t
-            start_y = wheel_center[1] - dir_sign * half_len_px * sin_t
-            end_x = wheel_center[0] + dir_sign * half_len_px * cos_t
-            end_y = wheel_center[1] + dir_sign * half_len_px * sin_t
-            
-            # Color based on direction (theme-adaptive)
-            color = pos_color if omega >= 0 else neg_color
-            
-            # Draw thin line along wheel's center line (thinner than wheel)
-            pygame.draw.line(screen, color, (start_x, start_y), (end_x, end_y), 2)
-            
-            # Draw arrowhead at the end (pointing in motion direction)
-            arrow_len = 8
-            arrow_direction = tang_angle if dir_sign > 0 else tang_angle + math.pi
-            arrow_angle1 = arrow_direction + math.pi * 0.7
-            arrow_angle2 = arrow_direction - math.pi * 0.7
-            ax1 = end_x + arrow_len * math.cos(arrow_angle1)
-            ay1 = end_y + arrow_len * math.sin(arrow_angle1)
-            ax2 = end_x + arrow_len * math.cos(arrow_angle2)
-            ay2 = end_y + arrow_len * math.sin(arrow_angle2)
-            pygame.draw.polygon(screen, color, [(end_x, end_y), (ax1, ay1), (ax2, ay2)])
-            
-            # Draw wheel label - text color adapts to theme
-            font = pygame.font.SysFont("consolas", 11)
-            label = font.render(f"ω{i+1}:{omega:.1f}", True, text_color)
-            label_pos = (wheel_center[0] + 18, wheel_center[1] - 8)
-            screen.blit(label, label_pos)
-            
-            # DEBUG: Draw wheel FORCE direction (tangent = force applied to ground)
-            force_magnitude = abs(omega) / max_speed * self.radius * 1.5
-            force_magnitude = min(force_magnitude, self.radius * 1.5)
-            force_end_x = wheel_center[0] + force_magnitude * camera.scale * cos_t
-            force_end_y = wheel_center[1] + force_magnitude * camera.scale * sin_t
-            force_color = tuple(colors.get("yellow", (255, 255, 0)))
-            pygame.draw.line(screen, force_color, wheel_center, (force_end_x, force_end_y), 2)
-            # Small arrowhead
-            fx1 = force_end_x + 6 * math.cos(tang_angle + math.pi * 0.6)
-            fy1 = force_end_y + 6 * math.sin(tang_angle + math.pi * 0.6)
-            fx2 = force_end_x + 6 * math.cos(tang_angle - math.pi * 0.6)
-            fy2 = force_end_y + 6 * math.sin(tang_angle - math.pi * 0.6)
-            pygame.draw.polygon(screen, force_color, [(force_end_x, force_end_y), (fx1, fy1), (fx2, fy2)])
-        
-        # DEBUG: Draw robot velocity vector (white arrow from robot center)
-        if abs(self.vx) > 0.01 or abs(self.vy) > 0.01:
-            robot_center = camera.world_to_screen(self.x, self.y)
-            vel_len = math.hypot(self.vx, self.vy) * camera.scale * 20
-            vel_angle = math.atan2(self.vy, self.vx)
-            end_x = robot_center[0] + vel_len * math.cos(vel_angle)
-            end_y = robot_center[1] + vel_len * math.sin(vel_angle)
-            pygame.draw.line(screen, (255, 255, 255), robot_center, (end_x, end_y), 3)
-            # Arrowhead
-            arrow_len = 12
-            ax1 = end_x + arrow_len * math.cos(vel_angle + math.pi * 0.7)
-            ay1 = end_y + arrow_len * math.sin(vel_angle + math.pi * 0.7)
-            ax2 = end_x + arrow_len * math.cos(vel_angle - math.pi * 0.7)
-            ay2 = end_y + arrow_len * math.sin(vel_angle - math.pi * 0.7)
-            pygame.draw.polygon(screen, (255, 255, 255), [(end_x, end_y), (ax1, ay1), (ax2, ay2)])
-            # Label
-            label = font.render(f"v=({self.vx:.1f},{self.vy:.1f})", True, (255, 255, 255))
-            screen.blit(label, (robot_center[0] + 10, robot_center[1] - 20))
+        # DEBUG: Draw robot frame axes (X forward = theta, Y left = theta+90°)
+        robot_center = camera.world_to_screen(self.x, self.y)
+        axis_len = self.radius * 1.5 * camera.scale
+        # X axis (forward) - RED
+        x_end = (robot_center[0] + axis_len * math.cos(self.theta),
+                 robot_center[1] + axis_len * math.sin(self.theta))
+        pygame.draw.line(screen, (255, 50, 50), robot_center, x_end, 3)
+        pygame.draw.polygon(screen, (255, 50, 50), [
+            x_end,
+            (x_end[0] + 8 * math.cos(self.theta + math.pi * 0.7),
+             x_end[1] + 8 * math.sin(self.theta + math.pi * 0.7)),
+            (x_end[0] + 8 * math.cos(self.theta - math.pi * 0.7),
+             x_end[1] + 8 * math.sin(self.theta - math.pi * 0.7))
+        ])
+        # Y axis (left) - GREEN
+        y_end = (robot_center[0] + axis_len * math.cos(self.theta + math.pi/2),
+                 robot_center[1] + axis_len * math.sin(self.theta + math.pi/2))
+        pygame.draw.line(screen, (50, 255, 50), robot_center, y_end, 3)
+        pygame.draw.polygon(screen, (50, 255, 50), [
+            y_end,
+            (y_end[0] + 8 * math.cos(self.theta + math.pi/2 + math.pi * 0.7),
+             y_end[1] + 8 * math.sin(self.theta + math.pi/2 + math.pi * 0.7)),
+            (y_end[0] + 8 * math.cos(self.theta + math.pi/2 - math.pi * 0.7),
+             y_end[1] + 8 * math.sin(self.theta + math.pi/2 - math.pi * 0.7))
+        ])
+        # Labels
+        font = pygame.font.SysFont("consolas", 10)
+        x_label = font.render("X", True, (255, 50, 50))
+        y_label = font.render("Y", True, (50, 255, 50))
+        screen.blit(x_label, (x_end[0] + 5, x_end[1] - 5))
+        screen.blit(y_label, (y_end[0] + 5, y_end[1] - 5))
     
     def get_wheel_speeds(self):
         """Return current wheel speeds in rad/s."""
