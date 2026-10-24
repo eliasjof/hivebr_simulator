@@ -253,10 +253,6 @@ import math
 import numpy as np
 from hivebr.engine import Simulator, load_config
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "src"))
-
 def servo_controller(robot, world, goal, config, dt, lidar_readings):
     """Direct servo control using inverse kinematics with control allocation."""
     if goal is None:
