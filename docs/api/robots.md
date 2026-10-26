@@ -43,6 +43,12 @@ overview and command dictionaries.
     options:
       inherited_members: true
 
+## Hexagonal Holonomic Line Follower (3-wheel omni + TCRT5000)
+
+::: hivebr.engine.robots.hexagonal_holonomic_line_follower.HexagonalHolonomicLineFollower
+    options:
+      inherited_members: true
+
 ## Ackermann
 
 ::: hivebr.engine.robots.ackermann.AckermannRobot

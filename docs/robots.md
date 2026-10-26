@@ -22,6 +22,7 @@ The **command** you return from a controller depends on the model.
 | `line_follower` (`line`, `linefollower`, `line_tracker`, `tcrt5000`) | `{"v": …, "omega": …}` | Differential kinematics + 2/5/8 analog line sensors (TCRT5000). |
 | `holonomic` (`omni`, `omnidirectional`) | `{"vx": …, "vy": …}` | Velocity is set directly in world frame. |
 | `hexagonal_holonomic` (`hexagonal`, `hex_holonomic`, `3wheel_holonomic`) | `{"omega1": …, "omega2": …, "omega3": …}` or `{"vx": …, "vy": …}` or `{"v": …, "omega": …}` | 3 omni-wheels at 120° (hexagon sides), direct servo control or world-frame velocity. |
+| `hexagonal_holonomic_line_follower` (`hex_holonomic_line_follower`, `3wheel_holonomic_line_follower`) | `{"v": …, "omega": …}` or `{"vx": …, "vy": …}` or `{"omega1": …, "omega2": …, "omega3": …}` | 3 omni-wheels + TCRT5000 line sensors, PID line following. |
 | `ackermann` (`car`, `racecar`) | `{"speed": …, "steer": …}` | Bicycle model with front steering. |
 | `boat` | `{"v": …, "omega": …}` | Like a differential drive, drawn as a hull. |
 
@@ -36,6 +37,10 @@ return {"speed": 0.5, "steer": 0.2}
 return {"omega1": 10.0, "omega2": -5.0, "omega3": 3.0}
 # hexagonal holonomic - world frame velocity
 return {"vx": 0.5, "vy": 0.2, "omega": 0.1}
+# hexagonal holonomic line follower - robot frame (v, omega)
+return {"v": 0.3, "omega": 0.5}
+# hexagonal holonomic line follower - world frame
+return {"vx": 0.3, "vy": 0.1, "omega": 0.2}
 ```
 
 ## Kinematic Equations
@@ -217,6 +222,87 @@ The **line position error** is computed as a weighted centroid:
 $$
 e = \frac{\sum_{i=1}^N w_i s_i}{\sum_{i=1}^N s_i} \in [-1, 1]
 $$
+
+---
+
+### 7. Hexagonal Holonomic Line Follower (3-Wheel Omni + TCRT5000)
+
+**Command**: `{"v": v, "omega": ω}` (robot frame) or `{"vx": v_x, "vy": v_y, "omega": ω}` (world frame) or direct servo `{"omega1": ω₁, "omega2": ω₂, "omega3": ω₃}`
+
+Combines the **hexagonal holonomic kinematics** (Section 3) with TCRT5000 line sensors.
+
+**Kinematics**: Same as Hexagonal Holonomic (3 omni-wheels at 60°, 180°, 300°):
+
+$$
+\begin{bmatrix} \dot{x} \\ \dot{y} \\ \dot{\theta} \end{bmatrix}
+=
+\mathbf{J}_f
+\begin{bmatrix} \omega_1 \\ \omega_2 \\ \omega_3 \end{bmatrix}
+,\qquad
+\mathbf{J}_f =
+\begin{bmatrix}
+-r\frac{\sqrt{3}}{2} & 0 & r\frac{\sqrt{3}}{2} \\[4pt]
+\frac{r}{2} & -r & \frac{r}{2} \\[4pt]
+\frac{r}{3L} & \frac{r}{3L} & \frac{r}{3L}
+\end{bmatrix}
+$$
+
+**Control**: Typically uses robot-frame velocity `{"v": v, "omega": ω}` from a PID line follower:
+- `v` = forward speed (clamped to `max_speed`)
+- `omega` = angular velocity from PID on line error (clamped to `max_omega`)
+
+The controller reads line sensors via `robot.read_line_sensors(world.line_map)` which provides:
+- `robot.line_error` ∈ [-1, 1] (line position error)
+- `robot.sensor_readings` array of analog values
+- `robot.line_lost` boolean
+
+**Parameters** (in addition to Hexagonal Holonomic):
+- `num_sensors`: 2, 5, or 8 TCRT5000 sensors
+- `line_width`: physical line width [m]
+- `sensor_offset`: distance from body center to sensor bar [m]
+- `sensor_span`: total sensor array width [m]
+- `sensor_aperture`: sensing area radius [m]
+- `sensor_noise`: Gaussian noise std on readings
+- `line_threshold`: threshold for "on line" detection
+
+**Lap Timing** (same as Line Follower):
+- `lap_detection_radius`, `min_lap_distance`, `min_lap_time`, `lost_timeout`
+
+**Configuration Example**:
+```yaml
+robot:
+  type: hexagonal_holonomic_line_follower
+  radius: 0.05              # L: center to wheel (m)
+  wheel_radius: 0.05        # r: wheel radius (m)
+  max_wheel_speed: 20.0
+  max_speed: 0.6
+  max_omega: 3.5
+  servo_max_speed: 20.0
+  num_sensors: 5
+  line_width: 0.02
+  sensor_offset: 0.05
+  sensor_aperture: 0.004
+  sensor_noise: 0.0
+  line_threshold: 0.5
+  lap_detection_radius: 0.15
+  min_lap_distance: 1.0
+  min_lap_time: 1.0
+  lost_timeout: 1.0
+
+line_pid:
+  base_speed: 0.30
+  kp: 4.0
+  ki: 0.05
+  kd: 0.9
+  integral_limit: 1.0
+```
+
+**Run Example**:
+```bash
+python examples/run_hexagonal_holonomic_line_follower.py
+```
+
+---
 where $w_i$ are lateral positions of sensors normalized to $[-1, 1]$.
 
 **Parameters** (in addition to differential):

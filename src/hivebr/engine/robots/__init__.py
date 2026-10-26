@@ -7,6 +7,7 @@ from .boat import BoatRobot
 from .differential_firstorder import DifferentialRobotFirstOrder
 from .line_follower import LineFollowerRobot
 from .hexagonal_holonomic import HexagonalHolonomicRobot
+from .hexagonal_holonomic_line_follower import HexagonalHolonomicLineFollower
 
 
 def create_robot(config: dict):
@@ -15,6 +16,8 @@ def create_robot(config: dict):
         return HolonomicRobot(config)    
     elif robot_type in ["hexagonal_holonomic", "hexagonal", "hex_holonomic", "3wheel_holonomic"]:
         return HexagonalHolonomicRobot(config)
+    elif robot_type in ["hexagonal_holonomic_line_follower", "hex_holonomic_line_follower", "3wheel_holonomic_line_follower"]:
+        return HexagonalHolonomicLineFollower(config)
     elif robot_type in ["ackermann", "car", "racecar"]:
         return AckermannRobot(config)
     elif robot_type == "boat":
@@ -65,4 +68,4 @@ def create_fleet(config: dict) -> list:
         robots.append(create_robot(merged))
     return robots
 
-__all__ = ["create_robot", "create_fleet", "HolonomicRobot", "DifferentialRobot", "DifferentialRobotFirstOrder", "AckermannRobot", "BoatRobot", "LineFollowerRobot", "HexagonalHolonomicRobot"]
+__all__ = ["create_robot", "create_fleet", "HolonomicRobot", "DifferentialRobot", "DifferentialRobotFirstOrder", "AckermannRobot", "BoatRobot", "LineFollowerRobot", "HexagonalHolonomicRobot", "HexagonalHolonomicLineFollower"]

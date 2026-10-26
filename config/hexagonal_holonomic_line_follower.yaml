@@ -1,0 +1,128 @@
+# Hexagonal Holonomic Line Follower Configuration
+# 3 omni-wheels at 120° + TCRT5000 line sensors
+
+window:
+  width: 1300
+  height: 800
+  min_width: 1000
+  min_height: 650
+  panel_width: 300
+  title: HiveBr - Hexagonal Holonomic Line Follower
+
+world:
+  width: 4.0
+  height: 3.0
+  grid_size: 0.5
+  show_origin: false
+  show_axes: true
+  default_obstacle_radius: 0.4
+  obstacles: []
+  # Line track image (black line on white)
+  # Generated automatically if doesn't exist
+  line_map_image: config/line_track.png
+  resolution: 0.005
+  show_inflation: false
+
+camera:
+  initial_zoom: 1.0
+  min_zoom: 0.25
+  max_zoom: 8.0
+  zoom_step: 1.1
+  margin_x: 1.0
+  margin_y: 1.0
+
+robot:
+  type: hexagonal_holonomic_line_follower
+  initial_pose:
+    - 2.0
+    - 1.5
+    - 0.0
+  # Robot body (square 10cm x 10cm)
+  length: 0.10
+  width: 0.10
+  radius: 0.055         # Distance from center to wheel (matches hexagon ~5.5cm for 10cm body)
+  wheel_radius: 0.05    # Wheel radius (5cm)
+  max_wheel_speed: 20.0
+  max_speed: 0.6        # Max robot linear speed (m/s)
+  max_omega: 3.5        # Max robot angular speed (rad/s)
+  servo_max_speed: 20.0
+
+  # Line sensor array (TCRT5000)
+  num_sensors: 5       # 2, 5 or 8
+  line_width: 0.02
+  sensor_offset: 0.05
+  sensor_aperture: 0.004
+  sensor_noise: 0.0
+  line_threshold: 0.5
+
+  # Lap timing (closed track returns to start, open track = line lost)
+  lap_detection_radius: 0.15
+  min_lap_distance: 1.0
+  min_lap_time: 1.0
+  lost_timeout: 1.0
+
+lidar:
+  enabled: false
+  num_rays: 101
+  range: 12.0
+  fov_deg: 360
+
+noise:
+  enabled: false
+  sigma_v: 0.0
+  sigma_omega: 0.0
+  limit: 3.0
+  seed: null
+
+waypoints:
+  goal_tolerance: 0.1
+  define_orientation: false
+  show_tolerance_circle: false
+  points: []
+
+# PID gains for line following (used by controller)
+line_pid:
+  base_speed: 0.30
+  kp: 4.0
+  ki: 0.05
+  kd: 0.9
+  integral_limit: 1.0
+
+# Disable robot-robot collision for multiple robots starting at same point
+interaction:
+  collision_policy: none
+  robot_collision: false
+  robot_safety_margin: 0.0
+  resolve_push: 0.0
+  comm_radius: null
+  show_robot_links: false
+
+show_times: true
+theme: light
+
+gui:
+  buttons:
+    - start
+    - reset
+    - clear_path
+    - clear_waypoints
+    - clear_obstacles
+    - load_map
+    - draw_track
+    - apply_track
+    - clear_track
+    - toggle_lidar
+    - toggle_noise
+    - toggle_times
+    - toggle_theme
+    - save_config
+    - center_camera
+    - plot_log
+    - export_log
+    - reset_logger
+  sliders:
+    - max_speed
+    - max_omega
+    - grid_size
+    - noise_sigma
+    - servo_max_speed

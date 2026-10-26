@@ -262,7 +262,10 @@ class HexagonalHolonomicRobot(BaseRobot):
         center = camera.world_to_screen(self.x, self.y)
         radius_px = max(5, int(self.radius * camera.scale))
         
-        # Draw hexagonal body
+        # Draw 3 omni wheels at 120 degrees (underneath hexagon)
+        self._draw_wheels(screen, camera)
+        
+        # Draw hexagonal body (on top of wheels)
         self._draw_hexagon(screen, camera)
         
         # Draw orientation indicator (front) - theme adaptive
@@ -270,23 +273,26 @@ class HexagonalHolonomicRobot(BaseRobot):
         pygame.draw.line(screen, tuple(self.config["colors"]["white"]), center, 
                          camera.world_to_screen(*front), 3)
         
-        # Draw 3 omni wheels at 120 degrees
-        self._draw_wheels(screen, camera)
-        
         # Draw wheel velocity indicators (optional debug)
         self._draw_wheel_velocities(screen, camera)
     
     def _draw_hexagon(self, screen, camera):
         """Draw hexagonal robot body."""
         colors = self.config["colors"]
+        # Use body dimensions for hexagon size if available, else fall back to radius
+        if hasattr(self, 'body_length') and hasattr(self, 'body_width'):
+            hex_radius = max(self.body_length, self.body_width) / 2 * 1.1
+        else:
+            hex_radius = self.radius
+        
         # Hexagon vertices (pointy top orientation)
         hex_vertices = []
         for i in range(6):
             angle = self.theta + i * math.pi / 3.0  # 60 degrees between vertices
             # Start at 90 degrees (pointy top)
             angle += math.pi / 6.0
-            vx = self.x + self.radius * math.cos(angle)
-            vy = self.y + self.radius * math.sin(angle)
+            vx = self.x + hex_radius * math.cos(angle)
+            vy = self.y + hex_radius * math.sin(angle)
             hex_vertices.append(camera.world_to_screen(vx, vy))
         
         # Draw filled hexagon
@@ -295,12 +301,19 @@ class HexagonalHolonomicRobot(BaseRobot):
         pygame.draw.polygon(screen, tuple(colors["black"]), hex_vertices, 2)
     
     def _draw_wheels(self, screen, camera):
-        """Draw 3 omni wheels as rectangles (top-down view)."""
+        """Draw 3 omni wheels as small rectangles at hexagon edges."""
         colors = self.config["colors"]
         
-        # Wheel dimensions in world units - LARGER WHEEL SIZE
-        wheel_len = self.wheel_radius * 3.5   # length (along tangent) - increased more
-        wheel_wid = self.wheel_radius * 0.8   # width (along radius) - slightly wider
+        # Wheel dimensions - SMALL rollers at hexagon edges
+        # Wheel length = small portion of hexagon edge
+        hex_radius = self.radius
+        if hasattr(self, 'body_length') and hasattr(self, 'body_width'):
+            hex_radius = max(self.body_length, self.body_width) / 2 * 1.1
+        
+        # Wheel fits within hexagon edge (1/3 of edge length)
+        edge_length = hex_radius * 2 * math.sin(math.pi / 6)  # = hex_radius
+        wheel_len = edge_length * 0.6   # 60% of edge length
+        wheel_wid = self.wheel_radius * 0.6  # thinner wheel width
         
         # Wheel positions at 60°, 180°, 300° (aligned with hexagon sides)
         wheel_angles = [
@@ -326,9 +339,9 @@ class HexagonalHolonomicRobot(BaseRobot):
         outline_color = tuple(colors["black"])
         
         for i, (pos_angle, tang_angle) in enumerate(zip(wheel_angles, tangent_angles)):
-            # Wheel center in world
-            wx = self.x + self.radius * math.cos(pos_angle)
-            wy = self.y + self.radius * math.sin(pos_angle)
+            # Wheel center in world - at hexagon edge
+            wx = self.x + hex_radius * math.cos(pos_angle)
+            wy = self.y + hex_radius * math.sin(pos_angle)
             
             # Rectangle corners in local frame (aligned with tangent)
             cos_t = math.cos(tang_angle)
