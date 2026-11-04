@@ -30,7 +30,7 @@ def generate_random_track(
     t = np.linspace(0.0, 2.0 * np.pi, 2000, endpoint=False)
     radius = np.ones_like(t)
     for k in (2, 3, 4):
-        amplitude = rng.uniform(0.03, 0.08) / k
+        amplitude = rng.uniform(0.03, 0.18) / k
         phase = rng.uniform(0.0, 2.0 * np.pi)
         radius += amplitude * np.cos(k * t + phase)
     radius = np.clip(radius, 0.75, 1.05)
