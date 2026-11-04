@@ -8,6 +8,51 @@ import pygame
 from .differential import DifferentialRobot
 from hivebr.engine.geometry import clamp
 
+from PIL import Image, ImageDraw
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Geração da trajetória aleatória
+# ---------------------------------------------------------------------------
+def generate_random_track(
+    path: Path,
+    width_m: float = 4.0,
+    height_m: float = 3.0,
+    resolution: float = 0.005,
+    line_width_m: float = 0.02,
+    seed: int = 7,
+):
+    """Cria uma pista fechada aleatória e a desenha como linha preta."""
+    rng = np.random.default_rng(seed)
+    width_px = int(round(width_m / resolution))
+    height_px = int(round(height_m / resolution))
+
+    t = np.linspace(0.0, 2.0 * np.pi, 2000, endpoint=False)
+    radius = np.ones_like(t)
+    for k in (2, 3, 4):
+        amplitude = rng.uniform(0.03, 0.08) / k
+        phase = rng.uniform(0.0, 2.0 * np.pi)
+        radius += amplitude * np.cos(k * t + phase)
+    radius = np.clip(radius, 0.75, 1.05)
+
+    cx, cy = width_m / 2.0, height_m / 2.0
+    rx, ry = width_m * 0.36, height_m * 0.36
+    xs = cx + rx * radius * np.cos(t)
+    ys = cy + ry * radius * np.sin(t)
+
+    image = Image.new("RGB", (width_px, height_px), (255, 255, 255))
+    draw = ImageDraw.Draw(image)
+    line_px = max(1, int(round(line_width_m / resolution)))
+    points_px = [
+        (x / resolution, (height_px - 1) - y / resolution)
+        for x, y in zip(xs, ys)
+    ]
+    draw.line(points_px + [points_px[0]], fill=(0, 0, 0), width=line_px, joint="curve")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(path)
+
+    return np.column_stack([xs, ys])
 
 class LineFollowerRobot(DifferentialRobot):
     """Robô diferencial com um arranjo de sensores analógicos de linha.

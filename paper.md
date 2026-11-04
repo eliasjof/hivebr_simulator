@@ -1,7 +1,7 @@
 # hiveBr: An Open-Source 2D Multi-Robot Simulator for Navigation Research and Education
 
 **Authors:** Elias J. R. Freitas  
-**Affiliation:** Federal University of ABC (UFABC), Brazil  
+**Affiliation:** Federal Institute of Minas Gerais (IFMG), Brazil  
 **Repository:** https://github.com/eliasjof/hivebr_simulator  
 **License:** MIT  
 
