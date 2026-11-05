@@ -1,0 +1,5 @@
+# Pyodide packages to install via micropip
+# These will be loaded in the Web Worker
+numpy
+pyyaml
+scipy

@@ -1,0 +1,37 @@
+[project]
+name = "hivebr-web-core"
+version = "0.1.0"
+description = "hivebr simulator core for Pyodide/WASM"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Elias J. R. Freitas" }]
+dependencies = [
+    "numpy>=1.24",
+    "pyyaml>=6.0",
+    "scipy>=1.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pyodide-build>=0.25.0",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["../../../src"]
+include = ["hivebr*"]
+
+[tool.pyodide]
+# Packages to include in the Pyodide build
+packages = [
+    "numpy",
+    "pyyaml", 
+    "scipy",
+    "hivebr-web-core"
+]
+# Files to include from the package
+# Note: In Pyodide, we need to make sure the core module is accessible
