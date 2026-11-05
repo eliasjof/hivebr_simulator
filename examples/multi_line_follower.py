@@ -175,8 +175,7 @@ def main():
             offset = (i - (num_robots - 1) / 2.0) * args.spread
             robot.set_initial_pose(x0 + lateral[0] * offset, y0 + lateral[1] * offset, theta0)
 
-    sim.camera.initial_zoom = 1.0
-    sim.camera.reset()
+    # Camera já é auto-centralizada na pista pelo Simulator.__init__
 
     print(
         f"{num_robots} robôs seguidores de linha | {sim.robots[0].num_sensors} sensores | "

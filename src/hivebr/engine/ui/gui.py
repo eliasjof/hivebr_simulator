@@ -61,6 +61,7 @@ class GUI:
             ("draw_track", "Draw Track"),
             ("apply_track", "Apply Track"),
             ("clear_track", "Clear Track"),
+            ("save_track", "Save Track"),
             ("toggle_lidar", "Toggle LiDAR"),
             ("toggle_noise", "Toggle Noise"),
             ("toggle_times", "Toggle Times"),

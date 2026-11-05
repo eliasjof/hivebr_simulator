@@ -11,8 +11,20 @@ from hivebr.engine.geometry import clamp
 from PIL import Image, ImageDraw
 from pathlib import Path
 
+
 # ---------------------------------------------------------------------------
-# Geração da trajetória aleatória
+# Set position on the track (x, y, theta) aligned with the tangent
+# ---------------------------------------------------------------------------
+def pose_on_track(points: np.ndarray, index: int = 0, lookahead: int = 12):
+    """Retorna ``(x, y, theta)`` sobre a pista, alinhado à tangente."""
+    n = len(points)
+    p0 = points[index % n]
+    p1 = points[(index + lookahead) % n]
+    theta = np.arctan2(p1[1] - p0[1], p1[0] - p0[0])
+    return float(p0[0]), float(p0[1]), float(theta)
+
+# ---------------------------------------------------------------------------
+# Random track generator
 # ---------------------------------------------------------------------------
 def generate_random_track(
     path: Path,
@@ -221,6 +233,42 @@ class LineFollowerRobot(DifferentialRobot):
             ]
         )
 
+    def _tcrt5000_response(self, darkness: float) -> float:
+        """
+        Modela a resposta realística do TCR5000 (circuito pull-up).
+
+        O TCR5000 com resistor de pull-up tem resposta não-linear:
+        - Fototransistor: corrente de coletor ~ irradiancia (linear em luz)
+        - Com pull-up: Vout = Vcc - Ic*Rpullup → relação inversa
+        - Resposta real é logarítmica/gama (~0.5-0.7)
+        - Sensor real não vai rail-to-rail: típico 5-95% do range ADC
+        - Filtro de luz diurna imperfeito: luz ambiente eleva o piso (~5-15%)
+
+        Parameters
+        ----------
+        darkness: float
+            Escuridão do mapa de linha (0=branco, 1=preto).
+
+        Returns
+        -------
+        float
+            Tensão normalizada [0, 1] onde 1=linha preta, 0=branco.
+        """
+        # Parâmetros realísticos do TCR5000
+        ambient_floor = 0.08   # Piso por luz ambiente (5-15% típico)
+        gamma = 0.65           # Curva gama do fototransistor + pull-up
+        rail_min = 0.03        # Não chega a 0V (saturation)
+        rail_max = 0.97        # Não chega a Vcc (cutoff)
+
+        # Sinal com piso de luz ambiente
+        signal = darkness * (1.0 - ambient_floor) + ambient_floor
+
+        # Aplica curva gama (resposta não-linear)
+        response = signal ** gamma
+
+        # Clampa para range realístico (não rail-to-rail)
+        return rail_min + (rail_max - rail_min) * response
+
     def read_line_sensors(self, line_map) -> np.ndarray:
         """Amostra os sensores e atualiza ``line_error``/``line_lost``.
 
@@ -241,28 +289,48 @@ class LineFollowerRobot(DifferentialRobot):
 
         cos_t = math.cos(self.theta)
         sin_t = math.sin(self.theta)
-        values = np.empty(self.num_sensors)
+        raw_values = np.empty(self.num_sensors)
 
+        # Amostra cada sensor no mapa de linha
         for i, (lx, ly) in enumerate(self.sensor_local):
             wx = self.x + lx * cos_t - ly * sin_t
             wy = self.y + lx * sin_t + ly * cos_t
-            value = line_map.sample(wx, wy, self.sensor_aperture)
+            darkness = line_map.sample(wx, wy, self.sensor_aperture)
+            # Aplica modelo realístico do TCR5000
+            value = self._tcrt5000_response(darkness)
             if self.sensor_noise > 0.0:
                 value += float(np.random.normal(0.0, self.sensor_noise))
-            values[i] = clamp(value, 0.0, 1.0)
+            raw_values[i] = clamp(value, 0.0, 1.0)
+
+        # Cross-talk entre sensores adjacentes (~5% bleed de IR)
+        values = raw_values.copy()
+        if self.num_sensors > 2:
+            crosstalk = 0.05
+            for i in range(self.num_sensors):
+                if i > 0:
+                    values[i] += crosstalk * raw_values[i - 1]
+                if i < self.num_sensors - 1:
+                    values[i] += crosstalk * raw_values[i + 1]
+            values = np.clip(values, 0.0, 1.0)
 
         self.sensor_readings = values
 
-        total = float(values.sum())
+        # Usa thresholding: apenas sensores acima do limiar contribuem para o centróide
+        # Isso evita que ruído de fundo ou bleed crie erro falso quando "fora da linha"
+        thresholded = np.where(values > self.line_threshold, values, 0.0)
+        total = float(thresholded.sum())
+
         if total > 1e-6:
-            self.line_error = float(np.dot(self.sensor_weights, values) / total)
+            self.line_error = float(np.dot(self.sensor_weights, thresholded) / total)
             self.line_lost = False
         else:
             self.line_lost = True
+            # Mantém o sinal do último erro válido para recuperação
             if abs(self.line_error) < 1e-6:
                 self.line_error = self._last_sign
 
-        if abs(self.line_error) > 1e-6:
+        # Atualiza _last_sign apenas quando a linha é efetivamente detectada
+        if not self.line_lost and abs(self.line_error) > 1e-6:
             self._last_sign = 1.0 if self.line_error > 0.0 else -1.0
 
         self.line_position = self.line_error * (self.sensor_span / 2.0)

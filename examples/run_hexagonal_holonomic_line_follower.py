@@ -186,8 +186,7 @@ if __name__ == "__main__":
     # Initialize robot on track
     x0, y0, theta0 = pose_on_track(points)
     sim.robot.set_initial_pose(x0, y0, theta0)
-    sim.camera.initial_zoom = 1.0
-    sim.camera.reset()
+    # Camera já é auto-centralizada na pista pelo Simulator.__init__
 
     print("=" * 60)
     print("Hexagonal Holonomic Line Follower")

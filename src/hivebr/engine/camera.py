@@ -40,6 +40,43 @@ class Camera2D:
     def center_on_origin_with_margin(self):
         self.offset = np.array([-self.margin_x, -self.margin_y], dtype=float)
 
+    def center_on_rect(self, center_x: float, center_y: float, width: float, height: float, margin: float = 0.5):
+        """Centraliza a câmera em um retângulo (ex: pista de linha) com margem.
+        
+        Args:
+            center_x, center_y: Centro do retângulo em coordenadas de mundo
+            width, height: Dimensões do retângulo
+            margin: Margem extra em metros ao redor do retângulo
+        """
+        # Calcula o zoom necessário para caber o retângulo + margem na viewport
+        target_w = width + 2 * margin
+        target_h = height + 2 * margin
+        
+        scale_x = self.viewport_width / target_w
+        scale_y = self.viewport_height / target_h
+        needed_scale = min(scale_x, scale_y)
+        
+        # Converte para zoom relativo ao base_scale
+        needed_zoom = needed_scale / self.base_scale
+        
+        # Limita ao range de zoom
+        needed_zoom = float(np.clip(needed_zoom, self.min_zoom, self.max_zoom))
+        
+        self.zoom = needed_zoom
+        self.compute_scale()
+        
+        # Calcula offset para centralizar o retângulo na viewport
+        # world_to_screen(center_x, center_y) deve dar (viewport_width/2, viewport_height/2)
+        # sx = (center_x - offset_x) * scale + ox = viewport_width/2
+        # sy = viewport_height - (center_y - offset_y) * scale - oy = viewport_height/2
+        ox = (self.viewport_width - self.world_width * self.scale) / 2
+        oy = (self.viewport_height - self.world_height * self.scale) / 2
+        
+        offset_x = center_x + (ox - self.viewport_width / 2) / self.scale
+        offset_y = center_y + (oy - self.viewport_height / 2) / self.scale
+        
+        self.offset = np.array([offset_x, offset_y], dtype=float)
+
     def zoom_at(self, mouse_pos, wheel_y: int):
         old_world = self.screen_to_world(*mouse_pos)
         factor = self.zoom_step if wheel_y > 0 else 1.0 / self.zoom_step

@@ -16,6 +16,8 @@ world:
   # Imagem com a linha preta (2 cm) sobre fundo branco.
   # Gerada automaticamente por examples/line_follower.py caso não exista.
   line_map_image: config/line_track.png
+  # Caminho para salvar a pista desenhada pelo usuário (botão "Save Track")
+  drawn_line_map_image: config/line_drawn.png
   resolution: 0.005
   show_inflation: false
 camera:
@@ -43,9 +45,9 @@ robot:
   line_width: 0.02
   sensor_offset: 0.05
   # sensor_span: 0.08  # opcional; se omitido é calculado pela largura da linha
-  sensor_aperture: 0.004
-  sensor_noise: 0.0
-  line_threshold: 0.5
+  sensor_aperture: 0.002   # Reduzido de 4mm para 2mm - reduz bleeding entre sensores
+  sensor_noise: 0.01       # Ruído realístico (~1% do range)
+  line_threshold: 0.35     # Limiar ajustado para resposta não-linear do TCR5000
   # Cronometragem: volta completa (retorno ao início) e fim de pista
   lap_detection_radius: 0.15   # raio p/ considerar que voltou ao início (m)
   min_lap_distance: 1.0        # distância mínima para validar volta/fim (m)
@@ -100,6 +102,7 @@ gui:
     - draw_track
     - apply_track
     - clear_track
+    - save_track
     - toggle_lidar
     - toggle_noise
     - toggle_times

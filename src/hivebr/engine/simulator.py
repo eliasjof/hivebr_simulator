@@ -268,6 +268,13 @@ class Simulator:
             **self.config["camera"]
         )
 
+        # Auto-centraliza na pista de linha se houver
+        line_map = getattr(self.world, "line_map", None)
+        if line_map is not None:
+            cx = line_map.width_m / 2.0
+            cy = line_map.height_m / 2.0
+            self.camera.center_on_rect(cx, cy, line_map.width_m, line_map.height_m, margin=0.3)
+
         
         
         self.robots = create_fleet(self.config)
@@ -449,6 +456,31 @@ class Simulator:
             self.track_editor.clear()
             print("[TrackEditor] Pista limpa.")
 
+    def save_track(self):
+        """Salva a pista desenhada pelo usuário em arquivo PNG.
+        
+        O caminho é configurável via config.world.drawn_line_map_image
+        (padrão: config/line_drawn.png).
+        """
+        if self.track_editor is None:
+            print("[TrackEditor] Nenhuma pista desenhada para salvar.")
+            return
+        
+        path = self.config.get("world", {}).get(
+            "drawn_line_map_image", "config/line_drawn.png"
+        )
+        
+        # Garante que o diretório existe
+        from pathlib import Path
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        
+        line_map = self.track_editor.apply(path)
+        
+        print(
+            f"[TrackEditor] Pista salva ({line_map.width_m:.2f}x"
+            f"{line_map.height_m:.2f} m, res={line_map.resolution}) em '{path}'."
+        )
+
     def apply_track(self):
         if self.track_editor is None:
             return
@@ -572,6 +604,9 @@ class Simulator:
         elif "clear_track" in e and event.ui_element == e["clear_track"]:
             self.clear_track()
 
+        elif "save_track" in e and event.ui_element == e["save_track"]:
+            self.save_track()
+
         elif "toggle_theme" in e and event.ui_element == e["toggle_theme"]:
             self.toggle_theme()
 
@@ -606,7 +641,14 @@ class Simulator:
             self.save_config()
 
         elif "center_camera" in e and event.ui_element == e["center_camera"]:
-            self.camera.center_on_origin_with_margin()
+            # Se houver mapa de linha, centraliza na pista; senão, na origem
+            line_map = getattr(self.world, "line_map", None)
+            if line_map is not None:
+                cx = line_map.width_m / 2.0
+                cy = line_map.height_m / 2.0
+                self.camera.center_on_rect(cx, cy, line_map.width_m, line_map.height_m, margin=0.3)
+            else:
+                self.camera.center_on_origin_with_margin()
         
         elif "plot_log" in e and event.ui_element == e["plot_log"]:
             self.logger.plot()
