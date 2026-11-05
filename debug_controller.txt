@@ -1,0 +1,180 @@
+goal=[3. 2.], pos=[0. 0.], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.00, ad=0.59
+PHASE 1 (rotate): omega_des=1.76
+Commanded wheels: w1=10.6, w2=10.6, w3=10.6
+goal=[3. 2.], pos=[-8.90721909e-18 -2.39975032e-19], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.05, ad=0.54
+PHASE 1 (rotate): omega_des=1.61
+Commanded wheels: w1=9.6, w2=9.6, w3=9.6
+goal=[3. 2.], pos=[-1.83661724e-17 -2.24969716e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.10, ad=0.49
+PHASE 1 (rotate): omega_des=1.46
+Commanded wheels: w1=8.8, w2=8.8, w3=8.8
+goal=[3. 2.], pos=[-2.67611116e-17 -3.47624831e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.14, ad=0.44
+PHASE 1 (rotate): omega_des=1.33
+Commanded wheels: w1=8.0, w2=8.0, w3=8.0
+goal=[3. 2.], pos=[-3.47411053e-17 -4.36425902e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.18, ad=0.40
+PHASE 1 (rotate): omega_des=1.21
+Commanded wheels: w1=7.3, w2=7.3, w3=7.3
+goal=[3. 2.], pos=[-4.06710876e-17 -4.47013271e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.22, ad=0.37
+PHASE 1 (rotate): omega_des=1.10
+Commanded wheels: w1=6.6, w2=6.6, w3=6.6
+goal=[3. 2.], pos=[-4.65627191e-17 -4.73800722e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.25, ad=0.33
+PHASE 1 (rotate): omega_des=1.00
+Commanded wheels: w1=6.0, w2=6.0, w3=6.0
+goal=[3. 2.], pos=[-5.17796292e-17 -5.41809067e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.28, ad=0.30
+PHASE 1 (rotate): omega_des=0.91
+Commanded wheels: w1=5.5, w2=5.5, w3=5.5
+goal=[3. 2.], pos=[-5.75030567e-17 -5.34502011e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.31, ad=0.28
+PHASE 1 (rotate): omega_des=0.83
+Commanded wheels: w1=5.0, w2=5.0, w3=5.0
+goal=[3. 2.], pos=[-6.22811308e-17 -6.26773462e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.34, ad=0.25
+PHASE 1 (rotate): omega_des=0.75
+Commanded wheels: w1=4.5, w2=4.5, w3=4.5
+goal=[3. 2.], pos=[-6.69245568e-17 -7.35387433e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.36, ad=0.23
+PHASE 1 (rotate): omega_des=0.69
+Commanded wheels: w1=4.1, w2=4.1, w3=4.1
+goal=[3. 2.], pos=[-6.99260226e-17 -7.41022924e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.38, ad=0.21
+PHASE 1 (rotate): omega_des=0.63
+Commanded wheels: w1=3.8, w2=3.8, w3=3.8
+goal=[3. 2.], pos=[-7.32040505e-17 -7.85258827e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.40, ad=0.19
+PHASE 1 (rotate): omega_des=0.57
+Commanded wheels: w1=3.4, w2=3.4, w3=3.4
+goal=[3. 2.], pos=[-7.61611510e-17 -7.94566032e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.42, ad=0.17
+PHASE 1 (rotate): omega_des=0.52
+Commanded wheels: w1=3.1, w2=3.1, w3=3.1
+goal=[3. 2.], pos=[-7.90509287e-17 -8.16150098e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.43, ad=0.16
+PHASE 1 (rotate): omega_des=0.47
+Commanded wheels: w1=2.8, w2=2.8, w3=2.8
+goal=[3. 2.], pos=[-8.19049094e-17 -8.50030208e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.45, ad=0.14
+PHASE 1 (rotate): omega_des=0.43
+Commanded wheels: w1=2.6, w2=2.6, w3=2.6
+goal=[3. 2.], pos=[-8.42985545e-17 -9.00387156e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.46, ad=0.13
+PHASE 1 (rotate): omega_des=0.39
+Commanded wheels: w1=2.3, w2=2.3, w3=2.3
+goal=[3. 2.], pos=[-8.65570276e-17 -9.50583481e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.47, ad=0.12
+PHASE 1 (rotate): omega_des=0.35
+Commanded wheels: w1=2.1, w2=2.1, w3=2.1
+goal=[3. 2.], pos=[-8.84007767e-17 -9.03489126e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.48, ad=0.11
+PHASE 1 (rotate): omega_des=0.32
+Commanded wheels: w1=1.9, w2=1.9, w3=1.9
+goal=[3. 2.], pos=[-9.01146000e-17 -9.21487362e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.49, ad=0.10
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0
+goal=[3. 2.], pos=[ 3.46410162e-02 -1.37945436e-17], to_goal=[2.96535898 2.        ], dist=3.58, goal_angle=0.59, theta=0.49, ad=0.10
+PHASE 1 (rotate): omega_des=0.31
+Commanded wheels: w1=1.9, w2=1.9, w3=1.9
+goal=[3. 2.], pos=[ 3.46410162e-02 -1.38421476e-17], to_goal=[2.96535898 2.        ], dist=3.58, goal_angle=0.59, theta=0.50, ad=0.09
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0
+goal=[3. 2.], pos=[ 6.92820323e-02 -1.84218176e-17], to_goal=[2.93071797 2.        ], dist=3.55, goal_angle=0.60, theta=0.50, ad=0.10
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0
+goal=[3. 2.], pos=[ 1.03923048e-01 -2.30014875e-17], to_goal=[2.89607695 2.        ], dist=3.52, goal_angle=0.60, theta=0.50, ad=0.11
+PHASE 1 (rotate): omega_des=0.32
+Commanded wheels: w1=1.9, w2=1.9, w3=1.9
+goal=[3. 2.], pos=[ 1.03923048e-01 -2.32644102e-17], to_goal=[2.89607695 2.        ], dist=3.52, goal_angle=0.60, theta=0.51, ad=0.10
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0
+goal=[3. 2.], pos=[ 1.38564065e-01 -2.78440801e-17], to_goal=[2.86143594 2.        ], dist=3.49, goal_angle=0.61, theta=0.51, ad=0.10
+PHASE 1 (rotate): omega_des=0.30
+Commanded wheels: w1=1.8, w2=1.8, w3=1.8
+goal=[3. 2.], pos=[ 1.38564065e-01 -2.78706036e-17], to_goal=[2.86143594 2.        ], dist=3.49, goal_angle=0.61, theta=0.52, ad=0.09
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0
+goal=[3. 2.], pos=[ 1.73205081e-01 -3.24502736e-17], to_goal=[2.82679492 2.        ], dist=3.46, goal_angle=0.62, theta=0.52, ad=0.10
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0
+goal=[3. 2.], pos=[ 2.07846097e-01 -3.70299436e-17], to_goal=[2.7921539 2.       ], dist=3.43, goal_angle=0.62, theta=0.52, ad=0.10
+PHASE 1 (rotate): omega_des=0.31
+Commanded wheels: w1=1.9, w2=1.9, w3=1.9
+goal=[3. 2.], pos=[ 2.07846097e-01 -3.70359557e-17], to_goal=[2.7921539 2.       ], dist=3.43, goal_angle=0.62, theta=0.53, ad=0.09
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0
+goal=[3. 2.], pos=[0. 0.], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.00, ad=0.59
+PHASE 1 (rotate): omega_des=1.76
+Commanded wheels: w1=10.6, w2=10.6, w3=10.6
+goal=[3. 2.], pos=[-8.90721909e-18 -2.39975032e-19], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.05, ad=0.54
+PHASE 1 (rotate): omega_des=1.61
+Commanded wheels: w1=9.6, w2=9.6, w3=9.6
+goal=[3. 2.], pos=[-1.83661724e-17 -2.24969716e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.10, ad=0.49
+PHASE 1 (rotate): omega_des=1.46
+Commanded wheels: w1=8.8, w2=8.8, w3=8.8
+goal=[3. 2.], pos=[-2.67611116e-17 -3.47624831e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.14, ad=0.44
+PHASE 1 (rotate): omega_des=1.33
+Commanded wheels: w1=8.0, w2=8.0, w3=8.0
+goal=[3. 2.], pos=[-3.47411053e-17 -4.36425902e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.18, ad=0.40
+PHASE 1 (rotate): omega_des=1.21
+Commanded wheels: w1=7.3, w2=7.3, w3=7.3
+goal=[3. 2.], pos=[-4.06710876e-17 -4.47013271e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.22, ad=0.37
+PHASE 1 (rotate): omega_des=1.10
+Commanded wheels: w1=6.6, w2=6.6, w3=6.6
+goal=[3. 2.], pos=[-4.65627191e-17 -4.73800722e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.25, ad=0.33
+PHASE 1 (rotate): omega_des=1.00
+Commanded wheels: w1=6.0, w2=6.0, w3=6.0
+goal=[3. 2.], pos=[-5.17796292e-17 -5.41809067e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.28, ad=0.30
+PHASE 1 (rotate): omega_des=0.91
+Commanded wheels: w1=5.5, w2=5.5, w3=5.5
+goal=[3. 2.], pos=[-5.75030567e-17 -5.34502011e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.31, ad=0.28
+PHASE 1 (rotate): omega_des=0.83
+Commanded wheels: w1=5.0, w2=5.0, w3=5.0
+goal=[3. 2.], pos=[-6.22811308e-17 -6.26773462e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.34, ad=0.25
+PHASE 1 (rotate): omega_des=0.75
+Commanded wheels: w1=4.5, w2=4.5, w3=4.5
+goal=[3. 2.], pos=[-6.69245568e-17 -7.35387433e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.36, ad=0.23
+PHASE 1 (rotate): omega_des=0.69
+Commanded wheels: w1=4.1, w2=4.1, w3=4.1
+goal=[3. 2.], pos=[-6.99260226e-17 -7.41022924e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.38, ad=0.21
+PHASE 1 (rotate): omega_des=0.63
+Commanded wheels: w1=3.8, w2=3.8, w3=3.8
+goal=[3. 2.], pos=[-7.32040505e-17 -7.85258827e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.40, ad=0.19
+PHASE 1 (rotate): omega_des=0.57
+Commanded wheels: w1=3.4, w2=3.4, w3=3.4
+goal=[3. 2.], pos=[-7.61611510e-17 -7.94566032e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.42, ad=0.17
+PHASE 1 (rotate): omega_des=0.52
+Commanded wheels: w1=3.1, w2=3.1, w3=3.1
+goal=[3. 2.], pos=[-7.90509287e-17 -8.16150098e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.43, ad=0.16
+PHASE 1 (rotate): omega_des=0.47
+Commanded wheels: w1=2.8, w2=2.8, w3=2.8
+goal=[3. 2.], pos=[-8.19049094e-17 -8.50030208e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.45, ad=0.14
+PHASE 1 (rotate): omega_des=0.43
+Commanded wheels: w1=2.6, w2=2.6, w3=2.6
+goal=[3. 2.], pos=[-8.42985545e-17 -9.00387156e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.46, ad=0.13
+PHASE 1 (rotate): omega_des=0.39
+Commanded wheels: w1=2.3, w2=2.3, w3=2.3
+goal=[3. 2.], pos=[-8.65570276e-17 -9.50583481e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.47, ad=0.12
+PHASE 1 (rotate): omega_des=0.35
+Commanded wheels: w1=2.1, w2=2.1, w3=2.1
+goal=[3. 2.], pos=[-8.84007767e-17 -9.03489126e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.48, ad=0.11
+PHASE 1 (rotate): omega_des=0.32
+Commanded wheels: w1=1.9, w2=1.9, w3=1.9
+goal=[3. 2.], pos=[-9.01146000e-17 -9.21487362e-18], to_goal=[3. 2.], dist=3.61, goal_angle=0.59, theta=0.49, ad=0.10
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0
+goal=[3. 2.], pos=[ 3.46410162e-02 -1.37945436e-17], to_goal=[2.96535898 2.        ], dist=3.58, goal_angle=0.59, theta=0.49, ad=0.10
+PHASE 1 (rotate): omega_des=0.31
+Commanded wheels: w1=1.9, w2=1.9, w3=1.9
+goal=[3. 2.], pos=[ 3.46410162e-02 -1.38421476e-17], to_goal=[2.96535898 2.        ], dist=3.58, goal_angle=0.59, theta=0.50, ad=0.09
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0
+goal=[3. 2.], pos=[ 6.92820323e-02 -1.84218176e-17], to_goal=[2.93071797 2.        ], dist=3.55, goal_angle=0.60, theta=0.50, ad=0.10
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0
+goal=[3. 2.], pos=[ 1.03923048e-01 -2.30014875e-17], to_goal=[2.89607695 2.        ], dist=3.52, goal_angle=0.60, theta=0.50, ad=0.11
+PHASE 1 (rotate): omega_des=0.32
+Commanded wheels: w1=1.9, w2=1.9, w3=1.9
+goal=[3. 2.], pos=[ 1.03923048e-01 -2.32644102e-17], to_goal=[2.89607695 2.        ], dist=3.52, goal_angle=0.60, theta=0.51, ad=0.10
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0
+goal=[3. 2.], pos=[ 1.38564065e-01 -2.78440801e-17], to_goal=[2.86143594 2.        ], dist=3.49, goal_angle=0.61, theta=0.51, ad=0.10
+PHASE 1 (rotate): omega_des=0.30
+Commanded wheels: w1=1.8, w2=1.8, w3=1.8
+goal=[3. 2.], pos=[ 1.38564065e-01 -2.78706036e-17], to_goal=[2.86143594 2.        ], dist=3.49, goal_angle=0.61, theta=0.52, ad=0.09
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0
+goal=[3. 2.], pos=[ 1.73205081e-01 -3.24502736e-17], to_goal=[2.82679492 2.        ], dist=3.46, goal_angle=0.62, theta=0.52, ad=0.10
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0
+goal=[3. 2.], pos=[ 2.07846097e-01 -3.70299436e-17], to_goal=[2.7921539 2.       ], dist=3.43, goal_angle=0.62, theta=0.52, ad=0.10
+PHASE 1 (rotate): omega_des=0.31
+Commanded wheels: w1=1.9, w2=1.9, w3=1.9
+goal=[3. 2.], pos=[ 2.07846097e-01 -3.70359557e-17], to_goal=[2.7921539 2.       ], dist=3.43, goal_angle=0.62, theta=0.53, ad=0.09
+PHASE 2 (translate): vx_des=2.00
+Commanded wheels: w1=-20.0, w2=0.0, w3=20.0

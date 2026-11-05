@@ -1,0 +1,116 @@
+# Robot Sumo Competition Configuration
+# RoboCore Style - Mini Sumo Category
+# 
+# This configuration sets up a sumo ring with two differential robots
+# ready for autonomous competition.
+
+window:
+  width: 1200
+  height: 900
+  min_width: 1000
+  min_height: 700
+  panel_width: 350
+  title: "Robot Sumo Competition - RoboCore Style"
+
+world:
+  width: 3.0
+  height: 3.0
+  grid_size: 0.5
+  show_origin: true
+  show_axes: false
+  default_obstacle_radius: 0.4
+  # Circular ring boundary created with obstacle segments
+  obstacles: []  # Will be populated programmatically
+
+robot:
+  type: "differential"
+  # Robot dimensions (RoboCore Mini Sumo limits)
+  radius: 0.10        # 10cm radius = 20cm diameter (max allowed)
+  length: 0.20        # 20cm length
+  width: 0.20         # 20cm width
+  wheel_base: 0.16    # Distance between wheels
+  
+  # Performance limits
+  max_speed: 3.0      # m/s
+  max_omega: 6.0      # rad/s
+  max_steer: 0.52     # Not used for differential
+  
+  # Simulation
+  path_max_length: 2000
+  tau_v: 0.2          # First-order lag (if using differential_firstorder)
+
+# Two robots for sumo match
+robots:
+  - id: 0
+    initial_pose: [0.0, 0.45, -1.5708]   # Top, facing down (-90 deg)
+    color: [30, 144, 255]                # DodgerBlue - Group 1
+  
+  - id: 1
+    initial_pose: [0.0, -0.45, 1.5708]   # Bottom, facing up (90 deg)
+    color: [220, 20, 60]                 # Crimson - Group 2
+
+colors:
+  background: [20, 20, 30]
+  grid: [40, 40, 55]
+  panel: [15, 15, 25]
+  robot: [30, 144, 255]
+  obstacle: [255, 255, 255]      # White ring boundary
+  waypoint: [255, 140, 0]
+  goal: [57, 255, 20]
+  path: [30, 144, 255]
+  lidar: [0, 255, 255]
+  red: [220, 50, 50]
+  green: [0, 255, 0]
+  white: [255, 255, 255]
+  black: [0, 0, 0]
+  silver: [192, 192, 186]
+  fleet:
+    - [30, 144, 255]    # Group 1 - Blue
+    - [220, 20, 60]     # Group 2 - Red
+    - [50, 205, 50]
+    - [255, 165, 0]
+    - [148, 0, 211]
+    - [0, 206, 209]
+    - [255, 105, 180]
+    - [255, 215, 0]
+
+lidar:
+  enabled: true
+  num_rays: 72
+  range: 2.0
+  fov_deg: 360
+
+waypoints:
+  goal_tolerance: 0.5
+  define_orientation: false
+  show_tolerance_circle: false
+  points: []
+
+controller:
+  enabled: false  # We use custom agents, not the built-in controller
+
+interaction:
+  collision_policy: "resolve"   # Robots can push each other
+  robot_collision: true         # Enable robot-robot collisions
+  robot_safety_margin: 0.0
+  resolve_push: 0.08            # Push force when overlapping
+  comm_radius: 3.0              # Full visibility (entire ring)
+  show_robot_links: false
+
+noise:
+  enabled: false
+  sigma_v: 0.0
+  sigma_omega: 0.0
+  limit: 3.0
+
+running_simulation: false
+
+# Sumo-specific metadata (not used by engine, for reference)
+sumo:
+  ring_diameter: 1.54
+  ring_radius: 0.77
+  border_width: 0.05
+  match_duration: 30.0
+  start_distance: 0.45
+  max_robot_weight: 3.0
+  max_robot_size: 0.20
