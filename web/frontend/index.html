@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="hivebr-web - Simulador multi-robô no navegador" />
+    <title>hivebr-web | Simulador Multi-Robô</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body, #app { height: 100%; width: 100%; overflow: hidden; }
+      body { font-family: 'Inter', system-ui, sans-serif; background: #1e1e1e; color: #e0e0e0; }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: #2d2d2d; }
+      ::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: #777; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
