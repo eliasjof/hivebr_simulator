@@ -187,7 +187,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
   try {
     switch (msg.type) {
       case 'init': {
-        initFromConfig(msg.config!)
+        initFromConfig(msg.config! as SimConfig)
         result = { success: true, type: 'ready' }
         break
       }

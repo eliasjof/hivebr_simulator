@@ -1,7 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Any
-import yaml
 from copy import deepcopy
 
 
@@ -134,7 +133,9 @@ THEMES = {
 
 
 def load_config(path: str | Path) -> dict[str, Any]:
-    """Load configuration from YAML file."""
+    """Load configuration from YAML file (yaml imported lazily so the core
+    package stays importable in environments without PyYAML, e.g. WASM)."""
+    import yaml
     path = Path(path)
     with path.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f)

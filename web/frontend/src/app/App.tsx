@@ -9,6 +9,7 @@ import { PlotPanel } from '@/ui/PlotPanel'
 import { useSimulatorStore } from '@/stores/simulatorStore'
 import { useUIStore } from '@/stores/uiStore'
 import { WorkerClient } from '@/worker'
+import { SimStepResult } from '@/types'
 import { defaultConfig, defaultUserCode } from '@/utils/defaults'
 import { decodeExperimentFromURL, encodeExperimentToURL } from '@/utils/urlCodec'
 
@@ -25,7 +26,7 @@ function App() {
     setWorker(worker)
 
     // Set up message handlers
-    worker.onStateUpdate((data) => {
+    worker.onStateUpdate((data: SimStepResult) => {
       setSimTime(data.sim_time)
       setStates(data.states)
       setCollisions(data.collisions)
@@ -42,7 +43,7 @@ function App() {
       setInitialized(true)
     })
 
-    worker.onError((error) => {
+    worker.onError((error: string) => {
       addLog(`Worker error: ${error}`, 'error')
     })
 

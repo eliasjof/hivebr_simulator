@@ -1,10 +1,10 @@
-import type { SimConfig, SimStepResult, WorkerMessage, WorkerResponse } from '@/types'
+import type { SimStepResult, WorkerMessage, WorkerResponse } from '@/types'
 
 type MessageCallback = (data: SimStepResult) => void
 type ReadyCallback = () => void
 type ErrorCallback = (error: string) => void
 
-export class SimulatorWorker {
+export class WorkerClient {
   private worker: Worker
   private stateCallbacks: Set<MessageCallback> = new Set()
   private readyCallbacks: Set<ReadyCallback> = new Set()
@@ -13,10 +13,10 @@ export class SimulatorWorker {
   private requestId = 0
 
   constructor() {
-    // Create worker from the Pyodide worker entry point
+    // Create worker from the mock simulator worker entry point
     this.worker = new Worker(
-      new URL('../../pyodide/pyodide_worker.js', import.meta.url),
-      { type: 'module', name: 'hivebr-pyodide-simulator' }
+      new URL('./simulator.worker.ts', import.meta.url),
+      { type: 'module', name: 'hivebr-simulator' }
     )
 
     this.worker.onmessage = this.handleMessage.bind(this)
@@ -125,7 +125,7 @@ export class SimulatorWorker {
     return new Uint8Array(result.data)
   }
 
-  async updateConfig(config: Partial<any>): Promise<void> {
+  async updateConfig(config: Record<string, any>): Promise<void> {
     const result = await this.send<{ success: boolean; error?: string }>('update_config', { config })
     if (!result.success) throw new Error(result.error || 'Update config failed')
   }

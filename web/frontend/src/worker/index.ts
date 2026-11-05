@@ -1,2 +1,2 @@
-export { WorkerClient as SimulatorWorker } from './SimulatorWorker'
+export { WorkerClient } from './SimulatorWorker'
 export type { SimulatorWorkerInterface } from '@/types'

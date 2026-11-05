@@ -128,7 +128,7 @@ export interface CollisionEvent {
 export interface WorkerMessage {
   type: 'init' | 'step' | 'set_waypoints' | 'add_obstacle' | 'load_map' | 'load_line_map' | 'reset' | 'export_log' | 'update_config'
   id?: number
-  config?: SimConfig
+  config?: SimConfig | Record<string, any>
   user_code?: string
   dt?: number
   commands?: Record<string, any>
@@ -143,7 +143,7 @@ export interface WorkerMessage {
 }
 
 export interface WorkerResponse {
-  type?: 'ready' | 'state_update' | 'log_export' | 'error' | 'success' | 'worker_ready'
+  type?: 'ready' | 'state_update' | 'log_export' | 'error' | 'success' | 'worker_ready' | 'pyodide_stdout' | 'pyodide_stderr'
   success: boolean
   error?: string
   data?: SimStepResult
@@ -161,7 +161,7 @@ export interface SimulatorWorkerInterface {
   loadLineMap: (imageBytes: Uint8Array, resolution: number) => Promise<void>
   reset: () => Promise<void>
   exportLog: (format: 'pkl' | 'csv') => Promise<Uint8Array>
-  updateConfig: (config: Partial<SimConfig>) => Promise<void>
+  updateConfig: (config: Partial<Record<string, any>>) => Promise<void>
   onStateUpdate: (callback: (data: SimStepResult) => void) => () => void
   onReady: (callback: () => void) => () => void
   onError: (callback: (error: string) => void) => () => void

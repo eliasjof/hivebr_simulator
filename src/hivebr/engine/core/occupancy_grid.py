@@ -2,8 +2,35 @@ from __future__ import annotations
 import os
 import math
 import numpy as np
-from PIL import Image
-from scipy.ndimage import binary_dilation
+
+
+def _binary_dilation(grid: np.ndarray, structure: np.ndarray, iterations: int) -> np.ndarray:
+    """Binary dilation that works with or without SciPy.
+
+    Uses ``scipy.ndimage.binary_dilation`` when available; otherwise falls
+    back to a pure-NumPy implementation (3x3 neighbourhood max-filter), so
+    the simulator can run in WASM/Pyodide without the heavy SciPy package.
+    Only the 3x3 (or smaller) structuring element used by this module is
+    supported by the fallback.
+    """
+    try:
+        from scipy.ndimage import binary_dilation as _scipy_dilate
+        return _scipy_dilate(grid, structure=structure, iterations=iterations)
+    except Exception:
+        result = np.asarray(grid, dtype=bool).copy()
+        if iterations <= 0:
+            return result
+        for _ in range(iterations):
+            padded = np.pad(result, 1, mode="constant", constant_values=False)
+            dilated = np.zeros_like(result)
+            for dy in range(3):
+                for dx in range(3):
+                    # Skip offsets disabled in the structuring element.
+                    if not structure[dy, dx]:
+                        continue
+                    dilated |= padded[dy:dy + result.shape[0], dx:dx + result.shape[1]]
+            result = dilated
+        return result
 
 
 class OccupancyGridMap:
@@ -32,7 +59,8 @@ class OccupancyGridMap:
         if not os.path.exists(resolved_path):
             raise FileNotFoundError(f"Map image not found at {image_path} (resolved to {resolved_path})")
 
-        # Load image and convert to grayscale
+        # Load image and convert to grayscale (Pillow imported lazily)
+        from PIL import Image
         img = Image.open(resolved_path).convert("L")
         
         # Grid array: True = occupied/obstacle (dark pixels < 128), False = free
@@ -67,7 +95,7 @@ class OccupancyGridMap:
         if inflation_cells > 0:
             # Estrutura com conectividade 8 (inclui diagonais) para evitar passagens falsas nas quinas
             structure = np.ones((3, 3), dtype=bool)
-            self.inflated_grid = binary_dilation(self.grid, structure=structure, iterations=inflation_cells)
+            self.inflated_grid = _binary_dilation(self.grid, structure=structure, iterations=inflation_cells)
         else:
             self.inflated_grid = self.grid.copy()
         # self._inflated_surface = None # Reset cached surface
