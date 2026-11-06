@@ -58,6 +58,8 @@ const menus = computed(() => [
   { id: 'help', label: 'Ajuda', items: [
     { label: 'Guia e atalhos', key: '?', run: () => { store.modals.help = true } },
     { label: 'Demonstração', run: runDemo },
+    { sep: true },
+    { label: 'Sobre…', run: () => { store.modals.about = true } },
   ] },
 ])
 

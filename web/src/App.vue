@@ -14,6 +14,7 @@ import MapWindow from './components/MapWindow.vue'
 import RobotsWindow from './components/RobotsWindow.vue'
 import ExamplesModal from './components/ExamplesModal.vue'
 import HelpModal from './components/HelpModal.vue'
+import AboutModal from './components/AboutModal.vue'
 import PromptModal from './components/PromptModal.vue'
 import FatalModal from './components/FatalModal.vue'
 import ContextMenu from './components/ContextMenu.vue'
@@ -23,6 +24,7 @@ import SimCanvas from './canvas/SimCanvas.vue'
 import {
   store, scene, canvasRef, startClient, send, ask, selectRobot, setCursor, runCode, stopCode, toggleSim, stepOnce, resetSim,
   saveNow, toggleTheme, toggleWindow, windows, clampWindow, setNarrow, openPanel, togglePanel, focusEditor, runDemo, pickFile, toast,
+  toggleRightMaximized,
 } from './state/store.js'
 
 const cv = ref(null)
@@ -67,6 +69,7 @@ function onKeyDown(e) {
   if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); pickFile(); return }
   if (document.querySelector('[aria-modal="true"]')) return
   if (e.key === 'Escape') {
+    if (store.layout.rightMaximized) { toggleRightMaximized(); return }
     if (store.ctx) { store.ctx = null; return }
     store.tool = 'select'
     return
@@ -142,17 +145,17 @@ const maxLeft = computed(() => Math.min(420, window.innerWidth * 0.4))
 </script>
 
 <template>
-  <div class="shell" :class="{ narrow: store.narrow }">
+  <div class="shell" :class="{ narrow: store.narrow, rightMaximized: store.layout.rightMaximized }">
     <MenuBar />
     <Toolbar />
     <main class="main">
       <!-- painel esquerdo -->
-      <aside v-if="store.layout.leftOpen" class="side left" :style="{ width: effLeft + 'px' }"><Navigator /></aside>
-      <Splitter v-if="store.layout.leftOpen && !store.narrow" axis="x" v-model:value="store.layout.leftW" :min="180" :max="maxLeft" label="Redimensionar navegador" />
-      <button v-if="!store.layout.leftOpen" class="rail left" aria-label="Abrir navegador" data-tip="Navegador" data-tip-pos="start" @click="openPanel('left')"><Icon name="panelL" :size="16" /></button>
+      <aside v-if="store.layout.leftOpen && !store.layout.rightMaximized" class="side left" :style="{ width: effLeft + 'px' }"><Navigator /></aside>
+      <Splitter v-if="store.layout.leftOpen && !store.narrow && !store.layout.rightMaximized" axis="x" v-model:value="store.layout.leftW" :min="180" :max="maxLeft" label="Redimensionar navegador" />
+      <button v-if="!store.layout.leftOpen && !store.layout.rightMaximized" class="rail left" aria-label="Abrir navegador" data-tip="Navegador" data-tip-pos="start" @click="openPanel('left')"><Icon name="panelL" :size="16" /></button>
 
       <!-- centro -->
-      <section class="center">
+      <section v-if="!store.layout.rightMaximized" class="center">
         <div class="docbar" role="tablist"><div class="doctab on" role="tab" aria-selected="true"><Icon name="hex" :size="14" />Simulação</div></div>
         <div class="card">
           <header class="card-h">
@@ -180,9 +183,9 @@ const maxLeft = computed(() => Math.min(420, window.innerWidth * 0.4))
       </section>
 
       <!-- painel direito -->
-      <Splitter v-if="store.layout.rightOpen && !store.narrow" axis="x" v-model:value="store.layout.rightW" invert :min="300" :max="720" label="Redimensionar código" />
-      <aside v-if="store.layout.rightOpen" class="side right" :style="{ width: effRight + 'px' }"><EditorPanel /></aside>
-      <button v-if="!store.layout.rightOpen" class="rail right" aria-label="Abrir código" data-tip="Código (E)" data-tip-pos="end" @click="openPanel('right')"><Icon name="panelR" :size="16" /></button>
+      <Splitter v-if="store.layout.rightOpen && !store.narrow && !store.layout.rightMaximized" axis="x" v-model:value="store.layout.rightW" invert :min="300" :max="720" label="Redimensionar código" />
+      <aside v-if="store.layout.rightOpen" class="side right" :style="{ width: store.layout.rightMaximized ? '100vw' : effRight + 'px' }"><EditorPanel /></aside>
+      <button v-if="!store.layout.rightOpen && !store.layout.rightMaximized" class="rail right" aria-label="Abrir código" data-tip="Código (E)" data-tip-pos="end" @click="openPanel('right')"><Icon name="panelR" :size="16" /></button>
     </main>
     <StatusBar />
 
@@ -192,6 +195,7 @@ const maxLeft = computed(() => Math.min(420, window.innerWidth * 0.4))
     <ToastHost />
     <ExamplesModal v-if="store.modals.examples" />
     <HelpModal v-if="store.modals.help" />
+    <AboutModal v-if="store.modals.about" />
     <PromptModal v-if="store.prompt" />
     <FatalModal v-if="store.fatal" />
   </div>
@@ -209,6 +213,10 @@ const maxLeft = computed(() => Math.min(420, window.innerWidth * 0.4))
 .narrow .rail { z-index: 41; }
 .narrow .rail.left { order: -1; } 
 .center { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 0 10px 10px; }
+.rightMaximized .center { display: none; }
+.rightMaximized .side.left { display: none; }
+.rightMaximized .side.right { width: 100vw !important; }
+.rightMaximized .rail { display: none; }
 .docbar { height: 38px; display: flex; align-items: flex-end; gap: 4px; padding-top: 6px; flex: none; }
 .doctab { display: flex; align-items: center; gap: 6px; padding: 0 14px; height: 32px; background: var(--surface); border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0; font-weight: 500; box-shadow: 0 1px 0 var(--surface); position: relative; top: 1px; }
 .doctab svg { color: var(--accent); }

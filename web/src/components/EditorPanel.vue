@@ -9,7 +9,7 @@ import { oneDark } from '@codemirror/theme-one-dark'
 import Icon from './Icon.vue'
 import {
   store, setCode, runCode, stopCode, newFile, pickFile, downloadScript,
-  switchTab, closeTab, duplicateDemo, openPanel, WINDOW_DEFS,
+  switchTab, closeTab, duplicateDemo, openPanel, toggleRightMaximized, WINDOW_DEFS,
 } from '../state/store.js'
 
 const host = ref(null)
@@ -100,6 +100,7 @@ const runDisabled = computed(() => !store.boot.ready && !running.value)
     <header class="ph">
       <span class="sec-h">Código</span>
       <span class="sp" />
+      <button class="btn ghost icon sm" :aria-label="store.layout.rightMaximized ? 'Restaurar painel' : 'Maximizar painel'" :data-tip="store.layout.rightMaximized ? 'Restaurar (Esc)' : 'Tela cheia'" @click="toggleRightMaximized"><Icon :name="store.layout.rightMaximized ? 'restore' : 'max'" :size="14" /></button>
       <button class="btn ghost icon sm" aria-label="Recolher painel de código" data-tip="Recolher" data-tip-pos="end" @click="store.layout.rightOpen = false"><Icon name="panelR" :size="14" /></button>
     </header>
     <div class="tabs" role="tablist" aria-label="Scripts abertos">

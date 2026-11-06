@@ -83,7 +83,7 @@ if (!tabsInit || !Array.isArray(tabsInit.tabs) || !tabsInit.tabs.length) {
 if (!tabsInit.tabs.some((t) => t.id === tabsInit.activeId)) tabsInit.activeId = tabsInit.tabs[0].id
 const activeInit = tabsInit.tabs.find((t) => t.id === tabsInit.activeId)
 
-const LAYOUT_DEFAULTS = { leftOpen: true, rightOpen: true, bottomOpen: true, leftW: 240, rightW: 460, bottomH: 220, bottomTab: 'console' }
+const LAYOUT_DEFAULTS = { leftOpen: true, rightOpen: true, bottomOpen: true, leftW: 240, rightW: 460, bottomH: 220, bottomTab: 'console', rightMaximized: false }
 const client = new SimClient()
 
 export const store = reactive({
@@ -138,7 +138,7 @@ export const store = reactive({
   // UI
   toasts: [],
   ctx: null,
-  modals: { examples: false, help: false },
+  modals: { examples: false, help: false, about: false },
   prompt: null,
   figures: [],
   consoleUnread: 0,
@@ -370,6 +370,19 @@ export function togglePanel(which) {
   const k = which + 'Open'
   if (store.layout[k]) store.layout[k] = false
   else openPanel(which)
+}
+export function toggleRightMaximized() {
+  store.layout.rightMaximized = !store.layout.rightMaximized
+  if (store.layout.rightMaximized) {
+    store.layout._prevLeft = store.layout.leftOpen
+    store.layout._prevBottom = store.layout.bottomOpen
+    store.layout.leftOpen = false
+    store.layout.bottomOpen = false
+    store.layout.rightOpen = true
+  } else {
+    store.layout.leftOpen = store.layout._prevLeft ?? true
+    store.layout.bottomOpen = store.layout._prevBottom ?? true
+  }
 }
 export function focusEditor() { openPanel('right'); setTimeout(() => store.editorApi?.focus(), 30) }
 export function gotoLine(n) { openPanel('right'); store.jumpLine = { line: n, n: Date.now() } }
