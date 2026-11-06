@@ -54,6 +54,13 @@ exp.run()
 A single robot is just a fleet with `N = 1`. Switching `backend="ros2"` reuses
 the same agent code on the physical arena.
 
+## Versão web
+
+Uma versão do simulador roda no navegador, sem instalação: o Python do usuário é
+interpretado com Pyodide e usa o pacote `hivebr` real. Para executar localmente
+(`cd web && npm install && npm run dev`), hospedar a versão estática e conhecer
+as diferenças em relação ao desktop, veja [web/README.md](web/README.md).
+
 ## Dual paradigm
 
 | Decentralized — `HiveBrAgent` | Centralized — `SwarmController` |

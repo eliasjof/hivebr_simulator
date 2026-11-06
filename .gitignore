@@ -19,3 +19,6 @@ logs/
 # Generated line-following tracks
 config/line_track.png
 config/line_drawn.png
+
+# Deploy credentials: never commit
+PRIVADO-*

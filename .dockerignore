@@ -1,0 +1,29 @@
+# Contexto de build: a raiz do repositório (o build do web/ precisa de src/, config/ e examples/).
+# Mantenha este arquivo enxuto: só o que o build não usa fica fora.
+
+# Controle de versão e documentação
+.git
+docs
+plots
+*.md
+hivebr-*.png
+
+# Artefatos gerados e dependências locais
+**/node_modules
+**/dist
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/*.egg-info
+**/*.log
+web/public/hivebr-py.zip
+
+# Testes (o bundle já exclui diretórios tests; aqui não entram no contexto)
+web/tests
+web/python/tests
+**/.github
+
+# Segredos locais: nunca entram na imagem
+**/PRIVADO-*
+**/.env
+**/.env.*
