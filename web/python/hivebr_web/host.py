@@ -46,5 +46,10 @@ def _default(o):
     raise TypeError(f"not serializable: {type(o).__name__}")
 
 
-def notice(level: str, text: str) -> None:
-    post("notice", {"level": level, "text": str(text)})
+def notice(level: str, text: str, code: str | None = None, **params) -> None:
+    """Notice for the UI. ``text`` is the English fallback; ``code`` + ``params`` let the UI translate it."""
+    payload = {"level": level, "text": str(text)}
+    if code:
+        payload["code"] = code
+        payload["params"] = {k: (v if isinstance(v, (int, float, bool)) or v is None else str(v)) for k, v in params.items()}
+    post("notice", payload)

@@ -24,16 +24,17 @@ def dispatch(sim, raw):
         msg = json.loads(raw) if isinstance(raw, (str, bytes)) else dict(raw)
         name = msg["cmd"]
     except Exception:
-        host.notice("warn", f"Invalid command: {str(raw)[:80]}")
+        host.notice("warn", f"Invalid command: {str(raw)[:80]}", "invalid_command", raw=str(raw)[:80])
         return
     handler = HANDLERS.get(name)
     if handler is None:
-        host.notice("warn", f"Unknown command: {name}")
+        host.notice("warn", f"Unknown command: {name}", "unknown_command", name=name)
         return
     try:
         handler(sim, msg)
     except Exception as exc:  # a bad command must never break the run
-        host.notice("warn", f"Command '{name}' failed: {type(exc).__name__}: {exc}")
+        host.notice("warn", f"Command '{name}' failed: {type(exc).__name__}: {exc}", "command_failed",
+                    name=name, error=f"{type(exc).__name__}: {exc}")
     sim.mark_dirty()
 
 
@@ -221,9 +222,10 @@ def _load_map(sim, msg):
             sim.world.load_map(path, res)
             sim.grid_map = sim.world.grid_map
     except Exception as exc:
-        host.notice("error", f"Could not load map: {exc}")
+        host.notice("error", f"Could not load map: {exc}", "map_load_failed", error=exc)
         return
-    host.notice("info", f"{'Line track' if kind == 'line' else 'Map'} loaded: {name} (res {res} m/px)")
+    host.notice("info", f"{'Line track' if kind == 'line' else 'Map'} loaded: {name} (res {res} m/px)",
+                "line_track_loaded" if kind == "line" else "map_loaded", name=name, res=res)
 
 
 def _clear_map(sim, msg):
@@ -277,7 +279,7 @@ def _track_clear(sim, msg):
 def _track_export(sim, msg):
     lm = getattr(sim.world, "line_map", None)
     if lm is None and sim._track_gray is None:
-        host.notice("warn", "No track to export")
+        host.notice("warn", "No track to export", "no_track_to_export")
         return
     from PIL import Image
     import io
@@ -305,7 +307,7 @@ def _export_log(sim, msg):
     if fmt not in ("csv", "pkl"):
         raise ValueError("format must be 'csv' or 'pkl'")
     if not sim.logger._has_data():
-        host.notice("warn", "No logged data yet")
+        host.notice("warn", "No logged data yet", "no_log_data")
         return
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, f"hivebr_log.{fmt}")

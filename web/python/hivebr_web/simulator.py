@@ -132,7 +132,7 @@ class BrowserSimulator(_Base):
         except Exception as exc:
             self._overlay_disabled = True
             traceback.print_exc()
-            host.notice("warn", f"draw_callback disabled after an error: {exc!r}")
+            host.notice("warn", f"draw_callback disabled after an error: {exc!r}", "draw_callback_disabled", error=repr(exc))
         finally:
             items = pygame._end_record()
         cam = self.camera
