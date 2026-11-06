@@ -1,0 +1,8 @@
+node_modules
+dist
+public/hivebr-py.zip
+__pycache__
+*.pyc
+.pytest_cache
+*.log
+.DS_Store
