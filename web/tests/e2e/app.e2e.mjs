@@ -30,7 +30,7 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r))
 const BASE = `http://127.0.0.1:${server.address().port}/hivebr/`
 
 const browser = await chromium.launch({ executablePath: CHROMIUM, headless: true, args: ['--no-sandbox'] })
-const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true })
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true, locale: 'pt-BR' })
 const page = await ctx.newPage()
 const pageErrors = []
 page.on('pageerror', (e) => pageErrors.push('pageerror: ' + e.message))
@@ -45,7 +45,8 @@ const tid = (id) => page.locator(`[data-testid="${id}"]`)
 const pillText = async () => ((await tid('pill').textContent()) || '').trim()
 const waitPill = (re, timeout = 60000) => page.waitForFunction(
   (src) => new RegExp(src, 'i').test(document.querySelector('[data-testid="pill"]')?.textContent || ''), re.source, { timeout })
-const num = async (id, re = /-?\d+(\.\d+)?/) => parseFloat(((await tid(id).textContent()) || '').match(re)?.[0])
+// números saem no formato do idioma (pt-BR usa vírgula decimal)
+const num = async (id, re = /-?\d+([.,]\d+)?/) => parseFloat((((await tid(id).textContent()) || '').match(re)?.[0] || '').replace(',', '.'))
 const simTime = () => num('st-time')
 const simStep = () => num('st-step')
 const tb = (name) => page.locator('.tb').getByRole('button', { name: new RegExp('^' + name) })
@@ -82,8 +83,8 @@ async function calibrate() {
   const probe = async (px, py) => {
     await page.mouse.move(px, py)
     await sleep(150)
-    const t = (await tid('st-cursor').textContent()).match(/x\s*(-?[\d.]+)\s*·\s*y\s*(-?[\d.]+)/)
-    return [parseFloat(t[1]), parseFloat(t[2])]
+    const m = (await tid('st-cursor').textContent()).replace(/,/g, '.').match(/x\s*(-?[\d.]+)\s*·\s*y\s*(-?[\d.]+)/)
+    return [parseFloat(m[1]), parseFloat(m[2])]
   }
   const x0 = b.x + b.width * 0.3, y0 = b.y + b.height * 0.7, x1 = b.x + b.width * 0.7, y1 = b.y + b.height * 0.3
   const a = await probe(x0, y0), c = await probe(x1, y1)
@@ -448,6 +449,253 @@ await flow('j. persistência, tema escuro, painéis', async () => {
   const rw2 = (await page.locator('.side.right').boundingBox()).width
   check(Math.abs(rw2 - rightW) < 3, `panel width persisted (${rightW} -> ${rw2})`)
   await shot('j-reloaded')
+})
+
+// ------------------------------------------------------------------ janelas flutuantes
+const PT_ACCENT = /[áàâãçéêíóôõúÁÀÂÃÇÉÊÍÓÔÕÚ]/
+const PT_WORDS = /\b(Executar|Executando|Parar|Parando|Salvar|Salvo|Abrir|Fechar|Limpar|Nenhum|Nenhuma|Aguardando|Carregando|Simulação|Ferramentas|Gráficos|Parâmetros|Navegador|Robôs|Obstáculo|Recarga|Idioma|Selecionar|Desenhar|Camadas|Pausado|Exemplos|Ajuda|Arquivo|Editar|Exibir|Mapa|Telemetria|Problemas|Código)\b/
+
+await flow('k. janelas: enquadramento, alças, empilhamento, teclado, maximizar', async () => {
+  await page.goto(BASE); await waitBoot()
+  await focusNeutral()
+  const NAME = 'section[aria-label="Parâmetros"]'
+  const win = page.locator(NAME)
+  const menubarH = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--menubar-h')))
+  const toolbarH = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--toolbar-h')))
+  const statusH = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--status-h')))
+  await page.keyboard.press('p'); await win.waitFor()
+  check(await win.evaluate((el) => getComputedStyle(el).overflow) === 'visible', 'window overflow must be visible (resize handles are not clipped)')
+  const box = () => win.boundingBox()
+  const drag = async (from, to) => { await page.mouse.move(from[0], from[1]); await page.mouse.down(); await page.mouse.move(to[0], to[1], { steps: 8 }); await page.mouse.up() }
+  // grab the title inside the visible part of the viewport (the window may hang off an edge)
+  const titlePt = async () => { const b = await win.locator('.fw-title').boundingBox(); return [Math.max(b.x, 0) + 50, b.y + b.height / 2] }
+
+  // arrastar para o topo: a barra de título nunca fica sob a barra de menus
+  let [tx, ty] = await titlePt()
+  await drag([tx, ty], [tx, 0])
+  let b = await box()
+  check(b.y >= menubarH - 0.5, `title bar stays below the menu bar (y=${b.y}, menubar=${menubarH})`)
+  const titleHit = await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.fw-title'), await titlePt())
+  check(titleHit, 'title bar is reachable (hit-test)')
+  // arrastar muito para a esquerda e para a direita: sobram 160 px visíveis
+  ;[tx, ty] = await titlePt()
+  await drag([tx, ty], [-900, ty + 200])
+  b = await box()
+  check(b.x + b.width >= 159, `at least 160px stay visible on the left (right edge=${b.x + b.width})`)
+  ;[tx, ty] = await titlePt()
+  await drag([tx, ty], [1900, ty])
+  b = await box()
+  check(1440 - b.x >= 159, `at least 160px stay visible on the right (x=${b.x})`)
+  // volta para uma posição confortável
+  ;[tx, ty] = await titlePt()
+  await drag([tx, ty], [700, 300])
+  b = await box()
+
+  // alças: sudeste cresce
+  const handle = (d) => win.locator('.h-' + d)
+  let hb = await handle('se').boundingBox()
+  const w0 = (await box()).width, h0 = (await box()).height
+  await drag([hb.x + hb.width / 2, hb.y + hb.height / 2], [hb.x + 100, hb.y + 80])
+  b = await box()
+  check(b.width > w0 + 60 && b.height > h0 + 50, `se handle grows the window (${w0}x${h0} -> ${b.width}x${b.height})`)
+  // oeste: limitado a x >= 0
+  hb = await handle('w').boundingBox()
+  await drag([hb.x + hb.width / 2, hb.y + hb.height / 2], [-1200, hb.y + 20])
+  b = await box()
+  check(b.x >= -0.5, `west resize is bounded at x=0 (x=${b.x})`)
+  check(b.width <= 1440 + 1, `window does not exceed the viewport (w=${b.width})`)
+  // norte: limitado à altura da barra de menus
+  ;[tx, ty] = await titlePt()
+  await drag([tx, ty], [tx + 500, 300])           // move away from the left edge first
+  hb = await handle('n').boundingBox()
+  await drag([hb.x + hb.width / 2, hb.y + 4], [hb.x + hb.width / 2, -400])
+  b = await box()
+  check(b.y >= menubarH - 0.5, `north resize stops under the menu bar (y=${b.y})`)
+  await shot('k-window-top')
+
+  // empilhamento: a janela cobre a barra de ferramentas (z-float > z-bar) e os menus cobrem a janela
+  const overToolbar = await page.evaluate(([x, y, sel]) => !!document.elementFromPoint(x, y)?.closest(sel), [b.x + b.width / 2, menubarH + toolbarH / 2, NAME])
+  check(overToolbar, 'floating window stacks above the toolbar')
+  ;[tx, ty] = await titlePt()
+  await drag([tx, ty], [420, 260])
+  await page.locator('[data-menu="view"]').click()
+  const dropBox = await page.locator('.drop').boundingBox()
+  const menuOver = await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.drop'), [dropBox.x + dropBox.width / 2, dropBox.y + dropBox.height - 6])
+  check(menuOver, 'menus stack above floating windows')
+  await page.keyboard.press('Escape')
+
+  // teclado: setas movem 10 px (Shift 40); Alt+setas redimensionam
+  await page.locator(NAME + ' .fw-title').focus()
+  b = await box()
+  await page.keyboard.press('ArrowRight'); let c = await box()
+  check(Math.abs(c.x - b.x - 10) < 1, `ArrowRight moves 10px (${b.x} -> ${c.x})`)
+  await page.keyboard.press('Shift+ArrowDown'); b = c; c = await box()
+  check(Math.abs(c.y - b.y - 40) < 1, `Shift+ArrowDown moves 40px (${b.y} -> ${c.y})`)
+  await page.keyboard.press('Alt+ArrowRight'); b = c; c = await box()
+  check(Math.abs(c.width - b.width - 10) < 1, `Alt+ArrowRight resizes 10px (${b.width} -> ${c.width})`)
+
+  // maximizar usa a área útil real (menus + ferramentas + 8 px; barra de status + 8 px)
+  await page.locator(NAME + ' .fw-title').dblclick({ position: { x: 150, y: 10 } })
+  b = await box()
+  check(Math.abs(b.x - 8) < 1 && Math.abs(b.y - (menubarH + toolbarH + 8)) < 1, `maximized top-left (${b.x},${b.y})`)
+  check(Math.abs(b.x + b.width - (1440 - 8)) < 1 && Math.abs(b.y + b.height - (900 - statusH - 8)) < 1, `maximized bottom-right (${b.x + b.width},${b.y + b.height})`)
+  await shot('k-maximized')
+  await page.locator(NAME + ' .fw-title').dblclick({ position: { x: 150, y: 10 } })
+  await focusNeutral(); await page.keyboard.press('p')
+})
+
+// ------------------------------------------------------------------ internacionalização
+async function localePage(locale) {
+  const c = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true, locale })
+  const pg = await c.newPage()
+  pg.on('pageerror', (e) => pageErrors.push('pageerror: ' + e.message))
+  pg.on('console', (m) => { if (m.type() === 'error') pageErrors.push('console.error: ' + m.text()) })
+  await pg.goto(BASE)
+  await pg.waitForFunction(() => crossOriginIsolated, null, { timeout: 30000 })
+  await pg.waitForFunction(() => /ready|pronto/i.test(document.querySelector('[data-testid="pill"]')?.textContent || ''), null, { timeout: 180000 })
+  return { c, pg }
+}
+const htmlLang = (pg) => pg.evaluate(() => document.documentElement.lang)
+
+await flow('l. detecção de idioma: en-US, pt-BR e fr-FR', async () => {
+  for (const [loc, lang, run, file] of [['en-US', 'en', 'Run', 'File'], ['pt-BR', 'pt-BR', 'Executar', 'Arquivo'], ['fr-FR', 'en', 'Run', 'File'], ['pt-PT', 'pt-BR', 'Executar', 'Arquivo']]) {
+    const { c, pg } = await localePage(loc)
+    try {
+      check(await htmlLang(pg) === lang, `${loc}: <html lang> = ${lang}`)
+      check((await pg.title()) === 'hiveBr Web Studio', `${loc}: localized title`)
+      check(await pg.locator('.tb').getByRole('button', { name: new RegExp('^' + run) }).count() >= 1, `${loc}: toolbar shows "${run}"`)
+      check(await pg.locator(`[data-menu="file"]`).innerText() === file, `${loc}: menu "${file}"`)
+      if (loc === 'en-US') await pg.screenshot({ path: path.join(SHOTS, `${String(++shotN).padStart(2, '0')}-l-en.png`) })
+    } finally { await c.close() }
+  }
+})
+
+await flow('m. Arquivo > Idioma: troca ao vivo durante a demonstração, persiste, Automático', async () => {
+  const { c, pg } = await localePage('pt-BR')
+  try {
+    const time = async () => parseFloat(((await pg.locator('[data-testid="st-time"]').textContent()) || '').replace(',', '.').match(/-?[\d.]+/)[0])
+    await pg.locator('.tb').getByRole('button', { name: /^Demonstração/ }).click()
+    await pg.waitForFunction(() => /executando/i.test(document.querySelector('[data-testid="pill"]').textContent), null, { timeout: 60000 })
+    await sleep(1500)
+    const t0 = await time()
+    // mouse: Arquivo > Idioma > English
+    await pg.locator('[data-menu="file"]').click()
+    await pg.getByRole('menuitem', { name: 'Idioma' }).first().click()
+    check(await pg.getByRole('menuitemradio', { name: 'Automático (navegador)' }).isVisible(), 'submenu lists "Automático (navegador)"')
+    check(await pg.getByRole('menuitemradio', { name: 'Português (Brasil)' }).getAttribute('aria-checked') === 'false', 'radio state exposed')
+    await pg.getByRole('menuitemradio', { name: 'English' }).click()
+    await sleep(2500)
+    check(await htmlLang(pg) === 'en', 'html lang switched to en')
+    check(/running/i.test(await pg.locator('[data-testid="pill"]').textContent()), 'pill says running in English')
+    const t1 = await time(); await sleep(1200); const t2 = await time()
+    check(t2 > t0 && t2 > t1, `simulation kept running through the switch (${t0} -> ${t1} -> ${t2})`)
+    check(await pg.locator('.tb').getByRole('button', { name: /^Pause/ }).count() === 1, 'toolbar is in English and the run was not interrupted')
+    await pg.screenshot({ path: path.join(SHOTS, `${String(++shotN).padStart(2, '0')}-m-live-en.png`) })
+    // persiste ao recarregar
+    await pg.reload()
+    await pg.waitForFunction(() => /ready/i.test(document.querySelector('[data-testid="pill"]')?.textContent || ''), null, { timeout: 180000 })
+    check(await htmlLang(pg) === 'en', 'choice persisted after reload')
+    // teclado: File > Language (ArrowRight opens the submenu) > Automatic
+    await pg.locator('[data-menu="file"]').focus(); await pg.keyboard.press('Enter')
+    for (let i = 0; i < 8; i++) {
+      const label = await pg.evaluate(() => document.activeElement?.textContent || '')
+      if (/^\s*Language/.test(label)) break
+      await pg.keyboard.press('ArrowDown')
+    }
+    await pg.keyboard.press('ArrowRight')
+    check(await pg.getByRole('menuitemradio', { name: /^Automatic/ }).isVisible(), 'ArrowRight opens the Language submenu')
+    await pg.keyboard.press('Escape')
+    check(await pg.getByRole('menuitemradio', { name: /^Automatic/ }).count() === 0 && await pg.locator('.drop').isVisible(), 'Esc closes only the submenu')
+    await pg.keyboard.press('ArrowRight')
+    await pg.keyboard.press('Enter')   // first item: Automatic (browser)
+    await sleep(500)
+    check(await htmlLang(pg) === 'pt-BR', 'Automatic returns to browser detection (pt-BR)')
+    check(await pg.locator('[data-menu="file"]').innerText() === 'Arquivo', 'UI is back in Portuguese')
+    await pg.reload()
+    await pg.waitForFunction(() => /pronto/i.test(document.querySelector('[data-testid="pill"]')?.textContent || ''), null, { timeout: 180000 })
+    check(await htmlLang(pg) === 'pt-BR', 'Automatic persisted (no explicit choice left)')
+  } finally { await c.close() }
+})
+
+await flow('n. en: nenhum português sobra no shell, janelas e modais', async () => {
+  const { c, pg } = await localePage('en-US')
+  const problems = []
+  const snap = async (label) => {
+    const text = await pg.evaluate(() => {
+      const clone = document.body.cloneNode(true)
+      for (const sel of ['.cm-editor', '.log', '.nm', '.etab', '.kids .lb.mono', '.center b', '.fig']) clone.querySelectorAll(sel).forEach((e) => e.remove())
+      const attrs = [...document.querySelectorAll('[data-tip],[aria-label],[title],[placeholder],[alt]')]
+        .filter((e) => !e.closest('.cm-editor') && !e.closest('.log') && !e.closest('.etab'))
+        .map((e) => [e.dataset.tip, e.getAttribute('aria-label'), e.getAttribute('title'), e.getAttribute('placeholder'), e.getAttribute('alt')].filter(Boolean).join(' | '))
+      return clone.innerText + '\n' + attrs.join('\n')
+    })
+    const clean = text.replace(/Português \(Brasil\)/g, '')
+    const bad = clean.split('\n').filter((l) => PT_ACCENT.test(l) || PT_WORDS.test(l))
+    if (bad.length) problems.push(`[${label}] ${bad.slice(0, 4).join(' || ')}`)
+  }
+  try {
+    await snap('shell')
+    await pg.locator('.tb').getByRole('button', { name: /^Demo/ }).click()
+    await pg.waitForFunction(() => /running/i.test(document.querySelector('[data-testid="pill"]').textContent), null, { timeout: 60000 })
+    await sleep(2500)
+    await snap('running')
+    // menus
+    for (const m of ['file', 'edit', 'view', 'sim', 'ex', 'help']) { await pg.locator(`[data-menu="${m}"]`).click(); await snap('menu-' + m); await pg.keyboard.press('Escape') }
+    await pg.locator('[data-menu="file"]').click(); await pg.getByRole('menuitem', { name: 'Language' }).first().click(); await snap('menu-language'); await pg.keyboard.press('Escape'); await pg.keyboard.press('Escape')
+    // layers dropdown, bottom tabs, telemetry floating window
+    await pg.locator('.tb').getByRole('button', { name: /^Layers/ }).click(); await snap('layers'); await pg.keyboard.press('Escape')
+    for (const tab of ['Telemetry', 'Problems', 'Console']) { await pg.locator('.dock .tab', { hasText: tab }).click(); await snap('dock-' + tab) }
+    // windows
+    const body = pg.locator('.card-h')
+    for (const [key, name] of [['p', 'Parameters'], ['g', 'Plots'], ['k', 'Map'], ['b', 'Telemetry']]) {
+      await body.click({ position: { x: 300, y: 10 } })
+      if (key === 'b') { await pg.locator('.dock .tab', { hasText: 'Telemetry' }).click(); await pg.getByRole('button', { name: /Detach/ }).first().click() }
+      else await pg.keyboard.press(key)
+      await sleep(900)
+      await snap('window-' + name)
+      if (key === 'g') {
+        await pg.locator(`section[aria-label="${name}"]`).getByRole('button', { name: 'Toggle table' }).click(); await sleep(300); await snap('plots-table')
+        await pg.locator(`section[aria-label="${name}"]`).getByRole('button', { name: 'Toggle table' }).click()
+        await pg.locator(`section[aria-label="${name}"]`).getByRole('tab', { name: /Figures/ }).click(); await snap('plots-figures')
+      }
+      await pg.screenshot({ path: path.join(SHOTS, `${String(++shotN).padStart(2, '0')}-n-en-${name}.png`) })
+      if (key !== 'b') { await body.click({ position: { x: 300, y: 10 } }); await pg.keyboard.press(key) }
+    }
+    await pg.locator('section[aria-label="Telemetry"] button[aria-label="Close"]').click()
+    // modals
+    await pg.locator('.tb').getByRole('button', { name: /^Examples/ }).click(); await sleep(400); await snap('modal-examples')
+    await pg.screenshot({ path: path.join(SHOTS, `${String(++shotN).padStart(2, '0')}-n-en-examples.png`) })
+    await pg.keyboard.press('Escape')
+    await body.click({ position: { x: 300, y: 10 } }); await pg.keyboard.press('?'); await sleep(400); await snap('modal-help')
+    await pg.screenshot({ path: path.join(SHOTS, `${String(++shotN).padStart(2, '0')}-n-en-help.png`) })
+    await pg.keyboard.press('Escape')
+    // prompts and context menu on the canvas
+    await pg.locator('.tb').getByRole('radio', { name: 'Waypoint' }).click()
+    const cb = await pg.locator('.cv canvas').first().boundingBox()
+    await pg.keyboard.down('Shift'); await pg.mouse.click(cb.x + cb.width * 0.4, cb.y + cb.height * 0.4); await pg.keyboard.up('Shift')
+    await pg.locator('#pf-deg').waitFor(); await snap('prompt-waypoint'); await pg.keyboard.press('Escape')
+    await pg.locator('.tb').getByRole('radio', { name: 'Obstacle' }).click()
+    await pg.mouse.click(cb.x + cb.width * 0.5, cb.y + cb.height * 0.5)
+    await pg.locator('#pf-r').waitFor(); await snap('prompt-obstacle'); await pg.keyboard.press('Escape')
+    await pg.locator('.tb').getByRole('radio', { name: 'Select' }).click()
+    await pg.mouse.click(cb.x + cb.width * 0.6, cb.y + cb.height * 0.6, { button: 'right' }); await snap('context-menu')
+    await pg.screenshot({ path: path.join(SHOTS, `${String(++shotN).padStart(2, '0')}-n-en-context.png`) })
+    await pg.keyboard.press('Escape')
+    // discard confirmation + toasts + banner + problems
+    await pg.locator('.tb').getByRole('button', { name: /^Stop/ }).click()
+    await pg.waitForFunction(() => /ready/i.test(document.querySelector('[data-testid="pill"]').textContent), null, { timeout: 30000 })
+    await pg.locator('.etab .tab').first().click()
+    await pg.locator('.cm-content').click(); await pg.keyboard.press('End'); await pg.keyboard.insertText('# edit')
+    await pg.locator('.tb').getByRole('button', { name: /^Examples/ }).click()
+    await pg.locator('[aria-modal="true"] .card').first().getByRole('button', { name: 'Load in the editor' }).click()
+    await pg.getByRole('button', { name: 'Replace' }).waitFor(); await snap('modal-discard'); await pg.getByRole('button', { name: 'Replace' }).click()
+    await snap('toast-example-loaded')
+    await pg.locator('.cm-content').click(); await pg.keyboard.press('Control+A'); await pg.keyboard.insertText('x = = 1\n')
+    await pg.locator('.tb').getByRole('button', { name: /^Run/ }).click()
+    await pg.waitForSelector('.banner.err'); await snap('error-banner'); await snap('problems')
+    await pg.screenshot({ path: path.join(SHOTS, `${String(++shotN).padStart(2, '0')}-n-en-error.png`) })
+  } finally { await c.close() }
+  check(problems.length === 0, 'Portuguese text left in the English UI:\n' + problems.join('\n'))
 })
 
 // ------------------------------------------------------------------ summary

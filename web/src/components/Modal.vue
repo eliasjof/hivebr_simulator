@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, onBeforeUnmount, ref, nextTick } from 'vue'
 import Icon from './Icon.vue'
+import { t } from '../i18n/index.js'
 
 const props = defineProps({
   title: String,
@@ -43,7 +44,7 @@ onBeforeUnmount(() => {
       :style="{ maxWidth: width + 'px' }">
       <header class="m-head">
         <h2>{{ title }}</h2>
-        <button v-if="closable" class="btn ghost icon sm" aria-label="Fechar" @click="emit('close')"><Icon name="close" /></button>
+        <button v-if="closable" class="btn ghost icon sm" :aria-label="t('common.close')" @click="emit('close')"><Icon name="close" /></button>
       </header>
       <div class="m-body"><slot /></div>
       <footer v-if="$slots.footer" class="m-foot"><slot name="footer" /></footer>
@@ -52,14 +53,14 @@ onBeforeUnmount(() => {
 </template>
 <style scoped>
 .backdrop {
-  position: fixed; inset: 0; z-index: var(--z-modal); display: grid; place-items: center; padding: 16px;
-  background: rgba(10, 9, 7, .55); animation: fade .15s var(--ease);
+  position: fixed; inset: 0; z-index: var(--z-modal); display: grid; place-items: center; padding: var(--sp-6);
+  background: var(--backdrop); animation: fade var(--dur) var(--ease);
 }
-.modal { width: 100%; max-height: calc(100vh - 32px); display: flex; flex-direction: column; background: var(--surface-solid); animation: pop .18s var(--ease); outline: none; }
-.m-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px 16px; }
-.m-head h2 { font-size: 15px; }
-.m-body { padding: 4px 16px 16px; overflow: auto; min-height: 0; }
-.m-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); }
+.modal { width: 100%; max-height: calc(100vh - 2 * var(--sp-6)); display: flex; flex-direction: column; background: var(--surface); animation: pop var(--dur-pop) var(--ease); outline: none; box-shadow: var(--shadow); }
+.m-head { display: flex; align-items: center; justify-content: space-between; padding: var(--sp-5) var(--sp-5) var(--sp-4) var(--sp-6); }
+.m-head h2 { font-size: var(--fs-lg); }
+.m-body { padding: var(--sp-2) var(--sp-6) var(--sp-6); overflow: auto; min-height: 0; }
+.m-foot { display: flex; justify-content: flex-end; gap: var(--sp-4); padding: 10px var(--sp-6); border-top: 1px solid var(--border); }
 @keyframes fade { from { opacity: 0 } }
 @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(.98) } }
 </style>

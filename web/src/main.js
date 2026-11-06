@@ -1,5 +1,7 @@
+import './styles.css'
 import { createApp } from 'vue'
 import App from './App.vue'
-import './styles.css'
+import { syncDocument } from './i18n/index.js'
 
+syncDocument()
 createApp(App).mount('#app')

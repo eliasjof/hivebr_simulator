@@ -34,10 +34,10 @@ function key(e) {
     :aria-label="label" @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up" @keydown="key"><i /></div>
 </template>
 <style scoped>
-.spl { position: relative; flex: none; touch-action: none; z-index: 5; }
-.spl.x { width: 5px; cursor: col-resize; margin: 0 -2px; }
-.spl.y { height: 5px; cursor: row-resize; margin: -2px 0; }
-.spl i { position: absolute; background: transparent; transition: background .12s; }
+.spl { position: relative; flex: none; touch-action: none; z-index: var(--z-raised); }
+.spl.x { width: var(--splitter-w); cursor: col-resize; margin: 0 -2px; }
+.spl.y { height: var(--splitter-w); cursor: row-resize; margin: -2px 0; }
+.spl i { position: absolute; background: transparent; transition: background var(--dur-fast); }
 .spl.x i { left: 2px; top: 0; bottom: 0; width: 1px; }
 .spl.y i { top: 2px; left: 0; right: 0; height: 1px; }
 .spl:hover i, .spl.active i, .spl:focus-visible i { background: var(--accent); }

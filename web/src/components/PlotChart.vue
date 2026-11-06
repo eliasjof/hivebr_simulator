@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { t, fmtMax } from '../i18n/index.js'
 
 // Gráfico SVG de um único sinal (um eixo y). Séries: { key, robot, color, dash, kind, label, x:[], y:[] }
 const props = defineProps({
@@ -11,7 +12,7 @@ const props = defineProps({
   height: { type: Number, default: 190 },
   xUnit: { type: String, default: 's' },
   decimals: { type: Number, default: 3 },
-  emptyText: { type: String, default: 'Sem dados' },
+  emptyText: { type: String, default: '' },
 })
 
 const wrap = ref(null)
@@ -42,7 +43,7 @@ function niceTicks(lo, hi, n = 4) {
 const fmt = (v, d = 2) => {
   if (v == null || !Number.isFinite(v)) return '—'
   const a = Math.abs(v)
-  return a !== 0 && (a < 0.01 || a >= 10000) ? v.toExponential(1) : (+v.toFixed(d)).toString()
+  return a !== 0 && (a < 0.01 || a >= 10000) ? v.toExponential(1) : fmtMax(v, d)
 }
 
 const dom = computed(() => {
@@ -177,11 +178,11 @@ function onMove(e) {
     items.push({ s, text: `x ${fmt(s.x[i], 2)} · y ${fmt(s.y[i], 2)}`, py: best.q[1], px: best.q[0] })
     header = s.t ? `t = ${fmt(s.t[i], 2)} s` : ''
   } else {
-    const t = d.x0 + ((px - M.value.l) / pw.value) * (d.x1 - d.x0)
-    header = `t = ${fmt(t, 2)} ${props.xUnit}`
+    const tv = d.x0 + ((px - M.value.l) / pw.value) * (d.x1 - d.x0)
+    header = `t = ${fmt(tv, 2)} ${props.xUnit}`
     for (const s of props.series) {
       if (!s.x.length) continue
-      const i = binary(s.x, t)
+      const i = binary(s.x, tv)
       const y = s.y[i]
       if (!Number.isFinite(y)) continue
       items.push({ s, text: fmt(y, props.decimals) + (props.unit ? ' ' + props.unit : ''), py: sy(y), px: sx(s.x[i]) })
@@ -196,7 +197,7 @@ function onLeave() { hover.value = null }
   <figure class="pc">
     <figcaption><span class="ttl">{{ title }}</span><span class="faint mono u">{{ unit }}{{ xy ? '' : ' · x: ' + xUnit }}</span></figcaption>
     <div ref="wrap" class="wrap" :style="{ height: height + 'px' }">
-      <svg v-if="dom" :width="width" :height="height" role="img" :aria-label="`Gráfico: ${title}`" class="svg">
+      <svg v-if="dom" :width="width" :height="height" role="img" :aria-label="t('plots.chart_aria', { title })" class="svg">
         <g class="grid">
           <line v-for="v in dom.yt" :key="'gy' + v" :x1="M.l" :x2="M.l + pw" :y1="sy(v)" :y2="sy(v)" />
           <template v-if="xy"><line v-for="v in dom.xt" :key="'gx' + v" :y1="M.t" :y2="M.t + ph" :x1="sx(v)" :x2="sx(v)" /></template>
@@ -219,13 +220,13 @@ function onLeave() { hover.value = null }
         </g>
         <rect :x="M.l" :y="M.t" :width="pw" :height="ph" fill="transparent" class="hit" @pointermove="onMove" @pointerdown="onMove" @pointerleave="onLeave" />
       </svg>
-      <div v-else class="nodata faint">{{ emptyText }}</div>
+      <div v-else class="nodata muted">{{ emptyText || t('plots.no_data') }}</div>
       <div v-if="hover" class="tip mono" :style="hover.left ? { right: width - hover.cx + 10 + 'px' } : { left: hover.cx + 12 + 'px' }">
         <div class="th">{{ hover.header }}</div>
         <div v-for="it in hover.items" :key="it.s.key" class="tr">
           <svg width="18" height="8" aria-hidden="true"><line x1="1" x2="17" y1="4" y2="4" :stroke="it.s.color" stroke-width="2" stroke-linecap="round"
             :stroke-dasharray="it.s.kind === 'cmd' ? '0.1 5' : it.s.dash || null" /></svg>
-          <span>{{ it.s.label }}{{ it.s.kind === 'cmd' ? ' (cmd)' : '' }}</span><b>{{ it.text }}</b>
+          <span>{{ it.s.label }}{{ it.s.kind === 'cmd' ? ' (' + t('plots.cmd_short') + ')' : '' }}</span><b>{{ it.text }}</b>
         </div>
       </div>
     </div>
@@ -233,21 +234,21 @@ function onLeave() { hover.value = null }
 </template>
 
 <style scoped>
-.pc { margin: 0; padding: 8px 10px 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); min-width: 0; }
-figcaption { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; font-weight: 600; padding: 0 2px 2px; }
-.u { font-weight: 400; font-size: 11px; }
+.pc { margin: 0; padding: var(--sp-4) 10px var(--sp-2); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); min-width: 0; }
+figcaption { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--fs-sm); font-weight: 600; padding: 0 var(--sp-1) var(--sp-1); }
+.u { font-weight: 400; font-size: var(--fs-xs); }
 .wrap { position: relative; }
 .svg { display: block; overflow: visible; }
 .grid line { stroke: var(--grid); stroke-width: 1; }
 .axis line { stroke: var(--border-strong); stroke-width: 1; }
-.axis text { fill: var(--text-faint); font-size: 10px; }
-.endlbl text { fill: var(--text-muted); font-size: 10.5px; }
+.axis text { fill: var(--text-faint); font-size: var(--fs-2xs); }
+.endlbl text { fill: var(--text-muted); font-size: var(--fs-2xs); }
 .cross { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 3; }
-.dot { stroke: var(--surface-solid); stroke-width: 1.5; }
+.dot { stroke: var(--surface); stroke-width: 1.5; }
 .hit { cursor: crosshair; touch-action: pan-y; }
-.nodata { display: grid; place-items: center; height: 100%; text-align: center; padding: 0 16px; line-height: 1.4; font-size: 12px; }
-.tip { position: absolute; top: 6px; pointer-events: none; padding: 6px 8px; font-size: 11px; background: var(--surface-solid); border: 1px solid var(--border-strong); border-radius: 6px; box-shadow: var(--shadow); z-index: 5; white-space: nowrap; }
+.nodata { display: grid; place-items: center; height: 100%; text-align: center; padding: 0 16px; line-height: 1.4; font-size: var(--fs-sm); }
+.tip { position: absolute; top: 6px; pointer-events: none; padding: var(--sp-3) var(--sp-4); font-size: var(--fs-xs); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); box-shadow: var(--shadow); z-index: var(--z-raised); white-space: nowrap; }
 .th { color: var(--text-muted); margin-bottom: 3px; }
-.tr { display: flex; align-items: center; gap: 6px; }
+.tr { display: flex; align-items: center; gap: var(--sp-3); }
 .tr b { margin-left: auto; padding-left: 10px; font-weight: 600; }
 </style>

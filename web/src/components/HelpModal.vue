@@ -1,54 +1,64 @@
 <script setup>
 import Modal from './Modal.vue'
 import { store, runDemo } from '../state/store.js'
+import { t } from '../i18n/index.js'
+
+// [tecla, chave da descrição]
 const keys = [
-  ['Ctrl/Cmd + Enter', 'Executar o código'], ['Ctrl/Cmd + S', 'Salvar no navegador'], ['Espaço', 'Iniciar / pausar a simulação'],
-  ['.', 'Avançar um passo'], ['Shift + R', 'Reiniciar a simulação'], ['V W O R M D', 'Selecionar, Waypoint, Obstáculo, Recarga, Mover, Desenhar pista'],
-  ['1 – 9', 'Selecionar robô'], ['F', 'Enquadrar a cena'], ['+ / −', 'Aproximar / afastar'], ['E', 'Focar o editor'], ['C', 'Console'], ['B', 'Telemetria'],
-  ['P / G / K', 'Parâmetros / Gráficos / Mapa'], ['T', 'Alternar tema'], ['Esc', 'Voltar à ferramenta Selecionar / fechar'], ['?', 'Esta ajuda'],
-  ['Shift + clique', 'Waypoint com orientação'], ['Botão direito', 'Menu de contexto na cena'], ['Espaço + arrastar / botão do meio', 'Mover a câmera'],
+  ['Ctrl/Cmd + Enter', 'help.k_run'], ['Ctrl/Cmd + S', 'help.k_save'], ['key.space', 'help.k_toggle'], ['.', 'help.k_step'],
+  ['Shift + R', 'help.k_reset'], ['V W O R M D', 'help.k_tools'], ['1 – 9', 'help.k_select'], ['F', 'help.k_fit'], ['+ / −', 'help.k_zoom'],
+  ['E', 'help.k_editor'], ['C', 'help.k_console'], ['B', 'help.k_telemetry'], ['P / G / K', 'help.k_windows'], ['T', 'help.k_theme'],
+  ['Esc', 'help.k_esc'], ['?', 'help.k_help'], ['help.k_shift_click', 'help.k_waypoint_orient'], ['help.k_right_click', 'help.k_context'],
+  ['help.k_space_drag', 'help.k_pan'],
 ]
+const keyLabel = (k) => (k.startsWith('key.') || k.startsWith('help.') ? t(k) : k)
 </script>
 <template>
-  <Modal title="Ajuda" :width="760" @close="store.modals.help = false">
+  <Modal :title="t('help.title')" :width="760" @close="store.modals.help = false">
     <section>
-      <h3>Início rápido</h3>
+      <h3>{{ t('help.quick') }}</h3>
       <ol>
-        <li>Escolha um exemplo em <b>Exemplos</b> ou escreva seu código no painel <b>Código</b>.</li>
-        <li>Pressione <kbd>Ctrl</kbd>+<kbd>Enter</kbd> para executar. O Python (Pyodide) roda no seu navegador, sem servidor.</li>
-        <li>Use as ferramentas da barra para adicionar waypoints, obstáculos e estações de recarga com o mouse.</li>
-        <li>Veja saídas no <b>Console</b>, o estado dos robôs em <b>Telemetria</b> e os sinais em <b>Gráficos</b>.</li>
+        <li>{{ t('help.q1_a') }}<b>{{ t('toolbar.examples') }}</b>{{ t('help.q1_b') }}<b>{{ t('view.code') }}</b>{{ t('help.q1_c') }}</li>
+        <li>{{ t('help.q2_a') }}<kbd>Ctrl</kbd>+<kbd>Enter</kbd>{{ t('help.q2_b') }}</li>
+        <li>{{ t('help.q3') }}</li>
+        <li>{{ t('help.q4_a') }}<b>{{ t('dock.console') }}</b>{{ t('help.q4_b') }}<b>{{ t('dock.telemetry') }}</b>{{ t('help.q4_c') }}<b>{{ t('win.plots') }}</b>{{ t('help.q4_d') }}</li>
       </ol>
-      <button class="btn sm" @click="store.modals.help = false; runDemo()">Ver demonstração</button>
+      <button class="btn sm" @click="store.modals.help = false; runDemo()">{{ t('help.see_demo') }}</button>
     </section>
     <section>
-      <h3>API em resumo</h3>
+      <h3>{{ t('help.api') }}</h3>
       <dl class="api">
-        <dt class="mono">HiveBrAgent</dt><dd>Classe base de um robô: implemente <code class="mono">step(obs)</code> para devolver comandos de velocidade.</dd>
-        <dt class="mono">SwarmController</dt><dd>Coordena vários agentes de uma vez, com acesso ao estado do enxame.</dd>
-        <dt class="mono">SwarmExperiment</dt><dd>Monta cena, robôs e controlador; <code class="mono">exp.run()</code> bloqueia até a simulação parar.</dd>
-        <dt class="mono">Simulator</dt><dd>Núcleo da simulação: mundo, robôs, LiDAR, obstáculos e waypoints; <code class="mono">sim.run()</code> bloqueia até parar.</dd>
+        <dt class="mono">HiveBrAgent</dt><dd>{{ t('help.api_agent_a') }}<code class="mono">step(obs)</code>{{ t('help.api_agent_b') }}</dd>
+        <dt class="mono">SwarmController</dt><dd>{{ t('help.api_controller') }}</dd>
+        <dt class="mono">SwarmExperiment</dt><dd>{{ t('help.api_experiment_a') }}<code class="mono">exp.run()</code>{{ t('help.api_experiment_b') }}</dd>
+        <dt class="mono">Simulator</dt><dd>{{ t('help.api_simulator_a') }}<code class="mono">sim.run()</code>{{ t('help.api_simulator_b') }}</dd>
       </dl>
     </section>
     <section>
-      <h3>Atalhos</h3>
-      <table class="keys"><tbody><tr v-for="[k, d] in keys" :key="k"><td><kbd>{{ k }}</kbd></td><td>{{ d }}</td></tr></tbody></table>
+      <h3>{{ t('help.shortcuts') }}</h3>
+      <table class="keys"><tbody><tr v-for="[k, d] in keys" :key="k"><td><kbd>{{ keyLabel(k) }}</kbd></td><td>{{ t(d) }}</td></tr></tbody></table>
     </section>
     <section>
-      <h3>Diferenças em relação à versão desktop</h3>
+      <h3>{{ t('help.language') }}</h3>
+      <p class="para">{{ t('help.language_body') }}</p>
+      <p class="para">{{ t('help.language_limit') }}</p>
+    </section>
+    <section>
+      <h3>{{ t('help.diff') }}</h3>
       <ul>
-        <li>Não há <b>multiprocessing</b> nem threads reais; tudo roda em um único worker.</li>
-        <li>Não há janela pygame: a cena é desenhada em canvas e controlada por esta interface.</li>
-        <li>Comandos ao vivo (pausar, waypoints, parâmetros) exigem <span class="mono">crossOriginIsolated</span>; sem ele aparece um aviso de modo limitado.</li>
-        <li>Arquivos gerados (CSV, PKL, YAML) são baixados pelo navegador; figuras do matplotlib vão para a aba Figuras.</li>
-        <li>O Python é carregado de um CDN na primeira visita e precisa de conexão.</li>
+        <li>{{ t('help.d1_a') }}<b>multiprocessing</b>{{ t('help.d1_b') }}</li>
+        <li>{{ t('help.d2') }}</li>
+        <li>{{ t('help.d3_a') }}<span class="mono">crossOriginIsolated</span>{{ t('help.d3_b') }}</li>
+        <li>{{ t('help.d4') }}</li>
+        <li>{{ t('help.d5') }}</li>
       </ul>
     </section>
   </Modal>
 </template>
 <style scoped>
-section { margin-bottom: 18px; } h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-bottom: 8px; }
+section { margin-bottom: 18px; } h3 { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-bottom: var(--sp-4); }
 ol, ul { margin: 0 0 10px; padding-left: 20px; line-height: 1.6; }
-.api { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; } .api dd { margin: 0; color: var(--text-muted); }
-.keys { border-collapse: collapse; width: 100%; } .keys td { padding: 4px 8px 4px 0; border-bottom: 1px solid var(--border); vertical-align: top; } .keys td:first-child { white-space: nowrap; width: 1%; }
+.para { margin: 0 0 var(--sp-4); line-height: 1.6; color: var(--text-muted); }
+.api { display: grid; grid-template-columns: max-content 1fr; gap: var(--sp-3) var(--sp-6); margin: 0; } .api dd { margin: 0; color: var(--text-muted); }
+.keys { border-collapse: collapse; width: 100%; } .keys td { padding: var(--sp-2) var(--sp-4) var(--sp-2) 0; border-bottom: 1px solid var(--border); vertical-align: top; } .keys td:first-child { white-space: nowrap; width: 1%; }
 </style>

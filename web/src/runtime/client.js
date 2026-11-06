@@ -81,7 +81,7 @@ export class SimClient {
     this.worker = worker
     worker.onmessage = (ev) => this._onMessage(worker, ev.data)
     worker.onerror = (ev) => {
-      this._onMessage(worker, { type: 'fatal', payload: { message: ev.message || 'Erro no worker' } })
+      this._onMessage(worker, { type: 'fatal', payload: { message: ev.message || 'Worker error' } })
     }
     const p = this._readyPromise()
     worker.postMessage({ type: 'init', zipUrl: this.zipUrl, sab: this.sab, pyodideUrl: this.pyodideUrl })
@@ -131,7 +131,7 @@ export class SimClient {
         const w = this._files.get(payload.id)
         if (!w) return
         this._files.delete(payload.id)
-        if (payload.b64 == null) w.reject(new Error(payload.error || 'Arquivo nao encontrado'))
+        if (payload.b64 == null) w.reject(new Error(payload.error || 'File not found'))
         else w.resolve(Uint8Array.from(atob(payload.b64), (c) => c.charCodeAt(0)))
         return
       }
@@ -143,7 +143,7 @@ export class SimClient {
   // ---- running -----------------------------------------------------------
   /** Runs user code. Resolves with the `finished` payload. */
   run(code, { autostart = true } = {}) {
-    if (this.state !== 'ready') return Promise.reject(new Error(`Simulador nao esta pronto (${this.state})`))
+    if (this.state !== 'ready') return Promise.reject(new Error(`Simulator is not ready (${this.state})`))
     this._setState('running')
     if (this.sab) new Uint8Array(this.sab.interrupt)[0] = 0
     return new Promise((resolve, reject) => {
@@ -168,14 +168,14 @@ export class SimClient {
     this._setState('stopping')
     const done = new Promise((resolve) => this._stopWaiters.push(resolve))
     if (!this.writer) {
-      this._terminateAndRestart('A simulacao foi interrompida reiniciando o interpretador.')
+      this._terminateAndRestart('Simulation stopped by restarting the interpreter.', 'restart_stop')
       return done
     }
     this.writer.push(JSON.stringify({ cmd: 'stop' }))
     this._stopTimers.push(setTimeout(() => {
       new Uint8Array(this.sab.interrupt)[0] = 2
       this._stopTimers.push(setTimeout(() => {
-        this._terminateAndRestart('O codigo nao respondeu; o interpretador foi reiniciado.')
+        this._terminateAndRestart('The code did not respond; the interpreter was restarted.', 'restart_unresponsive')
       }, STOP_TERMINATE_MS))
     }, STOP_INTERRUPT_MS))
     return done
@@ -185,16 +185,16 @@ export class SimClient {
     this._stopTimers.splice(0).forEach(clearTimeout)
   }
 
-  _terminateAndRestart(text) {
+  _terminateAndRestart(text, code) {
     this._clearStopTimers()
     if (this.worker) this.worker.terminate()
     this.worker = null
     this.sab = null
     this.writer = null
     const finished = { ok: false, stopped: true, error: null, files: [] }
-    this._files.forEach((w) => w.reject(new Error('Interpretador reiniciado')))
+    this._files.forEach((w) => w.reject(new Error('Interpreter restarted')))
     this._files.clear()
-    this._emit('notice', { level: 'warn', text })
+    this._emit('notice', { level: 'warn', text, code })
     this._setState('booting')
     this._emit('finished', finished)
     if (this._runWaiter) { this._runWaiter.resolve(finished); this._runWaiter = null }
@@ -205,7 +205,7 @@ export class SimClient {
 
   /** Reads a file from the Pyodide filesystem. */
   readFile(path) {
-    if (!this.worker) return Promise.reject(new Error('Worker indisponivel'))
+    if (!this.worker) return Promise.reject(new Error('Worker unavailable'))
     const id = ++this._fileId
     return new Promise((resolve, reject) => {
       this._files.set(id, { resolve, reject })

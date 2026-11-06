@@ -1,6 +1,7 @@
-import { reactive, shallowRef, markRaw, ref, watch } from 'vue'
+import { reactive, shallowRef, markRaw, ref, watch, computed } from 'vue'
 import { SimClient } from '../runtime/client.js'
-import { CATALOG, DEFAULT_EXAMPLE_ID, DEMO_EXAMPLE_ID } from '../examples/catalog.js'
+import { getCatalog, DEFAULT_EXAMPLE_ID, DEMO_EXAMPLE_ID } from '../examples/catalog.js'
+import { t, tOr, locale, fmtNum } from '../i18n/index.js'
 
 const LS = {
   windows: 'hivebr.web.windows.v1',
@@ -17,42 +18,51 @@ function lsSet(key, value) {
 }
 
 export const WINDOW_DEFS = {
-  params: { title: 'Parâmetros', shortcut: 'P', icon: 'sliders' },
-  plots: { title: 'Gráficos', shortcut: 'G', icon: 'chart' },
-  map: { title: 'Mapa', shortcut: 'K', icon: 'map' },
-  robots: { title: 'Telemetria', shortcut: 'B', icon: 'robot' },
+  params: { titleKey: 'win.params', shortcut: 'P', icon: 'sliders', minW: 280, minH: 200, w: 340, h: 560 },
+  plots: { titleKey: 'win.plots', shortcut: 'G', icon: 'chart', minW: 360, minH: 260, w: 780, h: 640 },
+  map: { titleKey: 'win.map', shortcut: 'K', icon: 'map', minW: 300, minH: 240, w: 360, h: 580 },
+  robots: { titleKey: 'win.robots', shortcut: 'B', icon: 'robot', minW: 260, minH: 200, w: 320, h: 480 },
 }
 
-export const TOP = 84
-export const BOTTOM = 30
+// Alturas reais das barras vêm dos tokens CSS (nada de constantes mágicas).
+function cssPx(name, fallback) {
+  const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name))
+  return Number.isFinite(v) ? v : fallback
+}
+export const menubarH = () => cssPx('--menubar-h', 38)
+export const chromeTop = () => menubarH() + cssPx('--toolbar-h', 40)
+export const chromeBottom = () => cssPx('--status-h', 24)
+const zBase = () => cssPx('--z-float', 100)
+const zCeil = () => cssPx('--z-banner', 6000) - 1
+const VISIBLE_SIDE = 160 // px da janela que sempre ficam visíveis nas laterais
+const KEEP_BELOW = 40    // px da barra de título que sempre ficam acima da borda inferior
 
 function viewport() {
   return { vw: window.innerWidth, vh: window.innerHeight }
 }
 
+/** Posição inicial: ancorada à direita, abaixo das barras, em cascata de 16 px (k = ordem mod 5). */
 export function defaultGeometry(id, order = 0) {
   const { vw, vh } = viewport()
-  const avail = Math.max(240, vh - TOP - BOTTOM)
+  const def = WINDOW_DEFS[id] || { w: 420, h: 360 }
+  const top = chromeTop()
+  const avail = Math.max(240, vh - top - chromeBottom())
   if (vw < 900) {
     const off = Math.min(order * 14, 60)
-    return { x: 8 + off, y: TOP + off, w: vw - 16 - off, h: Math.round(avail * 0.7) }
+    return { x: 8 + off, y: top + off, w: vw - 16 - off, h: Math.round(avail * 0.7) }
   }
-  switch (id) {
-    case 'robots': return { x: vw - 340, y: TOP + 8, w: 320, h: Math.min(avail, 480) }
-    case 'params': return { x: vw - 380, y: TOP + 24, w: 340, h: Math.min(avail, 560) }
-    case 'plots': return { x: Math.max(260, vw - 880), y: TOP + 16, w: Math.min(820, vw - 280), h: Math.min(avail, 640) }
-    case 'map': return { x: vw - 400, y: TOP + 40, w: 360, h: Math.min(avail, 580) }
-    default: return { x: 100, y: TOP, w: 420, h: 360 }
-  }
+  const k = order % 5
+  const w = Math.min(def.w, vw - 40)
+  return { x: Math.max(8, vw - w - 20 - 16 * k), y: top + 6 + 16 * k, w, h: Math.min(def.h, avail) }
 }
 
 const savedWin = lsGet(LS.windows, {})
-let zCounter = 10
+let zCounter = zBase()
 export const windows = reactive({})
 Object.keys(WINDOW_DEFS).forEach((id, i) => {
   const s = savedWin[id] || {}
   const g = defaultGeometry(id, i)
-    windows[id] = {
+  windows[id] = {
     open: s.open ?? false,
     minimized: !!s.minimized,
     maximized: !!s.maximized,
@@ -69,16 +79,17 @@ function persistWindows() {
 }
 let winTimer = null
 function schedulePersist() { clearTimeout(winTimer); winTimer = setTimeout(persistWindows, 250) }
+window.addEventListener('pagehide', persistWindows)
 
 const prefs = lsGet(LS.prefs, {})
 const initialTheme = prefs.theme || 'light'
 
-const defaultExample = CATALOG.find((e) => e.id === DEFAULT_EXAMPLE_ID) || CATALOG[0]
+const defaultExample = getCatalog(locale.value).find((e) => e.id === DEFAULT_EXAMPLE_ID)
 let tabsInit = lsGet(LS.tabs, null)
 if (!tabsInit || !Array.isArray(tabsInit.tabs) || !tabsInit.tabs.length) {
   const legacy = localStorage.getItem(LS.code) != null ? lsGet(LS.code, '') : (defaultExample?.source ?? '')
   const base = localStorage.getItem(LS.baseline) != null ? lsGet(LS.baseline, '') : (defaultExample?.source ?? '')
-  tabsInit = { activeId: 't1', tabs: [{ id: 't1', name: defaultExample ? `${defaultExample.id}.py` : 'meu_script.py', code: legacy, baseline: base }] }
+  tabsInit = { activeId: 't1', tabs: [{ id: 't1', name: defaultExample ? `${defaultExample.id}.py` : t('script.default_name'), code: legacy, baseline: base }] }
 }
 if (!tabsInit.tabs.some((t) => t.id === tabsInit.activeId)) tabsInit.activeId = tabsInit.tabs[0].id
 const activeInit = tabsInit.tabs.find((t) => t.id === tabsInit.activeId)
@@ -89,7 +100,7 @@ const client = new SimClient()
 export const store = reactive({
   client: markRaw(client),
   // boot
-  boot: { stage: 'init', progress: 0, text: 'Iniciando…', ready: false, dismissed: false, version: '' },
+  boot: { stage: 'init', progress: 0, detail: '', ready: false, dismissed: false, version: '' },
   interactive: true,
   warnDismissed: false,
   fatal: null,
@@ -193,20 +204,27 @@ export function resolvePrompt(value) {
 }
 
 // ---- janelas ----
-export function clampWindow(w) {
+export function clampWindow(w, id) {
   const { vw, vh } = viewport()
-  w.w = Math.max(240, Math.min(w.w, vw))
-  w.h = Math.max(120, Math.min(w.h, vh - 8))
-  w.x = Math.max(-w.w + 80, Math.min(w.x, vw - 80))
-  w.x = Math.max(Math.min(0, w.x), Math.min(w.x, vw - Math.min(w.w, 120)))
-  w.y = Math.max(0, Math.min(w.y, vh - 40))
+  const def = WINDOW_DEFS[id] || {}
+  const minW = Math.min(def.minW ?? 280, vw), minH = Math.min(def.minH ?? 160, vh)
+  w.w = Math.max(minW, Math.min(w.w, vw))
+  w.h = Math.max(minH, Math.min(w.h, vh - 8))
+  w.x = Math.max(-w.w + VISIBLE_SIDE, Math.min(w.x, vw - VISIBLE_SIDE))
+  w.y = Math.max(menubarH(), Math.min(w.y, vh - KEEP_BELOW))
 }
-export function focusWindow(id) { windows[id].z = ++zCounter }
+export function focusWindow(id) {
+  if (zCounter >= zCeil()) {  // nunca alcança a camada dos banners: renormaliza a ordem
+    Object.entries(windows).sort((a, b) => a[1].z - b[1].z).forEach(([k, w], i) => { w.z = zBase() + i })
+    zCounter = zBase() + Object.keys(windows).length
+  }
+  windows[id].z = ++zCounter
+}
 export function openWindow(id) {
   const w = windows[id]
   w.open = true
   w.minimized = false
-  clampWindow(w)
+  clampWindow(w, id)
   focusWindow(id)
 }
 export function closeWindow(id) { windows[id].open = false; windows[id].minimized = false }
@@ -221,6 +239,7 @@ export function resetLayout() {
   })
   Object.assign(store.layout, LAYOUT_DEFAULTS)
 }
+Object.entries(windows).forEach(([id, w]) => clampWindow(w, id)) // o monitor pode ter mudado
 watch(windows, schedulePersist, { deep: true })
 
 // ---- preferências ----
@@ -278,7 +297,7 @@ export function closeTab(id) {
   const wasActive = id === store.activeId
   if (wasActive) syncActive()
   store.tabs.splice(i, 1)
-  if (!store.tabs.length) addTab('meu_script.py', '')
+  if (!store.tabs.length) addTab(t('script.default_name'), t('script.new_template'))
   else if (wasActive) loadTab(store.tabs[Math.min(i, store.tabs.length - 1)])
   saveNow()
 }
@@ -299,7 +318,7 @@ export function saveNow() {
   store.saveState = 'saved'
 }
 export function replaceCode(text, { baseline = true, fileName } = {}) {
-  if (store.readonly) { addTab(fileName || 'meu_script.py', text); store.error = null; return }
+  if (store.readonly) { addTab(fileName || t('script.default_name'), text); store.error = null; return }
   store.code = text
   if (baseline) store.baseline = text
   if (fileName) store.fileName = fileName
@@ -312,32 +331,32 @@ export function hasUserEdits() { return !store.readonly && store.code !== store.
 export async function confirmDiscard(what) {
   if (!hasUserEdits()) return true
   const r = await ask({
-    title: 'Descartar alterações?',
-    message: `O script ativo tem alterações que ainda não foram salvas em arquivo. ${what} substituirá o conteúdo atual.`,
-    confirmText: 'Substituir',
+    title: t('discard.title'),
+    message: t('discard.message', { what }),
+    confirmText: t('discard.confirm'),
     danger: true,
   })
   return !!r
 }
 export async function loadExample(ex) {
-  if (!(await confirmDiscard(`Carregar “${ex.title}”`))) return false
+  if (!(await confirmDiscard(t('discard.what_example', { title: ex.title })))) return false
   replaceCode(ex.source, { fileName: `${ex.id}.py` })
   store.modals.examples = false
   openPanel('right')
-  toast(`Exemplo “${ex.title}” carregado.`)
+  toast(t('toast.example_loaded', { title: ex.title }))
   return true
 }
 export function newFile() {
-  addTab(`script_${tabSeq + 1}.py`, '')
+  addTab(`script_${tabSeq + 1}.py`, t('script.new_template'))
   openPanel('right')
 }
 
 // ---- demonstração (aba somente leitura, não altera o script do usuário) ----
 export async function runDemo() {
-  const ex = CATALOG.find((e) => e.id === DEMO_EXAMPLE_ID)
-  if (!ex) { toast('Demonstração indisponível.', 'warn'); return }
-  let t = store.tabs.find((x) => x.readonly)
-  if (t) { syncActive(); t.code = ex.source; loadTab(t) } else addTab('Demonstração', ex.source, { readonly: true })
+  const ex = catalog.value.find((e) => e.id === DEMO_EXAMPLE_ID)
+  if (!ex) { toast(t('toast.demo_unavailable'), 'warn'); return }
+  const existing = store.tabs.find((x) => x.readonly)
+  if (existing) { syncActive(); existing.code = ex.source; loadTab(existing) } else addTab(t('tab.demo'), ex.source, { readonly: true })
   store.error = null
   openPanel('right')
   if (store.run.state !== 'idle') {
@@ -349,14 +368,14 @@ export async function runDemo() {
       stopCode()
     })
   }
-  if (!store.boot.ready) { toast('Aguarde o Python terminar de carregar para executar a demonstração.', 'warn'); return }
+  if (!store.boot.ready) { toast(t('toast.wait_python'), 'warn'); return }
   runCode()
 }
 export function duplicateDemo() {
-  const t = activeTab()
-  if (!t?.readonly) return
-  addTab('minha_demonstracao.py', t.code)
-  toast('Demonstração duplicada para edição.')
+  const tab = activeTab()
+  if (!tab?.readonly) return
+  addTab(t('script.demo_copy_name'), tab.code)
+  toast(t('toast.demo_duplicated'))
 }
 
 // ---- painéis ----
@@ -402,7 +421,7 @@ export function send(cmd) {
   try { ok = client.send(cmd) } catch (e) { console.warn('send falhou', e) }
   if (!ok && Date.now() - lastWarn > 4000) {
     lastWarn = Date.now()
-    toast(store.interactive ? 'Execute um código para interagir com a simulação.' : 'Comandos ao vivo indisponíveis neste navegador (modo limitado).', 'warn')
+    toast(t(store.interactive ? 'toast.run_first' : 'toast.limited_mode'), 'warn')
   }
   return ok
 }
@@ -421,7 +440,7 @@ export function runCode() {
   saveNow()
   client.run(store.code, { autostart: store.autostart }).catch((e) => {
     store.run.state = 'idle'
-    toast(String(e?.message || e), 'error')
+    toast(t('toast.run_failed', { error: String(e?.message || e) }), 'error')
   })
 }
 export function stopCode() {
@@ -487,11 +506,11 @@ function wire() {
     // Pacotes carregados sob demanda durante uma execução não bloqueiam a interface.
     // Depois de pronto, mensagens de carregamento (scipy, imports) não reabrem o estado de boot.
     if (store.boot.ready || client.state === 'running' || client.state === 'stopping' || store.run.state !== 'idle') return
-    store.boot.stage = p.stage; store.boot.progress = p.progress ?? 0; store.boot.text = p.text || ''
+    store.boot.stage = p.stage; store.boot.progress = p.progress ?? 0; store.boot.detail = p.text || ''
     store.boot.ready = false
     store.boot.dismissed = false
   })
-  on('restart', () => { store.boot.ready = false; store.boot.progress = 0; store.boot.text = 'Reiniciando o interpretador…'; store.boot.dismissed = false })
+  on('restart', () => { store.boot.ready = false; store.boot.progress = 0; store.boot.stage = 'restart'; store.boot.detail = ''; store.boot.dismissed = false })
   on('ready', (p) => {
     store.boot.ready = true
     store.boot.progress = 1
@@ -513,15 +532,17 @@ function wire() {
   })
   on('file', (p) => {
     download(p.name, b64ToBlob(p.b64, p.mime))
-    toast(`Arquivo “${p.name}” baixado.`)
+    toast(t('toast.file_downloaded', { name: p.name }))
   })
   on('figure', (p) => {
     store.figures.push(markRaw(p))
-    toast(`Figura “${p.title || 'sem título'}” capturada (aba Figuras em Gráficos).`)
+    toast(t('toast.figure_captured', { title: p.title || t('plots.untitled') }))
   })
   on('notice', (p) => {
-    toast(p.text, p.level === 'warn' ? 'warn' : p.level === 'error' ? 'error' : 'info', p.level === 'error' ? 9000 : 5000)
-    consoleBus.push('notice', p.text)
+    // `code` + `params` (Python/worker) são traduzidos aqui; sem tradução, vale o texto em inglês.
+    const text = p.code ? tOr('notice.' + p.code, p.params, p.text) : p.text
+    toast(text, p.level === 'warn' ? 'warn' : p.level === 'error' ? 'error' : 'info', p.level === 'error' ? 9000 : 5000)
+    consoleBus.push('notice', text)
   })
   on('finished', (p) => {
     store.run.state = 'idle'
@@ -532,12 +553,12 @@ function wire() {
       openPanel('right')
       openPanel('bottom', 'problems')
     } else if (p.stopped) {
-      consoleBus.push('notice', 'Execução interrompida.')
+      consoleBus.push('notice', t('console.stopped'))
     } else {
-      consoleBus.push('notice', 'Execução concluída.')
+      consoleBus.push('notice', t('console.finished'))
     }
   })
-  on('fatal', (p) => { store.fatal = typeof p === 'string' ? p : (p?.message || p?.text || 'Erro fatal ao inicializar o Python.') })
+  on('fatal', (p) => { store.fatal = typeof p === 'string' ? p : (p?.message || p?.text || 'Fatal error while starting Python.') })
 }
 wire()
 
@@ -567,7 +588,7 @@ export function pickFile() {
     if (!f) return
     addTab(f.name, await f.text())
     openPanel('right')
-    toast(`Arquivo “${f.name}” aberto.`)
+    toast(t('toast.file_opened', { name: f.name }))
   }
   i.click()
 }
@@ -576,4 +597,5 @@ export function downloadScript() {
   download(name, new Blob([store.code], { type: 'text/x-python' }))
   saveNow()
 }
-export const CATALOGREF = CATALOG
+/** Catálogo no idioma atual (reativo). */
+export const catalog = computed(() => getCatalog(locale.value))

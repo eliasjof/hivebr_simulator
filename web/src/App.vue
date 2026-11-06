@@ -24,14 +24,15 @@ import {
   store, scene, canvasRef, startClient, send, ask, selectRobot, setCursor, runCode, stopCode, toggleSim, stepOnce, resetSim,
   saveNow, toggleTheme, toggleWindow, windows, clampWindow, setNarrow, openPanel, togglePanel, focusEditor, runDemo, pickFile, toast,
 } from './state/store.js'
+import { t, fmtNum, fmtInt } from './i18n/index.js'
 
 const cv = ref(null)
 const D2R = Math.PI / 180
 
 const cardTitle = computed(() => {
   const s = scene.value
-  if (!s) return 'Aguardando simulação'
-  const w = s.world ? `${s.world.width}×${s.world.height} m` : ''
+  if (!s) return t('card.waiting')
+  const w = s.world ? `${fmtNum(s.world.width, 0)}×${fmtNum(s.world.height, 0)} m` : ''
   const r = s.robots?.[store.selected]
   return [w, r?.type].filter(Boolean).join(' · ')
 })
@@ -39,14 +40,14 @@ const cardTitle = computed(() => {
 // ---- eventos da cena ----
 async function onAddWaypoint({ x, y, shift }) {
   if (shift) {
-    const r = await ask({ title: 'Orientação do waypoint', fields: [{ key: 'deg', label: 'Ângulo', type: 'number', value: 0, step: 5, suffix: 'graus', hint: '0° aponta para +x; sentido anti-horário.' }], confirmText: 'Adicionar' })
+    const r = await ask({ title: t('prompt.wp_title'), fields: [{ key: 'deg', label: t('prompt.wp_angle'), type: 'number', value: 0, step: 5, suffix: t('prompt.degrees'), hint: t('prompt.wp_hint') }], confirmText: t('common.add') })
     if (!r) return
     send({ cmd: 'add_waypoint', robot: store.selected, x, y, theta: r.deg * D2R })
   } else send({ cmd: 'add_waypoint', robot: store.selected, x, y })
 }
 function onWaypointOrient({ x, y, theta }) { send({ cmd: 'add_waypoint', robot: store.selected, x, y, theta }) }
 async function onAddObstacle({ x, y }) {
-  const r = await ask({ title: 'Raio do obstáculo', fields: [{ key: 'r', label: 'Raio', type: 'number', value: store.obstacleRadius, min: 0.05, max: 20, step: 0.05, suffix: 'm' }], confirmText: 'Adicionar' })
+  const r = await ask({ title: t('prompt.obs_title'), fields: [{ key: 'r', label: t('prompt.obs_radius'), type: 'number', value: store.obstacleRadius, min: 0.05, max: 20, step: 0.05, suffix: 'm' }], confirmText: t('common.add') })
   if (!r) return
   store.obstacleRadius = r.r
   send({ cmd: 'add_obstacle', x, y, r: r.r })
@@ -56,14 +57,14 @@ function onMove({ index, x, y, theta }) { send({ cmd: 'set_pose', robot: index, 
 function onCursor(p) { if (p) setCursor(p); else setCursor({ x: null, y: null }) }
 
 // ---- teclado ----
-function isTyping(t) {
-  return t && (t.closest?.('input, textarea, select, [contenteditable="true"], .cm-editor'))
+function isTyping(el) {
+  return el && (el.closest?.('input, textarea, select, [contenteditable="true"], .cm-editor'))
 }
 let spaceHeld = false, spaceUsed = false
 function onKeyDown(e) {
   const mod = e.ctrlKey || e.metaKey
   if (mod && e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (store.run.state === 'idle') runCode(); return }
-  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); e.stopPropagation(); saveNow(); toast('Salvo no navegador.'); return }
+  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); e.stopPropagation(); saveNow(); toast(t('toast.saved')); return }
   if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); pickFile(); return }
   if (document.querySelector('[aria-modal="true"]')) return
   if (e.key === 'Escape') {
@@ -108,7 +109,7 @@ function onPointerDownAny() { if (spaceHeld) spaceUsed = true }
 function onResize() {
   store.vw = window.innerWidth
   setNarrow(window.innerWidth < 1100)
-  for (const w of Object.values(windows)) if (!w.maximized) clampWindow(w)
+  for (const [id, w] of Object.entries(windows)) if (!w.maximized) clampWindow(w, id)
 }
 let zoomTimer = null
 onMounted(() => {
@@ -137,8 +138,9 @@ watch(() => [store.layout.leftOpen, store.layout.rightOpen, store.layout.bottomO
 
 const effLeft = computed(() => Math.min(store.layout.leftW, Math.round(store.vw * 0.22)))
 const effRight = computed(() => Math.min(store.layout.rightW, Math.round(store.vw * 0.36)))
-const bottomStyle = computed(() => ({ height: (store.layout.bottomOpen ? store.layout.bottomH : 33) + 'px' }))
-const maxLeft = computed(() => Math.min(420, window.innerWidth * 0.4))
+// recolhido = altura das abas + as duas bordas do dock
+const bottomStyle = computed(() => ({ height: store.layout.bottomOpen ? store.layout.bottomH + 'px' : 'calc(var(--tabs-h) + 2px)' }))
+const maxLeft = computed(() => Math.min(420, Math.round(store.vw * 0.4)))
 </script>
 
 <template>
@@ -148,20 +150,20 @@ const maxLeft = computed(() => Math.min(420, window.innerWidth * 0.4))
     <main class="main">
       <!-- painel esquerdo -->
       <aside v-if="store.layout.leftOpen" class="side left" :style="{ width: effLeft + 'px' }"><Navigator /></aside>
-      <Splitter v-if="store.layout.leftOpen && !store.narrow" axis="x" v-model:value="store.layout.leftW" :min="180" :max="maxLeft" label="Redimensionar navegador" />
-      <button v-if="!store.layout.leftOpen" class="rail left" aria-label="Abrir navegador" data-tip="Navegador" data-tip-pos="start" @click="openPanel('left')"><Icon name="panelL" :size="16" /></button>
+      <Splitter v-if="store.layout.leftOpen && !store.narrow" axis="x" v-model:value="store.layout.leftW" :min="180" :max="maxLeft" :label="t('split.nav')" />
+      <button v-if="!store.layout.leftOpen" class="rail left" :aria-label="t('rail.open_nav')" :data-tip="t('nav.title')" data-tip-pos="start" @click="openPanel('left')"><Icon name="panelL" :size="16" /></button>
 
       <!-- centro -->
       <section class="center">
-        <div class="docbar" role="tablist"><div class="doctab on" role="tab" aria-selected="true"><Icon name="hex" :size="14" />Simulação</div></div>
+        <div class="docbar" role="tablist" :aria-label="t('card.docs')"><div class="doctab on" role="tab" aria-selected="true"><Icon name="hex" :size="14" />{{ t('card.sim') }}</div></div>
         <div class="card">
           <header class="card-h">
-            <span class="sec-h"><b>Simulação</b> <span class="muted">· {{ cardTitle }}</span></span>
+            <span class="sec-h"><b>{{ t('card.sim') }}</b> <span class="muted">· {{ cardTitle }}</span></span>
             <span class="sp" />
-            <button class="btn ghost icon sm" aria-label="Afastar" data-tip="Afastar (−)" @click="cv?.zoomOut()"><Icon name="zoomOut" :size="14" /></button>
-            <span class="zoom mono">{{ store.zoomPct }}%</span>
-            <button class="btn ghost icon sm" aria-label="Aproximar" data-tip="Aproximar (+)" @click="cv?.zoomIn()"><Icon name="zoomIn" :size="14" /></button>
-            <button class="btn ghost icon sm" aria-label="Enquadrar" data-tip="Enquadrar (F)" data-tip-pos="end" @click="cv?.fit()"><Icon name="fit" :size="14" /></button>
+            <button class="btn ghost icon sm" :aria-label="t('zoom.out')" :data-tip="t('zoom.out') + ' (−)'" @click="cv?.zoomOut()"><Icon name="zoomOut" :size="14" /></button>
+            <span class="zoom mono">{{ fmtInt(store.zoomPct) }}%</span>
+            <button class="btn ghost icon sm" :aria-label="t('zoom.in')" :data-tip="t('zoom.in') + ' (+)'" @click="cv?.zoomIn()"><Icon name="zoomIn" :size="14" /></button>
+            <button class="btn ghost icon sm" :aria-label="t('view.fit')" :data-tip="t('view.fit') + ' (F)'" data-tip-pos="end" @click="cv?.fit()"><Icon name="fit" :size="14" /></button>
           </header>
           <div class="cv">
             <SimCanvas ref="cv" :scene="scene" :tool="store.tool" :options="store.options" :interactive="store.interactive"
@@ -169,20 +171,20 @@ const maxLeft = computed(() => Math.min(420, window.innerWidth * 0.4))
               @add-recharge="(p) => send({ cmd: 'add_recharge', x: p.x, y: p.y })" @context="onContext" @select-robot="(p) => selectRobot(p.index)"
               @move-robot="onMove" @cursor="onCursor" />
             <div v-if="!store.hasRun" class="hint">
-              <p>Pressione <b>Executar</b> (<kbd>Ctrl</kbd>+<kbd>Enter</kbd>) para criar a simulação.</p>
-              <p class="faint">O código do painel Código controla os robôs; eles aparecem aqui.</p>
-              <button class="btn sm" @click="runDemo"><Icon name="demo" :size="14" />Ver demonstração</button>
+              <p>{{ t('hint.press') }}<b>{{ t('run.run') }}</b> (<kbd>Ctrl</kbd>+<kbd>Enter</kbd>){{ t('hint.to_create') }}</p>
+              <p class="muted small">{{ t('hint.sub') }}</p>
+              <button class="btn sm" @click="runDemo"><Icon name="demo" :size="14" />{{ t('hint.see_demo') }}</button>
             </div>
           </div>
         </div>
-        <Splitter v-if="store.layout.bottomOpen" axis="y" v-model:value="store.layout.bottomH" invert :min="90" :max="520" label="Redimensionar painel inferior" />
+        <Splitter v-if="store.layout.bottomOpen" axis="y" v-model:value="store.layout.bottomH" invert :min="90" :max="520" :label="t('split.bottom')" />
         <div class="bottom" :style="bottomStyle"><BottomDock /></div>
       </section>
 
       <!-- painel direito -->
-      <Splitter v-if="store.layout.rightOpen && !store.narrow" axis="x" v-model:value="store.layout.rightW" invert :min="300" :max="720" label="Redimensionar código" />
+      <Splitter v-if="store.layout.rightOpen && !store.narrow" axis="x" v-model:value="store.layout.rightW" invert :min="300" :max="720" :label="t('split.code')" />
       <aside v-if="store.layout.rightOpen" class="side right" :style="{ width: effRight + 'px' }"><EditorPanel /></aside>
-      <button v-if="!store.layout.rightOpen" class="rail right" aria-label="Abrir código" data-tip="Código (E)" data-tip-pos="end" @click="openPanel('right')"><Icon name="panelR" :size="16" /></button>
+      <button v-if="!store.layout.rightOpen" class="rail right" :aria-label="t('rail.open_code')" :data-tip="t('view.code') + ' (E)'" data-tip-pos="end" @click="openPanel('right')"><Icon name="panelR" :size="16" /></button>
     </main>
     <StatusBar />
 
@@ -201,26 +203,26 @@ const maxLeft = computed(() => Math.min(420, window.innerWidth * 0.4))
 .shell { position: fixed; inset: 0; display: grid; grid-template-rows: var(--menubar-h) var(--toolbar-h) minmax(0, 1fr) var(--status-h); background: var(--bg); }
 .main { position: relative; display: flex; min-height: 0; min-width: 0; }
 .side { flex: none; min-width: 0; min-height: 0; }
-.rail { flex: none; width: 30px; background: var(--surface); border: none; color: var(--text-muted); display: grid; place-items: start center; padding-top: 10px; }
+.rail { flex: none; width: var(--rail-w); background: var(--surface); border: none; color: var(--text-muted); display: grid; place-items: start center; padding-top: 10px; }
 .rail.left { border-right: 1px solid var(--border); } .rail.right { border-left: 1px solid var(--border); }
 .rail:hover { color: var(--accent); background: var(--surface-3); }
-.narrow .side { position: absolute; top: 0; bottom: 0; z-index: 40; max-width: 92vw; box-shadow: var(--shadow); }
-.narrow .side.left { left: 30px; } .narrow .side.right { right: 30px; }
-.narrow .rail { z-index: 41; }
+.narrow .side { position: absolute; top: 0; bottom: 0; z-index: var(--z-panel); max-width: 92vw; box-shadow: var(--shadow); }
+.narrow .side.left { left: var(--rail-w); } .narrow .side.right { right: var(--rail-w); }
+.narrow .rail { z-index: var(--z-panel); }
 .narrow .rail.left { order: -1; } 
 .center { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 0 10px 10px; }
-.docbar { height: 38px; display: flex; align-items: flex-end; gap: 4px; padding-top: 6px; flex: none; }
-.doctab { display: flex; align-items: center; gap: 6px; padding: 0 14px; height: 32px; background: var(--surface); border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0; font-weight: 500; box-shadow: 0 1px 0 var(--surface); position: relative; top: 1px; }
+.docbar { height: var(--docbar-h); display: flex; align-items: flex-end; gap: var(--sp-2); padding-top: var(--sp-3); flex: none; }
+.doctab { display: flex; align-items: center; gap: var(--sp-3); padding: 0 14px; height: var(--tabs-h); background: var(--surface); border: 1px solid var(--border); border-bottom: none; border-radius: var(--radius) var(--radius) 0 0; font-weight: 500; box-shadow: 0 1px 0 var(--surface); position: relative; top: 1px; }
 .doctab svg { color: var(--accent); }
-.card { flex: 1; min-height: 80px; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 0 8px 8px 8px; overflow: hidden; box-shadow: var(--shadow-sm); }
-.card-h { display: flex; align-items: center; gap: 4px; height: 34px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--border); flex: none; }
+.card { flex: 1; min-height: 80px; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 0 var(--radius) var(--radius) var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
+.card-h { display: flex; align-items: center; gap: var(--sp-2); height: var(--panel-head-h); padding: 0 var(--sp-4) 0 var(--sp-5); border-bottom: 1px solid var(--border); flex: none; }
 .card-h b { color: var(--text); font-weight: 700; }
 .card-h .sec-h { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .sp { flex: 1; }
-.zoom { min-width: 44px; text-align: center; font-size: 11.5px; color: var(--text-muted); }
+.zoom { min-width: 44px; text-align: center; font-size: var(--fs-label); color: var(--text-muted); }
 .cv { position: relative; flex: 1; min-height: 0; }
 .cv > :deep(*:first-child) { position: absolute; inset: 0; }
-.hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 18px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); max-width: 90%; }
-.hint p { margin: 0; color: var(--text-muted); } .hint p.faint { font-size: 12px; margin-bottom: 6px; }
+.hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); text-align: center; padding: 18px var(--sp-7); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); max-width: 90%; }
+.hint p { margin: 0; color: var(--text-muted); } .hint p.small { font-size: var(--fs-sm); margin-bottom: var(--sp-3); }
 .bottom { flex: none; min-height: 0; margin-top: 9px; }
 </style>
