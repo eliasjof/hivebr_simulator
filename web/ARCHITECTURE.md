@@ -130,10 +130,10 @@ parseado** em `client.js`. Floats arredondados a 4 casas.
   `{ open: bool, robots: [{ id, type, color, t:[], x:[], y:[], theta:[], v:[], omega:[], v_cmd:[], omega_cmd:[], err_pos:[], err_theta:[], segments:[] }], collisions: [str] }`.
 - `file` — download gerado: `{ name, mime, b64 }`.
 - `figure` — `plt.show()`/`savefig` capturado: `{ title, png_b64 }`.
-- `notice` — aviso para a UI: `{ level: "info"|"warn"|"error", text }`.
+- `notice` — aviso para a UI: `{ level: "info"|"warn"|"error", text, code?, params? }`. `text` é sempre o texto em inglês (reserva); `code` + `params` são estáveis e a UI os traduz (`notice.<code>` nos dicionários; código desconhecido cai no `text`). Códigos: `invalid_command`, `unknown_command`, `command_failed`, `map_load_failed`, `map_loaded`, `line_track_loaded`, `no_track_to_export`, `no_log_data`, `draw_callback_disabled` (Python) e `restart_stop`, `restart_unresponsive`, `scipy_failed`, `packages_failed` (cliente/worker).
 
 O worker também emite (fora do Python):
-- `boot` `{ stage, progress(0..1), text }` (mensagens do carregamento de pacotes vão só para `boot`, nunca para stdout; ao iniciar uma execução o worker emite `stage: "done"`), `ready` `{ pyodide_version, interactive }`
+- `boot` `{ stage, progress(0..1), text? }`: `stage` é uma chave estável (`runtime`, `packages`, `files`, `python`, `scipy`, `imports`, `done`) que a UI traduz; `text` é um detalhe opcional cru do carregador de pacotes. Mensagens do carregamento vão só para `boot`, nunca para stdout; ao iniciar uma execução (e quando o scipy termina) o worker emite `stage: "done"`, `ready` `{ pyodide_version, interactive }`
 - `stdout` `{ text }`, `stderr` `{ text }` (por linha)
 - `run_started` `{ }`
 - `finished` `{ ok, stopped, error: { type, message, traceback, line } | null, files: [{path,size}] }`
@@ -169,3 +169,11 @@ O worker também emite (fora do Python):
 
 Sem SAB: `poll()` retorna `None`, `sleep` faz espera ativa curta, `ready.interactive=false`.
 A UI mostra um aviso, a simulação executa, e Parar usa `terminate()`.
+
+## Internacionalização (pt-BR e en)
+
+- `src/i18n/index.js` expõe `locale` (reativo), `t(chave, params)`, `tn` (plural), `tOr`, `fmtNum`/`fmtInt`/`fmtMax` (números via `Intl`) e `setChoice('auto'|'pt-BR'|'en')`.
+- Detecção: escolha explícita em `localStorage` (`hivebr.web.locale.v1`) vence; senão `navigator.languages` na ordem, e a primeira entrada decide (`pt*` → pt-BR, o resto → en). `<html lang>` e `document.title` acompanham.
+- Chave ausente cai no inglês (com aviso em desenvolvimento). Nenhum texto visível fica fixo nos componentes: `tests/i18n/i18n.test.mjs` confere chaves, uso e texto fixo.
+- Camadas que enviam texto (worker, cliente, Python) mandam **chave estável + parâmetros**; a UI traduz. O que o pacote `hivebr` imprime não é traduzido.
+- Catálogo: `getCatalog(locale)` devolve título, descrição, etiquetas, notas e fonte no idioma; tutoriais e demonstração têm `templates/en/` (mesma lógica, verificada por `python/tests/test_templates.py` via AST); `examples/` é mostrado como está.
