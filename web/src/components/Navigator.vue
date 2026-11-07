@@ -1,9 +1,10 @@
 <script setup>
 import { reactive, computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import Icon from './Icon.vue'
+import Modal from './Modal.vue'
 import {
   store, scene, files, selectRobot, readClientFile, download, toast, toggleWindow, openWindow, focusEditor,
-  openReport, toggleReportTemplateModal,
+  openReport, toggleReportTemplateModal, deleteCapture, renameCapture,
 } from '../state/store.js'
 import { t, fmtNum, fmtInt } from '../i18n/index.js'
 
@@ -38,6 +39,42 @@ function insertCapture(c) {
   }
   toast(t('toast.capture_inserted', { name: c.name }))
 }
+
+// ---- visualização/renomeação/exclusão de capturas ----
+const preview = ref(null)
+const draftName = ref('')
+const confirmDel = ref(false)
+function openCapture(c) { preview.value = c; draftName.value = c.name; confirmDel.value = false }
+function closePreview() { preview.value = null; confirmDel.value = false }
+function saveName() {
+  const c = preview.value
+  if (!c) return
+  const name = draftName.value.trim()
+  if (!name || name === c.name) { draftName.value = c.name; return }
+  const r = renameCapture(c.id, name)
+  if (r) toast(t('capture.renamed', { name: r.name }))
+}
+function dataUrlBlob(dataUrl) {
+  const [meta, b64] = String(dataUrl).split(',')
+  const mime = /data:([^;]+)/.exec(meta)?.[1] || 'image/png'
+  const bin = atob(b64 || '')
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return new Blob([bytes], { type: mime })
+}
+function downloadCapture(c) {
+  if (!c?.dataUrl) return
+  download(c.name || 'capture.png', dataUrlBlob(c.dataUrl))
+}
+function doDelete() {
+  const c = preview.value
+  if (!c) return
+  const name = c.name
+  deleteCapture(c.id)
+  closePreview()
+  toast(t('capture.deleted', { name }))
+}
+function insertPreview() { if (preview.value) insertCapture(preview.value) }
 // o menu "…" fecha com clique fora, Esc ou ao escolher um item
 function onDoc(e) { if (menu.value && !dd.value?.contains(e.target)) menu.value = false }
 function onKey(e) { if (menu.value && e.key === 'Escape') { menu.value = false; e.stopPropagation() } }
@@ -101,10 +138,13 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', onDoc); docu
       <button class="node h" :aria-expanded="open.captures" @click="open.captures = !open.captures"><Icon :name="open.captures ? 'chevronDown' : 'chevron'" :size="12" /><Icon name="camera" :size="14" /><span class="lb strong">{{ t('capture.section') }}</span><span class="count">{{ fmtInt(store.captures.length) }}</span></button>
       <div v-if="open.captures" class="kids">
         <p v-if="!store.captures.length" class="empty">{{ t('capture.empty') }}</p>
-        <button v-for="c in store.captures" :key="c.id" class="node" @click="insertCapture(c)" :title="c.name">
-          <span class="dot" /><span class="lb mono">{{ c.name }}</span>
-          <span class="muted mono small">({{ new Date(c.created).toLocaleTimeString('pt-BR') }})</span>
-        </button>
+        <div v-for="c in store.captures" :key="c.id" class="cap-row">
+          <button class="node cap-main" :class="{ sel: preview?.id === c.id }" :title="t('capture.preview')" @click="openCapture(c)">
+            <span class="dot" /><span class="lb mono">{{ c.name }}</span>
+            <span class="muted mono small">({{ new Date(c.created).toLocaleTimeString('pt-BR') }})</span>
+          </button>
+          <button class="btn ghost icon sm cap-add" :aria-label="t('capture.insert')" :data-tip="t('capture.insert')" @click="insertCapture(c)"><Icon name="plus" :size="12" /></button>
+        </div>
       </div>
 
       <button class="node h" :aria-expanded="open.tools" @click="open.tools = !open.tools"><Icon :name="open.tools ? 'chevronDown' : 'chevron'" :size="12" /><Icon name="sliders" :size="14" /><span class="lb strong">{{ t('nav.tools') }}</span></button>
@@ -114,6 +154,31 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', onDoc); docu
         <button class="node" @click="toggleWindow('map')"><Icon name="map" :size="13" /><span class="lb">{{ t('win.map') }}</span><kbd>K</kbd></button>
       </div>
     </div>
+
+    <Teleport to="body">
+      <Modal v-if="preview" :title="t('capture.preview')" :width="760" @close="closePreview">
+        <div class="cap-view">
+          <img v-if="preview.dataUrl" :src="preview.dataUrl" :alt="preview.name" class="cap-img" />
+          <p v-else class="cap-noimg muted">{{ t('capture.no_image') }}</p>
+          <div class="cap-edit">
+            <label class="cap-lbl" for="cap-name">{{ t('capture.name') }}</label>
+            <input id="cap-name" v-model="draftName" class="input mono" data-autofocus @keydown.enter.prevent="saveName" />
+            <button class="btn sm" :disabled="!draftName.trim() || draftName.trim() === preview.name" @click="saveName"><Icon name="check" :size="12" />{{ t('capture.rename') }}</button>
+          </div>
+          <p v-if="confirmDel" class="cap-warn">{{ t('capture.confirm_delete') }}</p>
+        </div>
+        <template #footer>
+          <button class="btn sm" :disabled="!preview.dataUrl" @click="downloadCapture(preview)"><Icon name="download" :size="12" />{{ t('capture.download') }}</button>
+          <button class="btn sm" @click="insertPreview"><Icon name="plus" :size="12" />{{ t('capture.insert') }}</button>
+          <span class="foot-sp" />
+          <button v-if="!confirmDel" class="btn sm danger" @click="confirmDel = true"><Icon name="trash" :size="12" />{{ t('capture.delete') }}</button>
+          <template v-else>
+            <button class="btn sm danger" @click="doDelete"><Icon name="trash" :size="12" />{{ t('capture.delete') }}</button>
+            <button class="btn sm ghost" @click="confirmDel = false">{{ t('common.cancel') }}</button>
+          </template>
+        </template>
+      </Modal>
+    </Teleport>
   </aside>
 </template>
 
@@ -144,4 +209,16 @@ button.node:hover { background: var(--surface-3); }
 .add { margin-left: 20px; display: block; min-height: 22px; }
 .empty { margin: var(--sp-1) 10px var(--sp-3); font-size: var(--fs-sm); color: var(--text-muted); }
 .small { font-size: var(--fs-label); }
+.cap-row { display: flex; align-items: center; gap: 2px; padding-right: 6px; }
+.cap-row .cap-main { flex: 1; min-width: 0; }
+.cap-add { flex: none; opacity: .45; }
+.cap-row:hover .cap-add, .cap-add:focus-visible { opacity: 1; }
+.cap-view { display: flex; flex-direction: column; gap: var(--sp-4); }
+.cap-img { width: 100%; max-height: 60vh; object-fit: contain; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); }
+.cap-noimg { margin: 0; padding: 40px; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius); }
+.cap-edit { display: flex; align-items: center; gap: var(--sp-3); }
+.cap-lbl { font-size: var(--fs-sm); color: var(--text-muted); }
+.cap-edit .input { flex: 1; }
+.cap-warn { margin: 0; color: var(--danger); font-size: var(--fs-sm); }
+.foot-sp { flex: 1; }
 </style>

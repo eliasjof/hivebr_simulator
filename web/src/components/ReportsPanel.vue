@@ -435,7 +435,7 @@ function exportHTML() {
   <div class="container">
     ${html}
     <div class="footer">
-      Gerado pelo hiveBr Web Studio · ${new Date().toLocaleDateString('pt-BR')}
+      Gerado no hiveBr Web · ${new Date().toLocaleDateString('pt-BR')}
     </div>
   </div>
 </body>

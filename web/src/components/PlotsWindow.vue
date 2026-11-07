@@ -1,15 +1,136 @@
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import FloatingWindow from './FloatingWindow.vue'
 import Icon from './Icon.vue'
 import PlotChart from './PlotChart.vue'
-import { store, scene, logData, send, b64ToBlob, download } from '../state/store.js'
+import { store, scene, logData, send, b64ToBlob, download, addCapture, toast } from '../state/store.js'
 import { t, fmtNum, fmtInt, tn } from '../i18n/index.js'
 
 const tab = ref('signals')
 const table = ref(false)
 const hidden = ref(new Set())
 const live = computed(() => store.run.state === 'running')
+
+// ---- seleção de sinais visíveis ----
+const SIGNAL_KEY = 'hivebr.web.plots.signals.v1'
+const SIGNAL_IDS = ['xy', 'ep', 'eo', 'v', 'w', 'th']
+function loadShown() {
+  const base = Object.fromEntries(SIGNAL_IDS.map((id) => [id, true]))
+  try {
+    const saved = JSON.parse(localStorage.getItem(SIGNAL_KEY) || 'null')
+    if (saved) for (const id of SIGNAL_IDS) if (id in saved) base[id] = !!saved[id]
+  } catch { /* ignora storage inválido */ }
+  return base
+}
+const shown = ref(loadShown())
+watch(shown, (v) => { try { localStorage.setItem(SIGNAL_KEY, JSON.stringify(v)) } catch { /* quota */ } }, { deep: true })
+const signalMenu = ref(false)
+const signalBox = ref(null)
+const signalDefs = computed(() => [
+  { id: 'xy', label: t('plots.xy') },
+  { id: 'ep', label: t('plots.err_pos') },
+  { id: 'eo', label: t('plots.err_theta') },
+  { id: 'v', label: t('plots.v') },
+  { id: 'w', label: t('plots.w') },
+  { id: 'th', label: t('plots.theta') },
+])
+function toggleSignal(id) { shown.value = { ...shown.value, [id]: !shown.value[id] } }
+function allSignals(v) { shown.value = Object.fromEntries(SIGNAL_IDS.map((id) => [id, v])) }
+const shownCount = computed(() => SIGNAL_IDS.filter((id) => shown.value[id]).length)
+function onDocClick(e) { if (signalMenu.value && signalBox.value && !signalBox.value.contains(e.target)) signalMenu.value = false }
+
+// ---- ajuste de eixos por gráfico ----
+const axes = ref({})
+function setAxis(id, val) { axes.value = { ...axes.value, [id]: val } }
+
+// ---- captura dos gráficos para a galeria de Capturas ----
+const chartsEl = ref(null)
+const capturing = ref(false)
+const SVG_PROPS = ['fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-linecap', 'stroke-linejoin', 'stroke-opacity', 'opacity', 'font-family', 'font-size', 'font-weight', 'font-style', 'font-variant-numeric', 'text-anchor', 'dominant-baseline', 'paint-order', 'visibility']
+
+function inlineSvg(svg) {
+  const clone = svg.cloneNode(true)
+  const src = [svg, ...svg.querySelectorAll('*')]
+  const dst = [clone, ...clone.querySelectorAll('*')]
+  for (let i = 0; i < src.length; i++) {
+    const cs = getComputedStyle(src[i])
+    for (const p of SVG_PROPS) {
+      const v = cs.getPropertyValue(p)
+      if (v) dst[i].style.setProperty(p, v)
+    }
+  }
+  return clone
+}
+function svgToImage(svg) {
+  const clone = inlineSvg(svg)
+  const xml = new XMLSerializer().serializeToString(clone)
+  const url = URL.createObjectURL(new Blob([xml], { type: 'image/svg+xml;charset=utf-8' }))
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img) }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('svg')) }
+    img.src = url
+  })
+}
+async function capturePlots() {
+  if (capturing.value) return
+  capturing.value = true
+  try {
+    if (table.value) { table.value = false; await nextTick() }
+    const root = chartsEl.value
+    const figs = root ? [...root.querySelectorAll('figure.pc')] : []
+    const items = []
+    for (const fig of figs) {
+      const svg = fig.querySelector('svg.svg')
+      if (!svg) continue
+      const title = fig.querySelector('.ttl')?.textContent?.trim() || ''
+      const img = await svgToImage(svg)
+      const w = Number(svg.getAttribute('width')) || img.naturalWidth || img.width
+      const h = Number(svg.getAttribute('height')) || img.naturalHeight || img.height
+      if (w && h) items.push({ title, img, w, h })
+    }
+    if (!items.length) { toast(t('plots.capture_empty'), 'warn'); return }
+
+    const css = getComputedStyle(document.documentElement)
+    const bg = css.getPropertyValue('--surface').trim() || '#ffffff'
+    const fg = css.getPropertyValue('--text').trim() || '#111111'
+    const cols = items.length === 1 ? 1 : 2
+    const pad = 24, gap = 18, titleH = 26, cellW = 520, scale = 2
+    const rows = []
+    for (let i = 0; i < items.length; i += cols) {
+      const row = items.slice(i, i + cols)
+      rows.push({ row, h: Math.max(...row.map((it) => it.h * (cellW / it.w))) })
+    }
+    const width = pad * 2 + cols * cellW + (cols - 1) * gap
+    const height = pad * 2 + rows.reduce((s, r) => s + r.h + titleH, 0) + (rows.length - 1) * gap
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.round(width * scale)
+    canvas.height = Math.round(height * scale)
+    const ctx = canvas.getContext('2d')
+    ctx.scale(scale, scale)
+    ctx.fillStyle = bg
+    ctx.fillRect(0, 0, width, height)
+    ctx.textBaseline = 'top'
+    let y = pad
+    for (const r of rows) {
+      let x = pad
+      for (const it of r.row) {
+        ctx.fillStyle = fg
+        ctx.font = '600 14px system-ui, -apple-system, Segoe UI, sans-serif'
+        ctx.fillText(it.title, x, y)
+        ctx.drawImage(it.img, x, y + titleH, cellW, it.h * (cellW / it.w))
+        x += cellW + gap
+      }
+      y += r.h + titleH + gap
+    }
+    const cap = addCapture(canvas.toDataURL('image/png'), `plots_${store.captures.length + 1}.png`)
+    toast(t('plots.capture_saved', { name: cap.name }))
+  } catch {
+    toast(t('plots.capture_fail'), 'error')
+  } finally {
+    capturing.value = false
+  }
+}
 
 const DASHES = ['', '8 4', '2 3', '10 3 2 3', '5 2 1 2', '14 4']
 const rgb = (c) => (c ? `rgb(${c[0]},${c[1]},${c[2]})` : '#888')
@@ -50,6 +171,7 @@ const charts = computed(() => {
     { id: 'th', title: t('plots.theta'), unit: '°', series: v.map((r) => mk(r, 'theta', 'theta', 'real', (z) => z * R2D)), decimals: 1 },
   ].map((c) => ({ ...c, end }))
 })
+const visibleCharts = computed(() => charts.value.filter((c) => shown.value[c.id]))
 const hasCmd = computed(() => visible.value.some((r) => r.data.v_cmd?.length || r.data.omega_cmd?.length))
 const hasData = computed(() => robots.value.some((r) => (r.data.t?.length || 0) > 0))
 
@@ -84,8 +206,9 @@ let timer = null
 onMounted(() => {
   refresh()
   timer = setInterval(() => { if (live.value && tab.value === 'signals') refresh() }, 2000)
+  document.addEventListener('pointerdown', onDocClick)
 })
-onBeforeUnmount(() => clearInterval(timer))
+onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('pointerdown', onDocClick) })
 watch(live, (v) => { if (v) setTimeout(refresh, 300) })
 
 function dlFig(f, i) { download(`${(f.title || 'figure' + i).replace(/[^\w-]+/g, '_')}.png`, b64ToBlob(f.png_b64, 'image/png')) }
@@ -95,6 +218,7 @@ function dlFig(f, i) { download(`${(f.title || 'figure' + i).replace(/[^\w-]+/g,
   <FloatingWindow id="plots">
     <template #actions>
       <button v-if="tab === 'signals'" class="btn ghost icon sm" :disabled="!live" :aria-label="t('plots.refresh')" :data-tip="t('plots.refresh_tip')" @click="refresh"><Icon name="refresh" /></button>
+      <button v-if="tab === 'signals'" class="btn ghost icon sm" :disabled="!hasData || !shownCount || capturing" :aria-label="t('plots.capture')" :data-tip="t('plots.capture_tip')" @click="capturePlots"><Icon name="camera" /></button>
       <button v-if="tab === 'signals'" class="btn ghost icon sm" :class="{ active: table }" :aria-label="t('plots.toggle_table')" :aria-pressed="table" :data-tip="t('plots.table')" @click="table = !table"><Icon name="table" /></button>
     </template>
     <div class="tabs" role="tablist">
@@ -115,6 +239,21 @@ function dlFig(f, i) { download(`${(f.title || 'figure' + i).replace(/[^\w-]+/g,
           <svg width="26" height="8" aria-hidden="true"><line x1="1" x2="25" y1="4" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>{{ t('plots.actual') }}
           <svg width="26" height="8" aria-hidden="true"><line x1="1" x2="25" y1="4" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="0.1 5" /></svg>{{ t('plots.command') }}
         </div>
+        <div ref="signalBox" class="sig-menu">
+          <button class="btn sm" aria-haspopup="true" :aria-expanded="signalMenu" @click="signalMenu = !signalMenu">
+            <Icon name="sliders" :size="12" />{{ t('plots.choose_signals') }}<span class="faint mono sig-count">{{ shownCount }}/{{ SIGNAL_IDS.length }}</span>
+          </button>
+          <div v-if="signalMenu" class="menu" role="menu">
+            <label v-for="s in signalDefs" :key="s.id" class="mi" role="menuitemcheckbox" :aria-checked="!!shown[s.id]">
+              <input type="checkbox" :checked="!!shown[s.id]" @change="toggleSignal(s.id)" />
+              <span>{{ s.label }}</span>
+            </label>
+            <div class="mi-actions">
+              <button class="btn ghost sm" @click="allSignals(true)">{{ t('plots.show_all') }}</button>
+              <button class="btn ghost sm" @click="allSignals(false)">{{ t('plots.hide_all') }}</button>
+            </div>
+          </div>
+        </div>
         <div class="exp">
           <button class="btn sm" :disabled="!live" @click="exportLog('csv')"><Icon name="download" :size="12" />CSV</button>
           <button class="btn sm" :disabled="!live" @click="exportLog('pkl')"><Icon name="download" :size="12" />PKL</button>
@@ -128,8 +267,13 @@ function dlFig(f, i) { download(`${(f.title || 'figure' + i).replace(/[^\w-]+/g,
           <p>{{ t('plots.empty_a') }}<code class="mono">logger.plot()</code>{{ t('plots.empty_b') }}</p>
         </div>
         <template v-else-if="!visible.length"><p class="muted pad">{{ t('plots.all_hidden') }}</p></template>
-        <div v-else-if="!table" class="charts">
-          <PlotChart v-for="c in charts" :key="c.id" :title="c.title" :unit="c.unit" :series="c.series" :xy="c.xy" :end-labels="c.end" :decimals="c.decimals ?? 3" :empty-text="c.empty" />
+        <div v-else-if="!shownCount" class="empty">
+          <Icon name="chart" :size="24" />
+          <p>{{ t('plots.all_signals_hidden') }}</p>
+          <button class="btn sm" @click="allSignals(true)">{{ t('plots.show_all') }}</button>
+        </div>
+        <div v-else-if="!table" ref="chartsEl" class="charts">
+          <PlotChart v-for="c in visibleCharts" :key="c.id" :title="c.title" :unit="c.unit" :series="c.series" :xy="c.xy" :end-labels="c.end" :decimals="c.decimals ?? 3" :empty-text="c.empty" :axis="axes[c.id]" @update:axis="setAxis(c.id, $event)" />
         </div>
         <div v-else class="tbl-wrap">
           <table class="tbl mono">
@@ -172,6 +316,14 @@ function dlFig(f, i) { download(`${(f.title || 'figure' + i).replace(/[^\w-]+/g,
 .flt.off svg { opacity: .3; }
 .styles { display: inline-flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-label); color: var(--text-muted); }
 .exp { display: flex; gap: var(--sp-3); margin-left: auto; }
+.sig-menu { position: relative; }
+.sig-count { font-weight: 400; font-size: var(--fs-xs); }
+.menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; min-width: 210px; padding: var(--sp-2); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow, 0 8px 24px rgba(0,0,0,.18)); display: flex; flex-direction: column; gap: 2px; }
+.mi { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-xs); cursor: pointer; font-size: var(--fs-label); }
+.mi:hover { background: var(--surface-2); }
+.mi input { margin: 0; }
+.mi-actions { display: flex; gap: var(--sp-2); padding: var(--sp-2) var(--sp-2) 0; border-top: 1px solid var(--border); margin-top: var(--sp-2); }
+.mi-actions .btn { flex: 1; justify-content: center; }
 .scroll { flex: 1; min-height: 0; overflow: auto; padding: 10px var(--sp-5) 14px; }
 .charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
 .empty { text-align: center; color: var(--text-muted); padding: 28px var(--sp-6); display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); }

@@ -37,6 +37,9 @@ function toggleNoise() { send({ cmd: 'toggle_noise' }); setTimeout(() => send({ 
 async function clearObs() {
   if (await ask({ title: t('params.clear_obstacles_title'), message: t('params.clear_obstacles_msg'), confirmText: t('common.remove'), danger: true })) send({ cmd: 'clear_obstacles' })
 }
+async function resetConfig() {
+  if (await ask({ title: t('params.reset_config_title'), message: t('params.reset_config_msg'), confirmText: t('params.reset_config'), danger: true })) send({ cmd: 'reset_config' })
+}
 </script>
 
 <template>
@@ -60,7 +63,9 @@ async function clearObs() {
         <button class="btn sm" :disabled="!live" @click="send({ cmd: 'clear_waypoints' })"><Icon name="flag" :size="13" />{{ t('params.clear_waypoints') }}</button>
         <button class="btn sm" :disabled="!live" @click="clearObs"><Icon name="obstacle" :size="13" />{{ t('params.clear_obstacles') }}</button>
         <button class="btn sm" :disabled="!live" @click="send({ cmd: 'clear_path' })"><Icon name="eraser" :size="13" />{{ t('params.clear_trails') }}</button>
-        <button class="btn sm primary" :disabled="!live" @click="send({ cmd: 'save_config' })"><Icon name="download" :size="13" />{{ t('params.save_config') }}</button>
+        <button class="btn sm" :disabled="!live" :data-tip="t('params.reset_config_tip')" @click="resetConfig"><Icon name="reset" :size="13" />{{ t('params.reset_config') }}</button>
+        <button class="btn sm primary" :disabled="!live" :data-tip="t('params.update_config_tip')" @click="send({ cmd: 'update_config' })"><Icon name="check" :size="13" />{{ t('params.update_config') }}</button>
+        <button class="btn sm" :disabled="!live" @click="send({ cmd: 'save_config' })"><Icon name="download" :size="13" />{{ t('params.save_config') }}</button>
       </div>
     </div>
   </FloatingWindow>

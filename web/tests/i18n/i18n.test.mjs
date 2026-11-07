@@ -40,7 +40,7 @@ const DYNAMIC = [
   ...['params', 'plots', 'map', 'robots'].map((k) => 'win.' + k),
   'run.run', 'run.running', 'run.stopping', 'run.loading',
   ...['restart_stop', 'restart_unresponsive', 'scipy_failed', 'packages_failed', 'invalid_command', 'unknown_command', 'command_failed',
-    'map_load_failed', 'map_loaded', 'line_track_loaded', 'no_track_to_export', 'no_log_data', 'draw_callback_disabled'].map((k) => 'notice.' + k),
+    'map_load_failed', 'map_loaded', 'line_track_loaded', 'no_track_to_export', 'no_log_data', 'draw_callback_disabled', 'config_updated', 'config_reset'].map((k) => 'notice.' + k),
   ...['max_speed', 'max_omega', 'max_steer', 'grid_size', 'noise_sigma', 'servo_max_speed', 'goal_tolerance'].map((k) => 'params.' + k),
   'console.lines.one', 'console.lines.other', 'menubar.robot_one', 'menubar.robot_other',
 ]

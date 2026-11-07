@@ -562,7 +562,7 @@ await flow('l. detecção de idioma: en-US, pt-BR e fr-FR', async () => {
     const { c, pg } = await localePage(loc)
     try {
       check(await htmlLang(pg) === lang, `${loc}: <html lang> = ${lang}`)
-      check((await pg.title()) === 'hiveBr Web Studio', `${loc}: localized title`)
+      check((await pg.title()) === 'hiveBr Web', `${loc}: localized title`)
       check(await pg.locator('.tb').getByRole('button', { name: new RegExp('^' + run) }).count() >= 1, `${loc}: toolbar shows "${run}"`)
       check(await pg.locator(`[data-menu="file"]`).innerText() === file, `${loc}: menu "${file}"`)
       if (loc === 'en-US') await pg.screenshot({ path: path.join(SHOTS, `${String(++shotN).padStart(2, '0')}-l-en.png`) })

@@ -4,11 +4,18 @@ from __future__ import annotations
 import base64
 import json
 import os
+import shutil
 import tempfile
 
 import numpy as np
+import yaml
 
 from . import host, serialize
+
+# The client config lives inside the extracted /hivebr tree (CWD during a run).
+CONFIG_PATH = os.path.join("config", "default.yaml")
+# Pristine copy of the bundled default, written by the worker at boot.
+CONFIG_DEFAULT_PATH = os.path.join("config", ".default.orig.yaml")
 
 # Slider ranges of the desktop GUI (gui.py), used to clamp set_param values.
 PARAM_RANGES = {
@@ -302,6 +309,70 @@ def _save_config(sim, msg):
             _send_file("config.yaml", "text/yaml", f.read())
 
 
+def _post_client_config(path, reset=False):
+    """Send the YAML bytes to the UI so it can persist (or forget) them."""
+    with open(path, "rb") as f:
+        data = base64.b64encode(f.read()).decode("ascii")
+    host.post("client_config", {"path": os.path.abspath(path), "b64": data, "reset": bool(reset)})
+
+
+def _update_config(sim, msg):
+    """Write the current parameters to config/default.yaml inside the client FS."""
+    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+    sim.save_config(CONFIG_PATH)
+    _post_client_config(CONFIG_PATH)
+    host.notice(
+        "info",
+        f"Config updated: {CONFIG_PATH}",
+        "config_updated",
+        path=CONFIG_PATH,
+    )
+
+
+def _default_params(cfg):
+    """Parameter values from the pristine bundled config (the sliders of the GUI)."""
+    robot = cfg.get("robot") or {}
+    world = cfg.get("world") or {}
+    noise = cfg.get("noise") or {}
+    waypoints = cfg.get("waypoints") or {}
+    params = {k: robot[k] for k in ("max_speed", "max_omega", "max_steer") if k in robot}
+    params["servo_max_speed"] = robot.get("servo_max_speed", 6.28)
+    if "grid_size" in world:
+        params["grid_size"] = world["grid_size"]
+    if "sigma_v" in noise:
+        params["noise_sigma"] = noise["sigma_v"]
+    elif "sigma_omega" in noise:
+        params["noise_sigma"] = noise["sigma_omega"]
+    if "goal_tolerance" in waypoints:
+        params["goal_tolerance"] = waypoints["goal_tolerance"]
+    return params
+
+
+def _reset_config(sim, msg):
+    """Restore config/default.yaml (and the window parameters) to the bundled defaults."""
+    if not os.path.exists(CONFIG_DEFAULT_PATH):
+        raise FileNotFoundError(f"original config not found: {CONFIG_DEFAULT_PATH}")
+    with open(CONFIG_DEFAULT_PATH, encoding="utf-8") as f:
+        defaults = yaml.safe_load(f) or {}
+    shutil.copyfile(CONFIG_DEFAULT_PATH, CONFIG_PATH)
+    for name, value in _default_params(defaults).items():
+        _set_param(sim, {"name": name, "value": value})
+    # set_param derives noise.enabled from sigma, so restore the toggles explicitly.
+    lidar = defaults.get("lidar") or {}
+    if "enabled" in lidar:
+        sim.lidar.enabled = bool(lidar["enabled"])
+    noise = defaults.get("noise") or {}
+    if "enabled" in noise:
+        sim.config.setdefault("noise", {})["enabled"] = bool(noise["enabled"])
+    _post_client_config(CONFIG_PATH, reset=True)
+    host.notice(
+        "info",
+        f"Config restored: {CONFIG_PATH}",
+        "config_reset",
+        path=CONFIG_PATH,
+    )
+
+
 def _export_log(sim, msg):
     fmt = str(msg.get("format", "csv")).lower()
     if fmt not in ("csv", "pkl"):
@@ -337,6 +408,7 @@ HANDLERS = {
     "toggle_theme": _toggle_theme, "toggle_times": _toggle_times,
     "load_map": _load_map, "clear_map": _clear_map,
     "track_apply": _track_apply, "track_clear": _track_clear, "track_export": _track_export,
-    "save_config": _save_config, "export_log": _export_log, "get_log": _get_log,
+    "save_config": _save_config, "update_config": _update_config, "reset_config": _reset_config,
+    "export_log": _export_log, "get_log": _get_log,
     "reset_logger": _reset_logger, "refresh": _refresh,
 }

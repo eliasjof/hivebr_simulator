@@ -25,6 +25,7 @@ export class SimClient {
     this._runWaiter = null
     this._files = new Map()
     this._fileId = 0
+    this._clientConfig = options.clientConfig || null
     this._stopTimers = []
     this._stopWaiters = []
   }
@@ -84,7 +85,7 @@ export class SimClient {
       this._onMessage(worker, { type: 'fatal', payload: { message: ev.message || 'Worker error' } })
     }
     const p = this._readyPromise()
-    worker.postMessage({ type: 'init', zipUrl: this.zipUrl, sab: this.sab, pyodideUrl: this.pyodideUrl })
+    worker.postMessage({ type: 'init', zipUrl: this.zipUrl, sab: this.sab, pyodideUrl: this.pyodideUrl, clientConfig: this._clientConfig })
     return p
   }
 
@@ -133,6 +134,13 @@ export class SimClient {
         this._files.delete(payload.id)
         if (payload.b64 == null) w.reject(new Error(payload.error || 'File not found'))
         else w.resolve(Uint8Array.from(atob(payload.b64), (c) => c.charCodeAt(0)))
+        return
+      }
+      case 'client_config': {
+        const p = typeof payload === 'string' ? JSON.parse(payload) : payload
+        // Remember the latest config so a worker restart keeps using it.
+        this._clientConfig = (!p.reset && p.b64) ? { path: p.path, b64: p.b64 } : null
+        this._emit('client_config', p)
         return
       }
       default:

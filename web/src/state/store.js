@@ -10,6 +10,7 @@ const LS = {
   baseline: 'hivebr.web.baseline.v1',
   tabs: 'hivebr.web.tabs.v1',
   reports: 'hivebr.web.reports.v1',
+  clientConfig: 'hivebr.web.client_config.v1',
 }
 function lsGet(key, fallback) {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback } catch { return fallback }
@@ -96,7 +97,7 @@ if (!tabsInit.tabs.some((t) => t.id === tabsInit.activeId)) tabsInit.activeId = 
 const activeInit = tabsInit.tabs.find((t) => t.id === tabsInit.activeId)
 
 const LAYOUT_DEFAULTS = { leftOpen: true, rightOpen: true, bottomOpen: true, leftW: 240, rightW: 460, bottomH: 220, bottomTab: 'console', rightMaximized: false, reportsOpen: false, reportsW: 460, reportsMaximized: false, activeReportId: null, showReportTemplateModal: false }
-const client = new SimClient()
+const client = new SimClient({ clientConfig: lsGet(LS.clientConfig, null) })
 
 // ---- reports ----
 const savedReports = lsGet(LS.reports, [])
@@ -115,18 +116,15 @@ function persistReports() {
 watch(reports, persistReports, { deep: true })
 
 // ---- captures (localStorage) ----
-const savedCaptures = lsGet('hivebr.web.captures.v1', [])
-export const captures = reactive(savedCaptures.length ? savedCaptures : [{
-  id: 'cap_welcome',
-  name: 'welcome.png',
-  dataUrl: '',
-  created: Date.now()
-}])
+// capturas antigas de boas-vindas não fazem mais parte da galeria
+const savedCaptures = lsGet('hivebr.web.captures.v1', []).filter((c) => c.id !== 'cap_welcome')
+export const captures = reactive(savedCaptures)
 
 function persistCaptures() {
   lsSet('hivebr.web.captures.v1', captures.map(c => ({ ...c })))
 }
 watch(captures, persistCaptures, { deep: true })
+persistCaptures()
 
 export const store = reactive({
   client: markRaw(client),
@@ -488,10 +486,9 @@ export function deleteReport(id) {
   if (store.activeReportId === id) store.activeReportId = null
 }
 // ---- captures ----
-export function addCapture(dataUrl) {
+export function addCapture(dataUrl, name = null) {
   const id = 'cap_' + Date.now()
-  const name = `sim_${captures.length + 1}.png`
-  const capture = { id, name, dataUrl, created: Date.now() }
+  const capture = { id, name: name || `sim_${captures.length + 1}.png`, dataUrl, created: Date.now() }
   captures.unshift(capture) // newest first
   if (captures.length > 50) captures.pop() // limit to 50
   return capture
@@ -499,6 +496,13 @@ export function addCapture(dataUrl) {
 export function deleteCapture(id) {
   const i = captures.findIndex(c => c.id === id)
   if (i >= 0) captures.splice(i, 1)
+}
+export function renameCapture(id, name) {
+  const c = captures.find(c => c.id === id)
+  const clean = String(name ?? '').trim()
+  if (!c || !clean) return null
+  c.name = clean
+  return c
 }
 export function getCaptureDataUrl(id) {
   const c = captures.find(c => c.id === id)
@@ -660,6 +664,14 @@ function wire() {
     const text = p.code ? tOr('notice.' + p.code, p.params, p.text) : p.text
     toast(text, p.level === 'warn' ? 'warn' : p.level === 'error' ? 'error' : 'info', p.level === 'error' ? 9000 : 5000)
     consoleBus.push('notice', text)
+  })
+  on('client_config', (p) => {
+    // Persiste o YAML atualizado para reaplicá-lo no próximo boot; "reset" volta ao padrão do build.
+    if (p?.reset) {
+      try { localStorage.removeItem(LS.clientConfig) } catch { /* storage indisponível */ }
+    } else if (p?.b64) {
+      lsSet(LS.clientConfig, { path: p.path, b64: p.b64 })
+    }
   })
   on('finished', (p) => {
     store.run.state = 'idle'

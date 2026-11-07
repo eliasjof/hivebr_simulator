@@ -50,7 +50,7 @@ const host = {
   },
 }
 
-async function init({ zipUrl, sab, pyodideUrl }) {
+async function init({ zipUrl, sab, pyodideUrl, clientConfig }) {
   try {
     if (sab) {
       reader = new RingReader(sab.ring, sab.control)
@@ -71,6 +71,24 @@ async function init({ zipUrl, sab, pyodideUrl }) {
     const buf = await res.arrayBuffer()
     pyodide.FS.mkdirTree('/hivebr')
     pyodide.unpackArchive(buf, 'zip', { extractDir: '/hivebr' })
+    // Keep the pristine bundled config so Python can restore it later. The
+    // persisted user config (if any) is written on top of it below.
+    try {
+      const pristine = pyodide.FS.readFile('/hivebr/config/default.yaml')
+      pyodide.FS.writeFile('/hivebr/config/.default.orig.yaml', pristine)
+    } catch (e) {
+      console.warn('could not keep a copy of the default config', e)
+    }
+    if (clientConfig && clientConfig.b64) {
+      try {
+        const path = clientConfig.path && clientConfig.path.startsWith('/')
+          ? clientConfig.path
+          : '/hivebr/' + (clientConfig.path || 'config/default.yaml').replace(/^\/+/, '')
+        pyodide.FS.writeFile(path, Uint8Array.from(atob(clientConfig.b64), (c) => c.charCodeAt(0)))
+      } catch (e) {
+        send('notice', { level: 'warn', text: `Could not restore the client config (${(e && e.message) || e})` })
+      }
+    }
     pyodide.runPython(
       "import sys, os\n" +
       "for _p in ('/hivebr', '/hivebr/src', '/hivebr/web'):\n" +

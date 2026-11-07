@@ -2,6 +2,7 @@
 import base64
 import io
 import json
+import shutil
 
 import yaml
 
@@ -272,6 +273,23 @@ def test_files_and_log_commands():
         cmd(sim, cmd="save_config")
         cfg = e.host.of("file")[-1]
         check(cfg["name"] == "config.yaml" and "robots" in yaml.safe_load(base64.b64decode(cfg["b64"])))
+        target = e.root / "config" / "default.yaml"
+        pristine = e.root / "config" / ".default.orig.yaml"
+        shutil.copyfile(target, pristine)  # the worker keeps this copy at boot
+        original = target.read_text(encoding="utf-8")
+        cmd(sim, cmd="update_config")
+        check(target.exists() and "robots" in yaml.safe_load(target.read_text(encoding="utf-8")), "update_config writes config/default.yaml")
+        check(any(n.get("code") == "config_updated" for n in e.host.notices()), e.host.notices())
+        cmd(sim, cmd="set_param", name="max_speed", value=7.5)
+        cmd(sim, cmd="toggle_noise")
+        check(sim.config["noise"]["enabled"] is True)
+        cmd(sim, cmd="reset_config")
+        check(target.read_text(encoding="utf-8") == original, "reset_config restores the bundled default")
+        check(any(n.get("code") == "config_reset" for n in e.host.notices()), e.host.notices())
+        posts = e.host.of("client_config")
+        check([p["reset"] for p in posts] == [False, True], "client_config is posted for update and reset")
+        check(abs(sim.robots[0].max_speed - 3.0) < 1e-9, "reset_config restores the default parameters")
+        check(sim.config["noise"]["enabled"] is False, "reset_config restores the noise toggle")
         cmd(sim, cmd="export_log", format="csv")
         csv = [f for f in e.host.of("file") if f["name"] == "hivebr_log.csv"][-1]
         text = base64.b64decode(csv["b64"]).decode()

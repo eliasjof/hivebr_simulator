@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import Icon from './Icon.vue'
 import { t, fmtMax } from '../i18n/index.js'
 
 // Gráfico SVG de um único sinal (um eixo y). Séries: { key, robot, color, dash, kind, label, x:[], y:[] }
@@ -13,7 +14,39 @@ const props = defineProps({
   xUnit: { type: String, default: 's' },
   decimals: { type: Number, default: 3 },
   emptyText: { type: String, default: '' },
+  axis: { type: Object, default: () => ({}) },
 })
+const emit = defineEmits(['update:axis'])
+
+const axisOpen = ref(false)
+const draft = ref({ xMin: '', xMax: '', yMin: '', yMax: '' })
+const asText = (v) => (Number.isFinite(v) ? String(v) : '')
+function toggleAxis() {
+  draft.value = {
+    xMin: asText(props.axis?.xMin),
+    xMax: asText(props.axis?.xMax),
+    yMin: asText(props.axis?.yMin),
+    yMax: asText(props.axis?.yMax),
+  }
+  axisOpen.value = !axisOpen.value
+}
+function applyAxis() {
+  const out = {}
+  for (const k of ['xMin', 'xMax', 'yMin', 'yMax']) {
+    const raw = String(draft.value[k] ?? '').trim()
+    if (raw !== '') {
+      const n = Number(raw)
+      if (Number.isFinite(n)) out[k] = n
+    }
+  }
+  emit('update:axis', out)
+  axisOpen.value = false
+}
+function clearAxis() {
+  draft.value = { xMin: '', xMax: '', yMin: '', yMax: '' }
+  emit('update:axis', {})
+  axisOpen.value = false
+}
 
 const wrap = ref(null)
 const width = ref(320)
@@ -74,6 +107,13 @@ const dom = computed(() => {
     if (x1 === x0) x1 = x0 + 1
     const pad = (y1 - y0 || 1) * 0.08
     y0 -= pad; y1 += pad
+    const a = props.axis || {}
+    if (Number.isFinite(a.xMin)) x0 = a.xMin
+    if (Number.isFinite(a.xMax)) x1 = a.xMax
+    if (Number.isFinite(a.yMin)) y0 = a.yMin
+    if (Number.isFinite(a.yMax)) y1 = a.yMax
+    if (x1 <= x0) x1 = x0 + 1
+    if (y1 <= y0) y1 = y0 + 1
     xt = niceTicks(x0, x1, Math.max(2, Math.floor(pw.value / 80))).filter((v) => v >= x0 && v <= x1)
     yt = niceTicks(y0, y1, 4).filter((v) => v >= y0 && v <= y1)
   }
@@ -195,7 +235,21 @@ function onLeave() { hover.value = null }
 
 <template>
   <figure class="pc">
-    <figcaption><span class="ttl">{{ title }}</span><span class="faint mono u">{{ unit }}{{ xy ? '' : ' · x: ' + xUnit }}</span></figcaption>
+    <figcaption>
+      <span class="ttl">{{ title }}</span>
+      <span class="cap-right">
+        <span class="faint mono u">{{ unit }}{{ xy ? '' : ' · x: ' + xUnit }}</span>
+        <button v-if="!xy" class="mini" :class="{ on: axisOpen }" :aria-label="t('plots.axes')" :aria-expanded="axisOpen" :data-tip="t('plots.axes')" @click="toggleAxis"><Icon name="sliders" :size="11" /></button>
+      </span>
+    </figcaption>
+    <div v-if="axisOpen && !xy" class="axis-bar">
+      <label><span>{{ t('plots.x_min') }}</span><input v-model="draft.xMin" type="number" step="any" placeholder="auto" /></label>
+      <label><span>{{ t('plots.x_max') }}</span><input v-model="draft.xMax" type="number" step="any" placeholder="auto" /></label>
+      <label><span>{{ t('plots.y_min') }}</span><input v-model="draft.yMin" type="number" step="any" placeholder="auto" /></label>
+      <label><span>{{ t('plots.y_max') }}</span><input v-model="draft.yMax" type="number" step="any" placeholder="auto" /></label>
+      <button class="btn sm" @click="applyAxis">{{ t('plots.apply') }}</button>
+      <button class="btn ghost sm" @click="clearAxis">{{ t('plots.auto') }}</button>
+    </div>
     <div ref="wrap" class="wrap" :style="{ height: height + 'px' }">
       <svg v-if="dom" :width="width" :height="height" role="img" :aria-label="t('plots.chart_aria', { title })" class="svg">
         <g class="grid">
@@ -235,7 +289,13 @@ function onLeave() { hover.value = null }
 
 <style scoped>
 .pc { margin: 0; padding: var(--sp-4) 10px var(--sp-2); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); min-width: 0; }
-figcaption { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--fs-sm); font-weight: 600; padding: 0 var(--sp-1) var(--sp-1); }
+figcaption { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--fs-sm); font-weight: 600; padding: 0 var(--sp-1) var(--sp-1); gap: var(--sp-3); }
+.cap-right { display: inline-flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.mini { display: grid; place-items: center; width: 20px; height: 20px; padding: 0; background: none; border: 1px solid transparent; border-radius: var(--radius-xs); color: var(--text-muted); cursor: pointer; }
+.mini:hover, .mini.on { color: var(--accent); background: var(--accent-soft); border-color: var(--border); }
+.axis-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-4); padding: var(--sp-3) var(--sp-2) var(--sp-4); border-bottom: 1px solid var(--border); margin-bottom: var(--sp-2); font-size: var(--fs-xs); }
+.axis-bar label { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--text-muted); }
+.axis-bar input { width: 72px; height: 22px; padding: 0 var(--sp-2); font-size: var(--fs-xs); background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-xs); }
 .u { font-weight: 400; font-size: var(--fs-xs); }
 .wrap { position: relative; }
 .svg { display: block; overflow: visible; }
