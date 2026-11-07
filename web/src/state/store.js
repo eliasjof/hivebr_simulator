@@ -8,6 +8,7 @@ const LS = {
   code: 'hivebr.web.code.v1',
   baseline: 'hivebr.web.baseline.v1',
   tabs: 'hivebr.web.tabs.v1',
+  reports: 'hivebr.web.reports.v1',
 }
 function lsGet(key, fallback) {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback } catch { return fallback }
@@ -83,8 +84,38 @@ if (!tabsInit || !Array.isArray(tabsInit.tabs) || !tabsInit.tabs.length) {
 if (!tabsInit.tabs.some((t) => t.id === tabsInit.activeId)) tabsInit.activeId = tabsInit.tabs[0].id
 const activeInit = tabsInit.tabs.find((t) => t.id === tabsInit.activeId)
 
-const LAYOUT_DEFAULTS = { leftOpen: true, rightOpen: true, bottomOpen: true, leftW: 240, rightW: 460, bottomH: 220, bottomTab: 'console', rightMaximized: false }
+const LAYOUT_DEFAULTS = { leftOpen: true, rightOpen: true, bottomOpen: true, leftW: 240, rightW: 460, bottomH: 220, bottomTab: 'console', rightMaximized: false, reportsOpen: false, reportsW: 460, reportsMaximized: false, activeReportId: null, showReportTemplateModal: false }
 const client = new SimClient()
+
+// ---- reports ----
+const savedReports = lsGet(LS.reports, [])
+const initialReports = savedReports.length ? savedReports : [{
+  id: 'rpt_welcome',
+  name: 'welcome.md',
+  content: '# Welcome\n\nStart writing reports here...',
+  created: Date.now(),
+  modified: Date.now()
+}]
+export const reports = reactive(initialReports)
+
+function persistReports() {
+  lsSet(LS.reports, reports.map(r => ({ ...r })))
+}
+watch(reports, persistReports, { deep: true })
+
+// ---- captures (localStorage) ----
+const savedCaptures = lsGet('hivebr.web.captures.v1', [])
+export const captures = reactive(savedCaptures.length ? savedCaptures : [{
+  id: 'cap_welcome',
+  name: 'welcome.png',
+  dataUrl: '',
+  created: Date.now()
+}])
+
+function persistCaptures() {
+  lsSet('hivebr.web.captures.v1', captures.map(c => ({ ...c })))
+}
+watch(captures, persistCaptures, { deep: true })
 
 export const store = reactive({
   client: markRaw(client),
@@ -135,6 +166,11 @@ export const store = reactive({
   cursor: { x: null, y: null },
   // janelas
   windows,
+  // reports
+  reports,
+  activeReportId: null,
+  // captures
+  captures,
   // UI
   toasts: [],
   ctx: null,
@@ -383,6 +419,71 @@ export function toggleRightMaximized() {
     store.layout.leftOpen = store.layout._prevLeft ?? true
     store.layout.bottomOpen = store.layout._prevBottom ?? true
   }
+}
+export function toggleReportsMaximized() {
+  store.layout.reportsMaximized = !store.layout.reportsMaximized
+  if (store.layout.reportsMaximized) {
+    store.layout._prevLeft = store.layout.leftOpen
+    store.layout._prevBottom = store.layout.bottomOpen
+    store.layout.leftOpen = false
+    store.layout.bottomOpen = false
+    store.layout.reportsOpen = true
+  } else {
+    store.layout.leftOpen = store.layout._prevLeft ?? true
+    store.layout.bottomOpen = store.layout._prevBottom ?? true
+  }
+}
+export function toggleReportsPanel() {
+  store.layout.reportsOpen = !store.layout.reportsOpen
+  if (store.layout.reportsOpen) {
+    store.layout.rightOpen = false // close code panel when opening reports
+  }
+}
+export function toggleReportTemplateModal() {
+  store.layout.showReportTemplateModal = !store.layout.showReportTemplateModal
+  if (store.layout.showReportTemplateModal) {
+    store.layout.reportsOpen = true
+    store.layout.rightOpen = false
+  }
+}
+export function openReport(id) {
+  store.activeReportId = id
+  store.layout.reportsOpen = true
+  store.layout.rightOpen = false
+}
+export function closeReportsPanel() {
+  store.layout.reportsOpen = false
+  store.activeReportId = null
+}
+// ---- reports ----
+export function createReport() {
+  const id = 'rpt_' + Date.now()
+  const r = { id, name: `report_${reports.length + 1}.md`, content: '# New Report\n\n', created: Date.now(), modified: Date.now() }
+  reports.push(r)
+  openReport(id)
+  return r
+}
+export function deleteReport(id) {
+  const i = reports.findIndex(r => r.id === id)
+  if (i >= 0) reports.splice(i, 1)
+  if (store.activeReportId === id) store.activeReportId = null
+}
+// ---- captures ----
+export function addCapture(dataUrl) {
+  const id = 'cap_' + Date.now()
+  const name = `sim_${captures.length + 1}.png`
+  const capture = { id, name, dataUrl, created: Date.now() }
+  captures.unshift(capture) // newest first
+  if (captures.length > 50) captures.pop() // limit to 50
+  return capture
+}
+export function deleteCapture(id) {
+  const i = captures.findIndex(c => c.id === id)
+  if (i >= 0) captures.splice(i, 1)
+}
+export function getCaptureDataUrl(id) {
+  const c = captures.find(c => c.id === id)
+  return c?.dataUrl
 }
 export function focusEditor() { openPanel('right'); setTimeout(() => store.editorApi?.focus(), 30) }
 export function gotoLine(n) { openPanel('right'); store.jumpLine = { line: n, n: Date.now() } }

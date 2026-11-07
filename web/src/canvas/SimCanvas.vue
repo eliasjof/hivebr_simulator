@@ -447,6 +447,7 @@ defineExpose({
   clearStrokes,
   getStrokes,
   undoStroke,
+  canvas: canvas,
 });
 </script>
 

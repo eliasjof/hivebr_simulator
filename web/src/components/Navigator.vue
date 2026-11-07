@@ -3,9 +3,10 @@ import { reactive, computed, ref } from 'vue'
 import Icon from './Icon.vue'
 import {
   store, scene, files, selectRobot, readClientFile, download, toast, toggleWindow, openWindow, openPanel, focusEditor,
+  openReport, toggleReportTemplateModal, captures,
 } from '../state/store.js'
 
-const open = reactive({ script: true, robots: true, scene: true, files: true, tools: true })
+const open = reactive({ script: true, robots: true, scene: true, files: true, tools: true, reports: true, captures: true })
 const menu = ref(false)
 const robots = computed(() => scene.value?.robots || [])
 const rgb = (c) => (c ? `rgb(${c[0]},${c[1]},${c[2]})` : 'var(--text-muted)')
@@ -21,6 +22,21 @@ async function getFile(f) {
 }
 function setAll(v) { Object.keys(open).forEach((k) => { open[k] = v }); menu.value = false }
 function tool(t) { store.tool = t }
+function handleOpenReport(r) { openReport(r.id) }
+function insertCapture(c) {
+  // Use data URL directly for self-contained markdown
+  const markdown = `![${c.name}](${c.dataUrl})`
+  // If there's an active report, insert into it
+  if (store.activeReportId) {
+    const report = store.reports.find(r => r.id === store.activeReportId)
+    if (report) {
+      report.content += `\n${markdown}\n`
+      report.modified = Date.now()
+    }
+  }
+  // Also insert at cursor position if in editor
+  toast(`Captura inserida: ${c.name}`)
+}
 </script>
 
 <template>
@@ -37,10 +53,17 @@ function tool(t) { store.tool = t }
       </div>
     </header>
     <div class="tree">
-      <button class="node h" :aria-expanded="open.script" @click="open.script = !open.script"><Icon :name="open.script ? 'chevronDown' : 'chevron'" :size="12" /><Icon name="code" :size="14" /><span class="lb strong">Script atual</span></button>
+      <button class="node h" :aria-expanded="open.script" @click="open.script = !open.script"><Icon :name="open.script ? 'chevronDown' : 'chevron'" :size="12" /><Icon name="code" :size="14" /><span class="lb strong">Scripts</span></button>
       <div v-if="open.script" class="kids">
         <button v-for="t in store.tabs" :key="t.id" class="node" :class="{ sel: t.id === store.activeId }" @click="focusEditor()">
           <span class="dot" /><span class="lb mono">{{ t.id === store.activeId ? store.fileName : t.name }}</span><span v-if="t.readonly" class="pill gray">leitura</span></button>
+      </div>
+
+      <button class="node h" :aria-expanded="open.reports" @click="open.reports = !open.reports"><Icon :name="open.reports ? 'chevronDown' : 'chevron'" :size="12" /><Icon name="file" :size="14" /><span class="lb strong">Relatórios</span><span class="count">{{ store.reports.length }}</span></button>
+      <div v-if="open.reports" class="kids">
+        <p v-if="!store.reports.length" class="empty">Nenhum relatório. Clique em \"Novo relatório\".</p>
+        <button v-for="r in store.reports" :key="r.id" class="node" @click="handleOpenReport(r)" :title="r.name"><span class="dot" /><span class="lb mono">{{ r.name }}</span></button>
+        <button class="node add" @click="toggleReportTemplateModal"><Icon name="plus" :size="12" /><span class="lb">Novo relatório</span></button>
       </div>
 
       <button class="node h" :aria-expanded="open.robots" @click="open.robots = !open.robots"><Icon :name="open.robots ? 'chevronDown' : 'chevron'" :size="12" /><Icon name="robot" :size="14" /><span class="lb strong">Robôs</span><span class="count" data-testid="cnt-robots">{{ robots.length }}</span></button>
@@ -67,6 +90,15 @@ function tool(t) { store.tool = t }
       <div v-if="open.files" class="kids">
         <p v-if="!files.length" class="empty">Arquivos criados pelo código aparecem aqui.</p>
         <button v-for="f in files" :key="f.path" class="node" @click="getFile(f)" :title="'Baixar ' + f.path"><span class="dot" /><span class="lb mono">{{ f.path.split('/').pop() }}</span></button>
+      </div>
+
+      <button class="node h" :aria-expanded="open.captures" @click="open.captures = !open.captures"><Icon :name="open.captures ? 'chevronDown' : 'chevron'" :size="12" /><Icon name="camera" :size="14" /><span class="lb strong">Capturas</span><span class="count">{{ store.captures.length }}</span></button>
+      <div v-if="open.captures" class="kids">
+        <p v-if="!store.captures.length" class="empty">Nenhuma captura. Use 📷 na simulação (Shift+S).</p>
+        <button v-for="c in store.captures" :key="c.id" class="node" @click="insertCapture(c)" :title="c.name">
+          <span class="dot" /><span class="lb mono">{{ c.name }}</span>
+          <span class="muted mono small">({{ new Date(c.created).toLocaleTimeString('pt-BR') }})</span>
+        </button>
       </div>
 
       <button class="node h" :aria-expanded="open.tools" @click="open.tools = !open.tools"><Icon :name="open.tools ? 'chevronDown' : 'chevron'" :size="12" /><Icon name="sliders" :size="14" /><span class="lb strong">Ferramentas</span></button>

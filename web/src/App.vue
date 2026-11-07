@@ -21,10 +21,12 @@ import ContextMenu from './components/ContextMenu.vue'
 import ToastHost from './components/ToastHost.vue'
 import BootOverlay from './components/BootOverlay.vue'
 import SimCanvas from './canvas/SimCanvas.vue'
+import ReportsPanel from './components/ReportsPanel.vue'
 import {
   store, scene, canvasRef, startClient, send, ask, selectRobot, setCursor, runCode, stopCode, toggleSim, stepOnce, resetSim,
   saveNow, toggleTheme, toggleWindow, windows, clampWindow, setNarrow, openPanel, togglePanel, focusEditor, runDemo, pickFile, toast,
-  toggleRightMaximized,
+  toggleRightMaximized, toggleReportsPanel, toggleReportsMaximized,
+  addCapture,
 } from './state/store.js'
 
 const cv = ref(null)
@@ -56,6 +58,14 @@ async function onAddObstacle({ x, y }) {
 function onContext(c) { store.ctx = c }
 function onMove({ index, x, y, theta }) { send({ cmd: 'set_pose', robot: index, x, y, theta }) }
 function onCursor(p) { if (p) setCursor(p); else setCursor({ x: null, y: null }) }
+
+function captureSimulation() {
+  if (!cv.value?.canvas) return
+  const canvas = cv.value.canvas
+  const dataUrl = canvas.toDataURL('image/png')
+  const capture = addCapture(dataUrl)
+  toast(`Captura salva: ${capture.name}`)
+}
 
 // ---- teclado ----
 function isTyping(t) {
@@ -99,6 +109,7 @@ function onKeyDown(e) {
     case 'k': toggleWindow('map'); break
     case 't': toggleTheme(); break
     case '?': store.modals.help = true; break
+    case 's': if (e.shiftKey) { e.preventDefault(); captureSimulation() } break
   }
 }
 function onKeyUp(e) {
@@ -136,31 +147,33 @@ onBeforeUnmount(() => {
   clearInterval(zoomTimer)
 })
 // recoloca o canvas após mudanças de layout
-watch(() => [store.layout.leftOpen, store.layout.rightOpen, store.layout.bottomOpen], () => requestAnimationFrame(() => window.dispatchEvent(new Event('resize'))))
+watch(() => [store.layout.leftOpen, store.layout.rightOpen, store.layout.reportsOpen, store.layout.bottomOpen], () => requestAnimationFrame(() => window.dispatchEvent(new Event('resize'))))
 
 const effLeft = computed(() => Math.min(store.layout.leftW, Math.round(store.vw * 0.22)))
 const effRight = computed(() => Math.min(store.layout.rightW, Math.round(store.vw * 0.36)))
+const effReports = computed(() => Math.min(store.layout.reportsW, Math.round(store.vw * 0.36)))
 const bottomStyle = computed(() => ({ height: (store.layout.bottomOpen ? store.layout.bottomH : 33) + 'px' }))
 const maxLeft = computed(() => Math.min(420, window.innerWidth * 0.4))
 </script>
 
 <template>
-  <div class="shell" :class="{ narrow: store.narrow, rightMaximized: store.layout.rightMaximized }">
+  <div class="shell" :class="{ narrow: store.narrow, rightMaximized: store.layout.rightMaximized, reportsMaximized: store.layout.reportsMaximized }">
     <MenuBar />
     <Toolbar />
     <main class="main">
       <!-- painel esquerdo -->
-      <aside v-if="store.layout.leftOpen && !store.layout.rightMaximized" class="side left" :style="{ width: effLeft + 'px' }"><Navigator /></aside>
-      <Splitter v-if="store.layout.leftOpen && !store.narrow && !store.layout.rightMaximized" axis="x" v-model:value="store.layout.leftW" :min="180" :max="maxLeft" label="Redimensionar navegador" />
-      <button v-if="!store.layout.leftOpen && !store.layout.rightMaximized" class="rail left" aria-label="Abrir navegador" data-tip="Navegador" data-tip-pos="start" @click="openPanel('left')"><Icon name="panelL" :size="16" /></button>
+      <aside v-if="store.layout.leftOpen && !store.layout.rightMaximized && !store.layout.reportsMaximized" class="side left" :style="{ width: effLeft + 'px' }"><Navigator /></aside>
+      <Splitter v-if="store.layout.leftOpen && !store.narrow && !store.layout.rightMaximized && !store.layout.reportsMaximized" axis="x" v-model:value="store.layout.leftW" :min="180" :max="maxLeft" label="Redimensionar navegador" />
+      <button v-if="!store.layout.leftOpen" class="rail left" aria-label="Abrir navegador" data-tip="Navegador" data-tip-pos="start" @click="openPanel('left')"><Icon name="panelL" :size="16" /></button>
 
       <!-- centro -->
-      <section v-if="!store.layout.rightMaximized" class="center">
+      <section v-if="!store.layout.rightMaximized && !store.layout.reportsMaximized" class="center">
         <div class="docbar" role="tablist"><div class="doctab on" role="tab" aria-selected="true"><Icon name="hex" :size="14" />Simulação</div></div>
         <div class="card">
           <header class="card-h">
             <span class="sec-h"><b>Simulação</b> <span class="muted">· {{ cardTitle }}</span></span>
             <span class="sp" />
+            <button class="btn ghost icon sm" aria-label="Capturar tela" data-tip="Capturar simulação (Shift+S)" @click="captureSimulation"><Icon name="camera" :size="14" /></button>
             <button class="btn ghost icon sm" aria-label="Afastar" data-tip="Afastar (−)" @click="cv?.zoomOut()"><Icon name="zoomOut" :size="14" /></button>
             <span class="zoom mono">{{ store.zoomPct }}%</span>
             <button class="btn ghost icon sm" aria-label="Aproximar" data-tip="Aproximar (+)" @click="cv?.zoomIn()"><Icon name="zoomIn" :size="14" /></button>
@@ -182,10 +195,15 @@ const maxLeft = computed(() => Math.min(420, window.innerWidth * 0.4))
         <div class="bottom" :style="bottomStyle"><BottomDock /></div>
       </section>
 
-      <!-- painel direito -->
-      <Splitter v-if="store.layout.rightOpen && !store.narrow && !store.layout.rightMaximized" axis="x" v-model:value="store.layout.rightW" invert :min="300" :max="720" label="Redimensionar código" />
+      <!-- painel direito - código -->
+      <Splitter v-if="store.layout.rightOpen && !store.narrow && !store.layout.rightMaximized && !store.layout.reportsMaximized" axis="x" v-model:value="store.layout.rightW" invert :min="300" :max="720" label="Redimensionar código" />
       <aside v-if="store.layout.rightOpen" class="side right" :style="{ width: store.layout.rightMaximized ? '100vw' : effRight + 'px' }"><EditorPanel /></aside>
       <button v-if="!store.layout.rightOpen && !store.layout.rightMaximized" class="rail right" aria-label="Abrir código" data-tip="Código (E)" data-tip-pos="end" @click="openPanel('right')"><Icon name="panelR" :size="16" /></button>
+
+      <!-- painel direito - relatórios -->
+      <Splitter v-if="store.layout.reportsOpen && !store.narrow && !store.layout.reportsMaximized && !store.layout.rightMaximized" axis="x" v-model:value="store.layout.reportsW" invert :min="300" :max="720" label="Redimensionar relatórios" />
+      <aside v-if="store.layout.reportsOpen" class="side right" :style="{ width: store.layout.reportsMaximized ? '100vw' : effReports + 'px' }"><ReportsPanel /></aside>
+      <button v-if="!store.layout.reportsOpen && !store.layout.reportsMaximized" class="rail right" aria-label="Abrir relatórios" data-tip="Relatórios" data-tip-pos="end" @click="toggleReportsPanel"><Icon name="file" :size="16" /></button>
     </main>
     <StatusBar />
 
@@ -212,11 +230,17 @@ const maxLeft = computed(() => Math.min(420, window.innerWidth * 0.4))
 .narrow .side.left { left: 30px; } .narrow .side.right { right: 30px; }
 .narrow .rail { z-index: 41; }
 .narrow .rail.left { order: -1; } 
+.rail.right { order: 1; }
+.rail.right:last-of-type { order: 2; } 
 .center { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 0 10px 10px; }
 .rightMaximized .center { display: none; }
 .rightMaximized .side.left { display: none; }
 .rightMaximized .side.right { width: 100vw !important; }
-.rightMaximized .rail { display: none; }
+.rightMaximized .rail.right { display: none; }
+.reportsMaximized .center { display: none; }
+.reportsMaximized .side.left { display: none; }
+.reportsMaximized .side.right { width: 100vw !important; }
+.reportsMaximized .rail.right { display: none; }
 .docbar { height: 38px; display: flex; align-items: flex-end; gap: 4px; padding-top: 6px; flex: none; }
 .doctab { display: flex; align-items: center; gap: 6px; padding: 0 14px; height: 32px; background: var(--surface); border: 1px solid var(--border); border-bottom: none; border-radius: 8px 8px 0 0; font-weight: 500; box-shadow: 0 1px 0 var(--surface); position: relative; top: 1px; }
 .doctab svg { color: var(--accent); }

@@ -4,6 +4,7 @@ import Logo from './Logo.vue'
 import {
   store, scene, CATALOGREF, newFile, pickFile, downloadScript, saveNow, runCode, stopCode, toggleSim, stepOnce, resetSim,
   toggleTheme, togglePanel, openPanel, openWindow, toggleWindow, resetLayout, runDemo, loadExample, canvasRef, consoleBus, toast,
+  toggleReportTemplateModal, toggleReportsPanel,
 } from '../state/store.js'
 
 const open = ref(null)
@@ -15,6 +16,8 @@ const examples = computed(() => CATALOGREF.filter((e) => e.id !== 'demonstracao'
 const menus = computed(() => [
   { id: 'file', label: 'Arquivo', items: [
     { label: 'Novo script', key: 'Ctrl+Alt+N', run: newFile },
+    { label: 'Novo relatório', key: 'Ctrl+Shift+R', run: toggleReportTemplateModal },
+    { sep: true },
     { label: 'Abrir .py…', key: 'Ctrl+O', run: pickFile },
     { label: 'Salvar no navegador', key: 'Ctrl+S', run: () => { saveNow(); toast('Salvo no navegador.') } },
     { label: 'Baixar .py', run: downloadScript },
@@ -35,6 +38,7 @@ const menus = computed(() => [
     { label: 'Parâmetros', key: 'P', check: store.windows.params.open, run: () => toggleWindow('params') },
     { label: 'Gráficos', key: 'G', check: store.windows.plots.open, run: () => toggleWindow('plots') },
     { label: 'Mapa', key: 'K', check: store.windows.map.open, run: () => toggleWindow('map') },
+    { label: 'Relatórios', run: toggleReportsPanel },
     { sep: true },
     { label: 'Enquadrar', key: 'F', run: () => canvasRef.value?.fit() },
     { label: store.theme === 'dark' ? 'Tema claro' : 'Tema escuro', key: 'T', run: toggleTheme },
