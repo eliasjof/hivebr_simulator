@@ -195,6 +195,20 @@ def test_map_commands():
         frame(e, sim); check(e.host.of("scene")[-1]["map"] is None)
 
 
+def test_notices_carry_code_and_params():
+    with env() as e:
+        sim = make_sim(e, robots=1)
+        cmd(sim, cmd="no_such_command")
+        cmd(sim, cmd="export_log", format="csv")        # nothing logged yet
+        cmd(sim, cmd="load_map", name="x.png", b64="@@@", resolution=0.2)
+        ns = e.host.notices()
+        codes = [n.get("code") for n in ns]
+        check("unknown_command" in codes and "no_log_data" in codes and "map_load_failed" in codes, ns)
+        u = [n for n in ns if n.get("code") == "unknown_command"][0]
+        check(u["params"] == {"name": "no_such_command"} and "Unknown command" in u["text"], u)
+        check(all(isinstance(n["text"], str) and n["text"] for n in ns), "text fallback must stay")
+
+
 def test_load_line_map_kind():
     from PIL import Image
     with env() as e:

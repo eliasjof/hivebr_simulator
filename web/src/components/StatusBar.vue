@@ -2,32 +2,33 @@
 import { computed } from 'vue'
 import Icon from './Icon.vue'
 import { store, WINDOW_DEFS, openWindow } from '../state/store.js'
-const f = (v, d = 2) => (v == null || Number.isNaN(v) ? '—' : Number(v).toFixed(d))
+import { t, fmtNum, fmtInt } from '../i18n/index.js'
 const minimized = computed(() => Object.keys(WINDOW_DEFS).filter((id) => store.windows[id].open && store.windows[id].minimized))
 const py = computed(() => {
-  if (store.fatal) return 'Python: erro'
-  if (store.run.state !== 'idle') return 'Python ' + (store.boot.version || '') + ' · executando'
-  if (!store.boot.ready) return `Python: carregando ${Math.round(store.boot.progress * 100)}%`
-  return 'Python ' + (store.boot.version || 'pronto')
+  const v = store.boot.version
+  if (store.fatal) return t('status.py_error')
+  if (store.run.state !== 'idle') return t('status.py_running', { v })
+  if (!store.boot.ready) return t('status.py_loading', { pct: fmtInt(Math.round(store.boot.progress * 100)) })
+  return t('status.py_ready', { v })
 })
 </script>
 <template>
-  <footer class="status mono" role="status" aria-label="Estado da simulação">
-    <span data-testid="st-cursor">x {{ f(store.cursor.x) }} · y {{ f(store.cursor.y) }}</span>
-    <span data-testid="st-time">t {{ f(store.stats.t, 1) }} s</span>
-    <span data-testid="st-step">passo {{ store.stats.step }}</span>
-    <span data-testid="st-rtf">{{ f(store.stats.rtf, 1) }}× tempo real</span>
-    <span>{{ store.stats.fps }} fps</span>
+  <footer class="status mono" role="status" :aria-label="t('status.aria')">
+    <span data-testid="st-cursor">x {{ fmtNum(store.cursor.x) }} · y {{ fmtNum(store.cursor.y) }}</span>
+    <span data-testid="st-time">t {{ fmtNum(store.stats.t, 1) }} s</span>
+    <span data-testid="st-step">{{ t('status.step') }} {{ fmtInt(store.stats.step) }}</span>
+    <span data-testid="st-rtf">{{ t('status.rtf', { v: fmtNum(store.stats.rtf, 1) }) }}</span>
+    <span>{{ fmtInt(store.stats.fps) }} fps</span>
     <span class="chips">
-      <button v-for="id in minimized" :key="id" class="btn sm chipbtn" @click="openWindow(id)"><Icon :name="WINDOW_DEFS[id].icon" :size="12" />{{ WINDOW_DEFS[id].title }}</button>
+      <button v-for="id in minimized" :key="id" class="btn sm chipbtn" @click="openWindow(id)"><Icon :name="WINDOW_DEFS[id].icon" :size="12" />{{ t(WINDOW_DEFS[id].titleKey) }}</button>
     </span>
     <span class="py" :class="{ bad: store.fatal }">{{ py }}</span>
   </footer>
 </template>
 <style scoped>
-.status { height: var(--status-h); display: flex; align-items: center; gap: 18px; padding: 0 12px; background: var(--surface); border-top: 1px solid var(--border); font-size: 11.5px; color: var(--text-muted); overflow: hidden; white-space: nowrap; }
-.chips { flex: 1; display: flex; gap: 6px; justify-content: center; }
-.chipbtn { min-height: 20px; border-radius: 99px; font-size: 11px; font-family: var(--font-ui); }
+.status { height: var(--status-h); display: flex; align-items: center; gap: 18px; padding: 0 var(--sp-5); background: var(--surface); border-top: 1px solid var(--border); font-size: var(--fs-label); color: var(--text-muted); overflow: hidden; white-space: nowrap; }
+.chips { flex: 1; display: flex; gap: var(--sp-3); justify-content: center; min-width: 0; }
+.chipbtn { min-height: var(--h-xs); border-radius: var(--radius-pill); font-size: var(--fs-xs); font-family: var(--font-ui); }
 .py.bad { color: var(--danger); }
 @media (max-width: 700px) { .status span:nth-child(3), .status span:nth-child(4), .status span:nth-child(5) { display: none; } }
 </style>

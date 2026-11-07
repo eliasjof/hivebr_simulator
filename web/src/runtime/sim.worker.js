@@ -10,7 +10,8 @@ let scipyDone = false
 let runner = null
 
 const send = (type, payload = {}) => self.postMessage({ type, payload })
-const boot = (stage, progress, text) => send('boot', { stage, progress, text })
+// `stage` is a stable key the UI translates; `text` is an optional raw detail (package-loader output).
+const boot = (stage, progress, text) => send('boot', text ? { stage, progress, text } : { stage, progress })
 // Package-loading chatter goes to the boot status only, never to the user's stdout.
 const quiet = (stage, progress) => ({
   messageCallback: (text) => boot(stage, progress, String(text)),
@@ -55,18 +56,18 @@ async function init({ zipUrl, sab, pyodideUrl }) {
       reader = new RingReader(sab.ring, sab.control)
       interruptView = new Uint8Array(sab.interrupt)
     }
-    boot('runtime', 0.05, 'Baixando o interpretador Python...')
+    boot('runtime', 0.05)
     const mod = await import(/* @vite-ignore */ `${pyodideUrl}pyodide.mjs`)
     pyodide = await mod.loadPyodide({ indexURL: pyodideUrl })
     pyodide.setStdout({ batched: (text) => send('stdout', { text }) })
     pyodide.setStderr({ batched: (text) => send('stderr', { text }) })
 
-    boot('packages', 0.4, 'Carregando numpy, pyyaml e pillow...')
+    boot('packages', 0.4)
     await pyodide.loadPackage(['numpy', 'pyyaml', 'pillow'], quiet('packages', 0.4))
 
-    boot('files', 0.8, 'Instalando o hiveBr...')
+    boot('files', 0.8)
     const res = await fetch(zipUrl)
-    if (!res.ok) throw new Error(`Falha ao baixar ${zipUrl}: HTTP ${res.status}`)
+    if (!res.ok) throw new Error(`Failed to download ${zipUrl}: HTTP ${res.status}`)
     const buf = await res.arrayBuffer()
     pyodide.FS.mkdirTree('/hivebr')
     pyodide.unpackArchive(buf, 'zip', { extractDir: '/hivebr' })
@@ -80,7 +81,7 @@ async function init({ zipUrl, sab, pyodideUrl }) {
 
     if (interruptView) pyodide.setInterruptBuffer(interruptView)
 
-    boot('python', 0.92, 'Iniciando o simulador...')
+    boot('python', 0.92)
     const hostMod = pyodide.pyimport('hivebr_web.host')
     hostMod.set_host(host)
     hostMod.destroy()
@@ -91,10 +92,10 @@ async function init({ zipUrl, sab, pyodideUrl }) {
 
     // scipy is imported by the occupancy-grid code while Python is blocked, so it
     // must already be loaded by then.
-    scipyPromise = pyodide.loadPackage('scipy', quiet('scipy', 0.97)).then(() => { scipyDone = true; boot('done', 1, 'Pronto') }, (e) => {
+    scipyPromise = pyodide.loadPackage('scipy', quiet('scipy', 0.97)).then(() => { scipyDone = true; boot('done', 1) }, (e) => {
       scipyDone = true
-      boot('done', 1, 'Pronto')
-      send('stderr', { text: `Aviso: scipy nao carregou (${e && e.message ? e.message : e})` })
+      boot('done', 1)
+      send('notice', { level: 'warn', code: 'scipy_failed', params: { error: String((e && e.message) || e) }, text: `scipy failed to load (${(e && e.message) || e})` })
     })
   } catch (e) {
     send('fatal', { message: String((e && e.message) || e) })
@@ -104,15 +105,15 @@ async function init({ zipUrl, sab, pyodideUrl }) {
 async function run({ code, autostart }) {
   try {
     if (!scipyDone && scipyPromise) {
-      boot('scipy', 0.97, 'Carregando scipy...')
+      boot('scipy', 0.97)
       await scipyPromise
     }
     try {
       await pyodide.loadPackagesFromImports(code, quiet('imports', 0.98))
     } catch (e) {
-      send('stderr', { text: `Aviso: pacotes nao carregados (${(e && e.message) || e})` })
+      send('notice', { level: 'warn', code: 'packages_failed', params: { error: String((e && e.message) || e) }, text: `Packages not loaded (${(e && e.message) || e})` })
     }
-    boot('done', 1, 'Pronto')
+    boot('done', 1)
     if (interruptView) interruptView[0] = 0
     send('run_started', {})
     let result

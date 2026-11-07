@@ -10,7 +10,9 @@
     "preview": "npm run bundle && vite preview",
     "test:runtime": "node --test tests/runtime/ring.test.mjs",
     "test:e2e": "node tests/runtime/e2e-runtime.mjs",
-    "test:app": "npm run build && node tests/e2e/app.e2e.mjs"
+    "test:app": "npm run build && node tests/e2e/app.e2e.mjs",
+    "test:i18n": "node --test tests/i18n/i18n.test.mjs",
+    "test:tokens": "node --test tests/tokens/contrast.test.mjs"
   },
   "dependencies": {
     "@codemirror/lang-python": "^6.1.6",

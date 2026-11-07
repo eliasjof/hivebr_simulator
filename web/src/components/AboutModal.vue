@@ -1,31 +1,32 @@
 <script setup>
 import Modal from './Modal.vue'
 import { store } from '../state/store.js'
+import { t } from '../i18n/index.js'
 </script>
 
 <template>
-  <Modal title="About hiveBr" :width="520" @close="store.modals.about = false">
+  <Modal :title="t('about.title')" :width="520" @close="store.modals.about = false">
     <section>
       <h3>hiveBr</h3>
-      <p class="muted">Version 0.1.0</p>
-      <p>A lightweight 2D simulation framework for single- and multi-robot mobile navigation.</p>
+      <p class="muted">{{ t('about.version') }}</p>
+      <p>{{ t('about.desc') }}</p>
     </section>
     <section>
-      <h3>Developers</h3>
+      <h3>{{ t('about.developers') }}</h3>
       <ul>
-        <li><strong>Elias J. R. Freitas</strong>   — IFMG - Campus Ibirité</li>
-        <li><strong>Carlos D. S. Júnior</strong> — IFMG - Campus Ibirité</li>  
+        <li><strong>{{ t('about.dev1') }}</strong></li>
+        <li><strong>{{ t('about.dev2') }}</strong></li>
         <li><a href="https://github.com/eliasjof/hivebr_simulator" target="_blank" rel="noopener">GitHub</a></li>
-      </ul>      
-    </section>
-    <section>
-      <h3>Research Group</h3>
-      <ul>
-        <li><a href="https://epiibots.notion.site" target="_blank" rel="noopener">Robotics and Intelligent Systems - EPIIBOTS</a></li>
       </ul>
     </section>
     <section>
-      <h3>Technologies</h3>
+      <h3>{{ t('about.research') }}</h3>
+      <ul>
+        <li><a href="https://epiibots.notion.site" target="_blank" rel="noopener">{{ t('about.research_name') }}</a></li>
+      </ul>
+    </section>
+    <section>
+      <h3>{{ t('about.tech') }}</h3>
       <ul>
         <li>Vue 3 + Vite</li>
         <li>Pyodide</li>
@@ -34,8 +35,8 @@ import { store } from '../state/store.js'
       </ul>
     </section>
     <section>
-      <h3>License</h3>
-      <p class="muted">MIT — see <code>LICENSE</code> in the project root.</p>
+      <h3>{{ t('about.license') }}</h3>
+      <p class="muted">{{ t('about.license_text') }}</p>
     </section>
   </Modal>
 </template>

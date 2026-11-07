@@ -97,6 +97,27 @@ print("fim da rota")
 em seguida. O método `loop` recebe o estado do robô (`x`, `y`, `theta`, `goal`)
 e devolve `(v, omega)`.
 
+## Idiomas (pt-BR e en)
+
+A interface vem em português (Brasil) e inglês, sem dependências extras. O idioma
+inicial vem do navegador: qualquer variante de português (`pt`, `pt-PT`…) usa
+pt-BR e todo o resto usa inglês. Para escolher à mão, use **Arquivo › Idioma**
+(também em **Ajuda › Idioma**): *Automático (navegador)*, *Português (Brasil)* ou
+*English*. A troca é imediata, não interrompe uma simulação em andamento, não
+mexe nos seus scripts e fica salva no navegador (`hivebr.web.locale.v1`).
+
+- Dicionários: `src/i18n/pt-BR.js` e `src/i18n/en.js`, com as mesmas chaves;
+  `src/i18n/index.js` tem `t(chave, params)`, `tn` (plural), formatação de números
+  por idioma (`Intl`) e a detecção.
+- Avisos do Python e do worker trazem `code` + `params` (e o texto em inglês como
+  reserva); a interface traduz pelo `code`.
+- Exemplos: os tutoriais e a demonstração têm versão em inglês em `templates/en/`
+  (mesma lógica; só mudam comentários, docstrings e textos impressos). Os exemplos
+  de `examples/` aparecem como estão no repositório, com comentários em português.
+  Novos scripts em branco seguem o idioma atual; abas já abertas nunca são reescritas.
+- **Limite conhecido:** o que o pacote `hivebr` imprime (por exemplo as mensagens do
+  `DataLogger`, em português) vem do pacote original, sem modificação, e não é traduzido.
+
 ## Diferenças em relação ao desktop
 
 - **Sem multiprocessing nem threads.** Tudo roda em um único Web Worker. Por
@@ -171,6 +192,8 @@ python3 python/tests/run_all.py trecho   # só os testes cujo nome contém "trec
 npm run test:runtime                     # testes do buffer de comandos (tests/runtime/ring.test.mjs)
 npm run test:e2e                         # página completa no Chromium
 npm run test:app                         # interface completa (build de produção em /hivebr/, sem COOP/COEP, Pyodide real)
+npm run test:i18n                        # chaves iguais em pt-BR/en, chaves usadas existem, sem texto fixo em português
+npm run test:tokens                      # contraste (WCAG) dos tokens de cor nos dois temas
 ```
 
 `npm run test:e2e` sobe o Vite nas portas 5199 e 5198 e usa o Chromium em
@@ -180,7 +203,10 @@ Ajuste esse caminho se o navegador estiver em outro lugar.
 `npm run test:app` compila o site, serve `dist/` por um servidor estático em
 `/hivebr/` sem cabeçalhos COOP/COEP (exercita `coi-sw.js` e a base relativa) e
 conduz a interface real com playwright-core. Precisa de rede para o Pyodide.
-Capturas de tela vão para `E2E_SHOTS` (padrão: pasta temporária do sistema).
+Capturas de tela vão para `E2E_SHOTS` (padrão: pasta temporária do sistema). Os
+fluxos fixam o idioma em pt-BR; há fluxos próprios para en-US, fr-FR, a troca ao vivo
+em Arquivo › Idioma e uma varredura em inglês que procura português sobrando.
+Também exercitam as janelas flutuantes (limites, alças, empilhamento, teclado).
 
 ## Estrutura
 
@@ -192,6 +218,8 @@ web/
   templates/     exemplos feitos para o navegador
   public/        coi-sw.js (isolamento sem cabeçalhos) e o zip gerado
   scripts/       bundle-python.mjs, que gera public/hivebr-py.zip
-  tests/         testes de JavaScript e end-to-end
+  src/i18n/      dicionários pt-BR e en, t(), detecção de idioma
+  templates/en/  versões em inglês dos tutoriais e da demonstração
+  tests/         testes de JavaScript (ring, i18n, tokens) e end-to-end
   ARCHITECTURE.md
 ```

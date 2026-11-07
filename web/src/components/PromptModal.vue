@@ -2,6 +2,7 @@
 import { reactive } from 'vue'
 import Modal from './Modal.vue'
 import { store, resolvePrompt } from '../state/store.js'
+import { t } from '../i18n/index.js'
 
 const cfg = store.prompt.cfg
 const values = reactive(Object.fromEntries((cfg.fields || []).map((f) => [f.key, f.value])))
@@ -34,12 +35,12 @@ function cancel() { resolvePrompt(null) }
       <button type="submit" hidden />
     </form>
     <template #footer>
-      <button class="btn" @click="cancel">{{ cfg.cancelText || 'Cancelar' }}</button>
-      <button class="btn" :class="cfg.danger ? 'danger solid' : 'primary'" :data-autofocus="cfg.fields?.length ? null : ''" @click="ok">{{ cfg.confirmText || 'OK' }}</button>
+      <button class="btn" @click="cancel">{{ cfg.cancelText || t('common.cancel') }}</button>
+      <button class="btn" :class="cfg.danger ? 'danger solid' : 'primary'" :data-autofocus="cfg.fields?.length ? null : ''" @click="ok">{{ cfg.confirmText || t('common.ok') }}</button>
     </template>
   </Modal>
 </template>
 <style scoped>
-.msg { margin: 0 0 12px; color: var(--text-muted); line-height: 1.5; }
-.field { margin-bottom: 8px; }
+.msg { margin: 0 0 var(--sp-5); color: var(--text-muted); line-height: 1.5; }
+.field { margin-bottom: var(--sp-4); }
 </style>
