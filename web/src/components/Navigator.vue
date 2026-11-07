@@ -24,8 +24,8 @@ function setAll(v) { Object.keys(open).forEach((k) => { open[k] = v }); menu.val
 function tool(t) { store.tool = t }
 function handleOpenReport(r) { openReport(r.id) }
 function insertCapture(c) {
-  // Use data URL directly for self-contained markdown
-  const markdown = `![${c.name}](${c.dataUrl})`
+  // Use custom URI scheme for short markdown URLs
+  const markdown = `![${c.name}](capture:${c.id})`
   // If there's an active report, insert into it
   if (store.activeReportId) {
     const report = store.reports.find(r => r.id === store.activeReportId)

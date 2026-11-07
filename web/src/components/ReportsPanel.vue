@@ -4,7 +4,7 @@ import { marked } from 'marked'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
 import Icon from './Icon.vue'
-import { store, toggleReportsPanel, toggleReportsMaximized, toggleReportTemplateModal, addCapture, captures } from '../state/store.js'
+import { store, toggleReportsPanel, toggleReportsMaximized, toggleReportTemplateModal, addCapture, captures, getCapture } from '../state/store.js'
 
 const localContent = ref('')
 const isEditing = ref(true)
@@ -24,8 +24,8 @@ function openCapturesModal() {
 }
 
 function insertCapture(capture) {
-  // Use data URL directly for self-contained markdown
-  const markdown = `![${capture.name}](${capture.dataUrl})`
+  // Use custom URI scheme for short markdown URLs
+  const markdown = `![${capture.name}](capture:${capture.id})`
   const cursorPos = localContent.value.length
   localContent.value = localContent.value.slice(0, cursorPos) + markdown + localContent.value.slice(cursorPos)
   showCapturesModal.value = false
@@ -36,8 +36,22 @@ const activeReport = computed(() => {
   return store.reports.find(r => r.id === store.activeReportId) || null
 })
 
-// Initialize marked with highlight.js
+// Initialize marked with highlight.js and custom image renderer for capture:{id} URIs
 try {
+  const renderer = new marked.Renderer()
+  const originalImage = renderer.image.bind(renderer)
+  renderer.image = (token) => {
+    // marked 18.x passes an object with { href, title, text } properties
+    const href = token?.href
+    if (typeof href === 'string' && href.startsWith('capture:')) {
+      const id = href.slice('capture:'.length)
+      const capture = getCapture(id)
+      if (capture) {
+        return originalImage({ ...token, href: capture.dataUrl })
+      }
+    }
+    return originalImage(token)
+  }
   marked.setOptions({
     breaks: true,
     gfm: true,
@@ -46,7 +60,8 @@ try {
         try { return hljs.highlight(code, { language: lang }).value } catch { return code }
       }
       return code
-    }
+    },
+    renderer
   })
 } catch (e) {
   console.warn('marked/hljs init failed:', e)
@@ -313,9 +328,17 @@ function updateContent(val) {
   }
 }
 
+function resolveCaptureUrls(html) {
+  return html.replace(/src="capture:([^"]+)"/g, (match, id) => {
+    const capture = getCapture(id)
+    return capture ? `src="${capture.dataUrl}"` : match
+  })
+}
+
 function exportPDF() {
   if (!activeReport.value) return
   const html = marked.parse(activeReport.value.content)
+  const resolvedHtml = resolveCaptureUrls(html)
   const printWindow = window.open('', '_blank')
   printWindow.document.write(`
     <!DOCTYPE html>
@@ -371,6 +394,7 @@ function exportPDF() {
 function exportHTML() {
   if (!activeReport.value) return
   const html = marked.parse(activeReport.value.content)
+  const resolvedHtml = resolveCaptureUrls(html)
   const fullHTML = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>

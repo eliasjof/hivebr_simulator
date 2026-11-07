@@ -485,6 +485,9 @@ export function getCaptureDataUrl(id) {
   const c = captures.find(c => c.id === id)
   return c?.dataUrl
 }
+export function getCapture(id) {
+  return captures.find(c => c.id === id)
+}
 export function focusEditor() { openPanel('right'); setTimeout(() => store.editorApi?.focus(), 30) }
 export function gotoLine(n) { openPanel('right'); store.jumpLine = { line: n, n: Date.now() } }
 
