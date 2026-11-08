@@ -19,6 +19,11 @@ _LIB_MARKERS = ("site-packages", "dist-packages", ".zip")
 _SKIP_DIRS = {"src", "web", "__pycache__", ".git", "node_modules"}
 
 
+def user_dir() -> str:
+    """Folder where the worker writes the editor tabs (entry script + modules)."""
+    return os.path.join(ROOT, "user_scripts")
+
+
 def boot():
     """Make the runtime importable (only adds missing paths) and patch the engine."""
     for p in (os.path.join(ROOT, "web"), os.path.join(ROOT, "src"), ROOT):
@@ -28,8 +33,14 @@ def boot():
     simulator.install()
 
 
-def script_path() -> str:
-    return os.path.join(ROOT, "examples", "user_script.py")
+def script_path(filename: str | None = None) -> str:
+    """Entry script path. With ``filename`` the script lives beside its modules."""
+    if not filename:
+        return os.path.join(ROOT, "examples", "user_script.py")
+    name = os.path.basename(str(filename).replace("\\", "/")).strip() or "user_script.py"
+    if not name.endswith(".py"):
+        name += ".py"
+    return os.path.join(user_dir(), name)
 
 
 # --------------------------------------------------------------- files ----
@@ -83,7 +94,7 @@ def _under(path, base):
 
 def _purge_user_modules(before):
     """Drop example/template/user modules so the next run imports them afresh."""
-    user_dirs = [os.path.join(ROOT, "examples"), os.path.join(ROOT, "templates")]
+    user_dirs = [os.path.join(ROOT, "examples"), os.path.join(ROOT, "templates"), user_dir()]
     libs = _lib_roots()
     for name, mod in list(sys.modules.items()):
         paths = _module_paths(mod)
@@ -186,11 +197,16 @@ def _error_report(exc, script):
     }
 
 
-def run_user_code(code: str, autostart: bool = False) -> str:
-    """Execute ``code`` as ``__main__`` and return the ``finished`` payload as JSON."""
+def run_user_code(code: str, autostart: bool = False, filename: str | None = None) -> str:
+    """Execute ``code`` as ``__main__`` and return the ``finished`` payload as JSON.
+
+    ``filename`` selects the entry script inside the user scripts folder; its
+    siblings are importable, so the editor can hold several modules.
+    """
     from . import simulator
 
-    script = script_path()
+    script = script_path(filename)
+    os.makedirs(os.path.dirname(script), exist_ok=True)
     linecache.cache[script] = (len(code), None, code.splitlines(True), script)
     saved = (sys.argv, list(sys.path), os.getcwd())
     modules_before = set(sys.modules)

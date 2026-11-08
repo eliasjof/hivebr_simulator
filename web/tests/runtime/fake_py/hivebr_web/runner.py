@@ -39,7 +39,7 @@ def _loop():
         h.sleep(5)
 
 
-def run_user_code(code, autostart):
+def run_user_code(code, autostart, filename=None):
     g = {"__name__": "__main__", "fake_run": _loop}
     err = None
     stopped = False

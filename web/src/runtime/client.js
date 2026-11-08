@@ -149,14 +149,18 @@ export class SimClient {
   }
 
   // ---- running -----------------------------------------------------------
-  /** Runs user code. Resolves with the `finished` payload. */
-  run(code, { autostart = true } = {}) {
+  /**
+   * Runs user code. Resolves with the `finished` payload.
+   * `files` (optional) are `{name, code}` modules written next to the entry
+   * script, so `mainName` can import them.
+   */
+  run(code, { autostart = true, files = null, mainName = null } = {}) {
     if (this.state !== 'ready') return Promise.reject(new Error(`Simulator is not ready (${this.state})`))
     this._setState('running')
     if (this.sab) new Uint8Array(this.sab.interrupt)[0] = 0
     return new Promise((resolve, reject) => {
       this._runWaiter = { resolve, reject }
-      this.worker.postMessage({ type: 'run', code, autostart })
+      this.worker.postMessage({ type: 'run', code, autostart, files, mainName })
     })
   }
 
@@ -219,6 +223,13 @@ export class SimClient {
       this._files.set(id, { resolve, reject })
       this.worker.postMessage({ type: 'read_file', id, path })
     })
+  }
+
+  /** Validates and writes YAML to the Pyodide filesystem (result via `config_write`). */
+  writeConfig(yaml, path) {
+    if (!this.worker) return false
+    this.worker.postMessage({ type: 'write_config', yaml, path })
+    return true
   }
 
   dispose() {

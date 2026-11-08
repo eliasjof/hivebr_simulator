@@ -4,7 +4,7 @@ import { marked } from 'marked'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
 import Icon from './Icon.vue'
-import { store, toggleReportsPanel, toggleReportsMaximized, toggleReportTemplateModal, addCapture, captures, getCapture } from '../state/store.js'
+import { store, toggleReportsPanel, toggleReportsMaximized, toggleReportTemplateModal, addCapture, captures, getCapture, openReport } from '../state/store.js'
 
 const localContent = ref('')
 const isEditing = ref(true)
@@ -18,6 +18,7 @@ const showTemplateModal = computed({
 })
 
 const showCapturesModal = ref(false)
+const showReportList = ref(false)
 
 function openCapturesModal() {
   showCapturesModal.value = true
@@ -31,9 +32,12 @@ function insertCapture(capture) {
   showCapturesModal.value = false
 }
 
+// Abas abertas (fechar só esconde; o relatório continua salvo em store.reports).
+const openReports = computed(() => store.reports.filter(r => store.openReportIds.includes(r.id)))
+
 const activeReport = computed(() => {
   if (!store.activeReportId) return null
-  return store.reports.find(r => r.id === store.activeReportId) || null
+  return openReports.value.find(r => r.id === store.activeReportId) || null
 })
 
 // Initialize marked with highlight.js and custom image renderer for capture:{id} URIs
@@ -464,35 +468,41 @@ function exportMD() {
   URL.revokeObjectURL(url)
 }
 
+function neighbourOf(id, ids) {
+  const idx = ids.indexOf(id)
+  const remaining = ids.filter(x => x !== id)
+  // Prefer the tab on the left, then the same position (shifted), then the first.
+  return remaining[idx - 1] ?? remaining[idx] ?? remaining[0] ?? null
+}
+
+// Fechar uma aba apenas a esconde: o relatório continua em store.reports e pode
+// ser reaberto pelo menu "Relatórios" (ícone de lista) ou pelo navegador.
 function closeReportTab(id) {
-  if (store.activeReportId === id) {
-    // Switch to another report or clear selection
-    const idx = store.reports.findIndex(r => r.id === id)
-    if (idx > 0) {
-      store.activeReportId = store.reports[idx - 1].id
-    } else if (store.reports.length > 1) {
-      store.activeReportId = store.reports[1].id
-    } else {
-      store.activeReportId = null
-    }
-  }
+  const ids = openReports.value.map(r => r.id)
+  if (!ids.includes(id)) return
+  const wasActive = store.activeReportId === id
+  const next = wasActive ? neighbourOf(id, ids) : null
+  const oi = store.openReportIds.indexOf(id)
+  if (oi >= 0) store.openReportIds.splice(oi, 1)
+  if (wasActive) store.activeReportId = next
 }
 
 function deleteReport(id) {
   const idx = store.reports.findIndex(r => r.id === id)
   if (idx < 0) return
   if (!confirm(`Excluir "${store.reports[idx].name}"?`)) return
+  const ids = openReports.value.map(r => r.id)
+  const wasActive = store.activeReportId === id
+  const next = wasActive ? neighbourOf(id, ids) : null
   store.reports.splice(idx, 1)
-  if (store.activeReportId === id) {
-    // Select another report
-    if (idx > 0) {
-      store.activeReportId = store.reports[idx - 1].id
-    } else if (store.reports.length > 0) {
-      store.activeReportId = store.reports[0].id
-    } else {
-      store.activeReportId = null
-    }
-  }
+  const oi = store.openReportIds.indexOf(id)
+  if (oi >= 0) store.openReportIds.splice(oi, 1)
+  if (wasActive) store.activeReportId = next
+}
+
+function openReportTab(r) {
+  openReport(r.id)
+  showReportList.value = false
 }
 
 function newReport() {
@@ -507,9 +517,7 @@ function createReportFromTemplate() {
   const name = `${template.label.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.md`
   const r = { id, name, content, created: Date.now(), modified: Date.now() }
   store.reports.push(r)
-  store.activeReportId = id
-  store.layout.reportsOpen = true
-  store.layout.rightOpen = false
+  openReport(id)
   showTemplateModal.value = false
 }
 
@@ -527,14 +535,18 @@ function onSplitDrag(e) {
 function startDrag() { dragging.value = true }
 function stopDrag() { dragging.value = false }
 
+function onDocClick() { showReportList.value = false }
+
 onMounted(() => {
   if (activeReport.value) localContent.value = activeReport.value.content
   window.addEventListener('mousemove', onSplitDrag)
   window.addEventListener('mouseup', stopDrag)
+  document.addEventListener('click', onDocClick)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('mousemove', onSplitDrag)
   window.removeEventListener('mouseup', stopDrag)
+  document.removeEventListener('click', onDocClick)
 })
 
 watch(() => activeReport.value?.content, (v) => { if (v !== undefined) localContent.value = v }, { immediate: true })
@@ -549,6 +561,17 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
     <header class="ph">
       <span class="sec-h">Relatórios</span>
       <span class="sp" />
+      <div class="report-list-wrap">
+        <button class="btn ghost icon sm" @click.stop="showReportList = !showReportList" data-tip="Abrir relatório" aria-label="Abrir relatório" :aria-expanded="showReportList"><Icon name="list" :size="14" /></button>
+        <div v-if="showReportList" class="report-menu" role="menu" @click.stop>
+          <p v-if="!store.reports.length" class="report-menu-empty">Nenhum relatório salvo</p>
+          <button v-for="r in store.reports" :key="r.id" class="report-menu-item" :class="{ active: r.id === store.activeReportId }" role="menuitem" :title="r.name" @click="openReportTab(r)">
+            <Icon name="file" :size="13" />
+            <span class="report-menu-name">{{ r.name }}</span>
+            <span v-if="store.openReportIds.includes(r.id)" class="report-menu-tag">aberta</span>
+          </button>
+        </div>
+      </div>
       <button class="btn ghost icon sm" @click="newReport" data-tip="Novo relatório" aria-label="Novo relatório"><Icon name="plus" :size="14" /></button>
       <button class="btn ghost icon sm" :aria-label="store.layout.reportsMaximized ? 'Restaurar painel' : 'Maximizar painel'" :data-tip="store.layout.reportsMaximized ? 'Restaurar' : 'Maximizar'" @click="toggleReportsMaximized"><Icon :name="store.layout.reportsMaximized ? 'restore' : 'max'" :size="14" /></button>
       <button class="btn ghost icon sm" @click="toggleReportsPanel" data-tip="Fechar painel" aria-label="Fechar painel"><Icon name="panelR" :size="14" /></button>
@@ -558,14 +581,20 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
       <div class="empty-content">
         <img src="/hivebr-logo.png" alt="hiveBr" class="empty-logo" />
         <p>Nenhum relatório aberto</p>
+        <div v-if="store.reports.length" class="saved-reports">
+          <p class="saved-title">Relatórios salvos</p>
+          <button v-for="r in store.reports" :key="r.id" class="btn sm" :title="r.name" @click="openReportTab(r)">
+            <Icon name="file" :size="12" /><span class="saved-name">{{ r.name }}</span>
+          </button>
+        </div>
         <button class="btn" @click="newReport"><Icon name="plus" :size="12" />Criar relatório</button>
       </div>
     </div>
 
     <div v-if="activeReport" class="reports-content">
       <div class="report-tabs" role="tablist">
-        <div v-for="r in store.reports" :key="r.id" class="tab" :class="{ active: r.id === store.activeReportId }" @click="store.activeReportId = r.id" role="tab" :aria-selected="r.id === store.activeReportId" tabindex="0" @keydown.enter="store.activeReportId = r.id">
-          <Icon name="file" :size="13" /><span>{{ r.name }}</span>
+        <div v-for="r in openReports" :key="r.id" class="tab" :class="{ active: r.id === store.activeReportId }" @click="store.activeReportId = r.id" role="tab" :aria-selected="r.id === store.activeReportId" tabindex="0" @keydown.enter="store.activeReportId = r.id">
+          <Icon name="file" :size="13" /><span class="tab-name">{{ r.name }}</span>
           <span class="close-tab" @click.stop="closeReportTab(r.id)" aria-label="Fechar aba" title="Fechar aba" tabindex="0" @keydown.enter.stop="closeReportTab(r.id)"><Icon name="close" :size="10" /></span>
         </div>
       </div>
@@ -666,6 +695,27 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
   flex: none; border-bottom: 1px solid var(--border);
 }
 .sp { flex: 1; }
+.report-list-wrap { position: relative; display: flex; }
+.report-menu {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 20;
+  min-width: 200px; max-width: 320px; max-height: 320px; overflow: auto;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 4px;
+}
+.report-menu-item {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 5px 8px;
+  border: none; background: none; color: var(--text); font-size: 12px;
+  cursor: pointer; border-radius: 3px; text-align: left;
+}
+.report-menu-item:hover { background: var(--surface-3); }
+.report-menu-item.active { color: var(--accent); }
+.report-menu-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.report-menu-tag { margin-left: auto; font-size: 10px; color: var(--text-faint); }
+.report-menu-empty { margin: 0; padding: 8px; color: var(--text-muted); font-size: 12px; }
+.saved-reports { display: flex; flex-direction: column; gap: 4px; max-width: 100%; }
+.saved-title { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); }
+.saved-reports .btn { justify-content: flex-start; max-width: 100%; }
+.saved-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .report-tabs {
   display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 6px;
   background: var(--surface-2); border-bottom: 1px solid var(--border);
@@ -674,12 +724,13 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
   display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 10px;
   background: var(--surface-3); border: none; border-radius: 4px 4px 0 0;
   font-size: 12px; color: var(--text-muted); cursor: pointer;
-  max-width: 180px; min-width: 80px;
+  max-width: 180px; min-width: 80px; overflow: hidden;
 }
 .tab:hover { background: var(--surface); color: var(--text); }
 .tab.active { background: var(--surface); color: var(--text); border-bottom: 2px solid var(--accent); }
+.tab-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .close-tab {
-  background: none; border: none; padding: 0; margin-left: 4px;
+  background: none; border: none; padding: 0; margin-left: 4px; flex: none;
   color: var(--text-faint); cursor: pointer; border-radius: 2px;
   display: flex; align-items: center; justify-content: center; width: 16px; height: 16px;
 }

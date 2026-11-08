@@ -9,6 +9,8 @@ let scipyPromise = null
 let scipyDone = false
 let runner = null
 
+const USER_DIR = '/hivebr/user_scripts'
+
 const send = (type, payload = {}) => self.postMessage({ type, payload })
 // `stage` is a stable key the UI translates; `text` is an optional raw detail (package-loader output).
 const boot = (stage, progress, text) => send('boot', text ? { stage, progress, text } : { stage, progress })
@@ -120,14 +122,44 @@ async function init({ zipUrl, sab, pyodideUrl, clientConfig }) {
   }
 }
 
-async function run({ code, autostart }) {
+// Editor tabs are written to a dedicated folder so the entry script can import
+// its siblings (`from my_module import ...`). The folder is cleared every run,
+// so removing a tab also removes the module.
+function safeName(name) {
+  const base = String(name || 'user_script.py').split(/[\\/]/).pop().trim()
+  const cleaned = base.replace(/[^\w.\- ]/g, '_') || 'user_script.py'
+  return /\.py$/i.test(cleaned) ? cleaned : `${cleaned}.py`
+}
+
+function syncUserFiles(files, mainName, mainCode) {
+  pyodide.FS.mkdirTree(USER_DIR)
+  for (const name of pyodide.FS.readdir(USER_DIR)) {
+    if (name === '.' || name === '..') continue
+    try { pyodide.FS.unlink(`${USER_DIR}/${name}`) } catch { /* ignore */ }
+  }
+  const written = new Set()
+  for (const f of files || []) {
+    if (!f || typeof f.code !== 'string') continue
+    const name = safeName(f.name)
+    if (written.has(name)) continue
+    written.add(name)
+    pyodide.FS.writeFile(`${USER_DIR}/${name}`, f.code, { encoding: 'utf8' })
+  }
+  const main = safeName(mainName)
+  pyodide.FS.writeFile(`${USER_DIR}/${main}`, String(mainCode ?? ''), { encoding: 'utf8' })
+  return main
+}
+
+async function run({ code, autostart, files, mainName }) {
   try {
     if (!scipyDone && scipyPromise) {
       boot('scipy', 0.97)
       await scipyPromise
     }
+    const main = syncUserFiles(files, mainName, code)
+    const scan = [code, ...(files || []).map((f) => f?.code)].filter((s) => typeof s === 'string').join('\n')
     try {
-      await pyodide.loadPackagesFromImports(code, quiet('imports', 0.98))
+      await pyodide.loadPackagesFromImports(scan, quiet('imports', 0.98))
     } catch (e) {
       send('notice', { level: 'warn', code: 'packages_failed', params: { error: String((e && e.message) || e) }, text: `Packages not loaded (${(e && e.message) || e})` })
     }
@@ -136,7 +168,7 @@ async function run({ code, autostart }) {
     send('run_started', {})
     let result
     try {
-      const json = runner.run_user_code(code, !!autostart)
+      const json = runner.run_user_code(code, !!autostart, main)
       result = JSON.parse(json)
     } catch (e) {
       result = {
@@ -162,6 +194,39 @@ function readFile({ id, path }) {
   }
 }
 
+// Validates YAML in Python, writes it to the client FS and reports back. Also
+// goes through `client_config`, so the UI persists it for the next boot.
+function writeConfig({ yaml, path }) {
+  try {
+    if (typeof yaml !== 'string') throw new Error('invalid YAML text')
+    const target = path || '/hivebr/config/default.yaml'
+    if (!/^\/hivebr\/config\/[^/]+\.ya?ml$/i.test(target)) throw new Error(`invalid config path: ${target}`)
+    pyodide.globals.set('_hivebr_yaml_text', yaml)
+    pyodide.globals.set('_hivebr_yaml_path', target)
+    pyodide.runPython(
+      "import yaml\n" +
+      "try:\n" +
+      "    _hivebr_cfg = yaml.safe_load(_hivebr_yaml_text)\n" +
+      "    if not isinstance(_hivebr_cfg, dict):\n" +
+      "        raise ValueError('the YAML root must be a mapping')\n" +
+      "    with open(_hivebr_yaml_path, 'w', encoding='utf-8') as _f:\n" +
+      "        _f.write(_hivebr_yaml_text)\n" +
+      "    _hivebr_err = ''\n" +
+      "except Exception as _e:\n" +
+      "    _hivebr_err = f'{type(_e).__name__}: {_e}'\n",
+    )
+    const err = pyodide.globals.get('_hivebr_err')
+    if (err) {
+      send('config_write', { ok: false, error: String(err) })
+      return
+    }
+    send('client_config', { path: target, b64: bytesToBase64(pyodide.FS.readFile(target)) })
+    send('config_write', { ok: true, path: target })
+  } catch (e) {
+    send('config_write', { ok: false, error: String((e && e.message) || e) })
+  }
+}
+
 self.onmessage = (ev) => {
   const m = ev.data
   if (!m) return
@@ -169,5 +234,6 @@ self.onmessage = (ev) => {
     case 'init': init(m); break
     case 'run': run(m); break
     case 'read_file': readFile(m); break
+    case 'write_config': writeConfig(m); break
   }
 }

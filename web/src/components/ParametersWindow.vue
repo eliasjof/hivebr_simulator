@@ -1,7 +1,8 @@
 <script setup>
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import FloatingWindow from './FloatingWindow.vue'
 import Icon from './Icon.vue'
+import ConfigEditor from './ConfigEditor.vue'
 import { store, scene, send, ask } from '../state/store.js'
 import { t } from '../i18n/index.js'
 
@@ -32,6 +33,7 @@ function set(d, raw) {
 const lidarOn = computed(() => !!scene.value?.lidar?.enabled)
 const noiseOn = computed(() => !!scene.value?.noise?.enabled)
 const live = computed(() => store.run.state === 'running')
+const editorOpen = ref(false)
 function toggleLidar() { send({ cmd: 'toggle_lidar' }); setTimeout(() => send({ cmd: 'refresh' }), 50) }
 function toggleNoise() { send({ cmd: 'toggle_noise' }); setTimeout(() => send({ cmd: 'refresh' }), 50) }
 async function clearObs() {
@@ -63,11 +65,13 @@ async function resetConfig() {
         <button class="btn sm" :disabled="!live" @click="send({ cmd: 'clear_waypoints' })"><Icon name="flag" :size="13" />{{ t('params.clear_waypoints') }}</button>
         <button class="btn sm" :disabled="!live" @click="clearObs"><Icon name="obstacle" :size="13" />{{ t('params.clear_obstacles') }}</button>
         <button class="btn sm" :disabled="!live" @click="send({ cmd: 'clear_path' })"><Icon name="eraser" :size="13" />{{ t('params.clear_trails') }}</button>
+        <button class="btn sm" :disabled="!store.boot.ready || live" :data-tip="t('params.edit_config_tip')" @click="editorOpen = true"><Icon name="file" :size="13" />{{ t('params.edit_config') }}</button>
         <button class="btn sm" :disabled="!live" :data-tip="t('params.reset_config_tip')" @click="resetConfig"><Icon name="reset" :size="13" />{{ t('params.reset_config') }}</button>
         <button class="btn sm primary" :disabled="!live" :data-tip="t('params.update_config_tip')" @click="send({ cmd: 'update_config' })"><Icon name="check" :size="13" />{{ t('params.update_config') }}</button>
         <button class="btn sm" :disabled="!live" @click="send({ cmd: 'save_config' })"><Icon name="download" :size="13" />{{ t('params.save_config') }}</button>
       </div>
     </div>
+    <ConfigEditor v-if="editorOpen" @close="editorOpen = false" />
   </FloatingWindow>
 </template>
 

@@ -10,6 +10,7 @@ const LS = {
   baseline: 'hivebr.web.baseline.v1',
   tabs: 'hivebr.web.tabs.v1',
   reports: 'hivebr.web.reports.v1',
+  openReports: 'hivebr.web.open_reports.v1',
   clientConfig: 'hivebr.web.client_config.v1',
 }
 function lsGet(key, fallback) {
@@ -115,6 +116,15 @@ function persistReports() {
 }
 watch(reports, persistReports, { deep: true })
 
+// Tabs abertas: fechar uma aba só a esconde; o relatório continua salvo e pode
+// ser reaberto pelo navegador (seção Relatórios) ou pelo menu do painel.
+const savedOpenReports = lsGet(LS.openReports, [])
+export const openReportIds = reactive(
+  (Array.isArray(savedOpenReports) ? savedOpenReports : [])
+    .filter((id) => initialReports.some((r) => r.id === id)),
+)
+watch(openReportIds, () => lsSet(LS.openReports, [...openReportIds]), { deep: true })
+
 // ---- captures (localStorage) ----
 // capturas antigas de boas-vindas não fazem mais parte da galeria
 const savedCaptures = lsGet('hivebr.web.captures.v1', []).filter((c) => c.id !== 'cap_welcome')
@@ -177,6 +187,7 @@ export const store = reactive({
   windows,
   // reports
   reports,
+  openReportIds,
   activeReportId: null,
   // captures
   captures,
@@ -464,13 +475,16 @@ export function toggleReportTemplateModal() {
   }
 }
 export function openReport(id) {
+  if (!reports.some((r) => r.id === id)) return
+  if (!openReportIds.includes(id)) openReportIds.push(id)
   store.activeReportId = id
   store.layout.reportsOpen = true
   store.layout.rightOpen = false
 }
 export function closeReportsPanel() {
+  // Keep the open tabs (and the active one) so reopening the panel returns to
+  // the same report; closing a tab is what hides a report.
   store.layout.reportsOpen = false
-  store.activeReportId = null
 }
 // ---- reports ----
 export function createReport() {
@@ -483,6 +497,8 @@ export function createReport() {
 export function deleteReport(id) {
   const i = reports.findIndex(r => r.id === id)
   if (i >= 0) reports.splice(i, 1)
+  const oi = openReportIds.indexOf(id)
+  if (oi >= 0) openReportIds.splice(oi, 1)
   if (store.activeReportId === id) store.activeReportId = null
 }
 // ---- captures ----
@@ -546,6 +562,11 @@ export function send(cmd) {
   }
   return ok
 }
+function scriptName(tab) {
+  const raw = String(tab?.name || store.fileName || 'user_script.py').trim()
+  return /\.py$/i.test(raw) ? raw : `${raw || 'user_script'}.py`
+}
+
 export function runCode() {
   if (!store.boot.ready || store.run.state !== 'idle') return
   consoleBus.clear()
@@ -559,7 +580,11 @@ export function runCode() {
   files.value = []
   store.figures = []
   saveNow()
-  client.run(store.code, { autostart: store.autostart }).catch((e) => {
+  // Every editor tab is a file; the active one is the entry script. This lets
+  // the main script import modules kept in the other tabs.
+  const active = store.tabs.find((tab) => tab.id === store.activeId)
+  const userFiles = store.tabs.map((tab) => ({ name: scriptName(tab), code: tab.code }))
+  client.run(store.code, { autostart: store.autostart, files: userFiles, mainName: scriptName(active) }).catch((e) => {
     store.run.state = 'idle'
     toast(t('toast.run_failed', { error: String(e?.message || e) }), 'error')
   })
@@ -699,6 +724,19 @@ export function startClient() {
 export async function readClientFile(path) {
   return client.readFile(path)
 }
+
+/** Validates and writes the client config YAML; resolves once the worker confirms. */
+export function writeClientConfig(yaml, path = '/hivebr/config/default.yaml') {
+  return new Promise((resolve, reject) => {
+    if (!client.worker) { reject(new Error('Worker unavailable')); return }
+    const off = client.on('config_write', (p) => {
+      off()
+      if (p?.ok) resolve(p)
+      else reject(new Error(p?.error || 'config write failed'))
+    })
+    if (!client.writeConfig(yaml, path)) { off(); reject(new Error('Worker unavailable')) }
+  })
+}
 export const params = ref(null)
 
 export function setNarrow(v) {
@@ -711,14 +749,19 @@ export function setNarrow(v) {
 export function pickFile() {
   const i = document.createElement('input')
   i.type = 'file'
+  i.multiple = true
   i.accept = '.py,text/x-python,text/plain'
+  i.style.display = 'none'
+  i.addEventListener('cancel', () => i.remove())
   i.onchange = async () => {
-    const f = i.files?.[0]
-    if (!f) return
-    addTab(f.name, await f.text())
+    const picked = [...(i.files || [])]
+    i.remove()
+    if (!picked.length) return
+    for (const f of picked) addTab(f.name, await f.text())
     openPanel('right')
-    toast(t('toast.file_opened', { name: f.name }))
+    toast(t('toast.file_opened', { name: picked.map((f) => f.name).join(', ') }))
   }
+  document.body.appendChild(i)
   i.click()
 }
 export function downloadScript() {
