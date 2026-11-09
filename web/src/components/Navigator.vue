@@ -2,9 +2,11 @@
 import { reactive, computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import Icon from './Icon.vue'
 import Modal from './Modal.vue'
+import ScriptActionsModal from './ScriptActionsModal.vue'
+import ReportActionsModal from './ReportActionsModal.vue'
 import {
-  store, scene, files, selectRobot, readClientFile, download, toast, toggleWindow, openWindow, focusEditor,
-  openReport, toggleReportTemplateModal, deleteCapture, renameCapture,
+  store, scene, files, selectRobot, readClientFile, download, toast, toggleWindow, openWindow,
+  openReport, toggleReportTemplateModal, deleteCapture, renameCapture, openTab,
 } from '../state/store.js'
 import { t, fmtNum, fmtInt } from '../i18n/index.js'
 
@@ -27,6 +29,9 @@ async function getFile(f) {
 function setAll(v) { Object.keys(open).forEach((k) => { open[k] = v }); menu.value = false }
 function tool(id) { store.tool = id }
 function handleOpenReport(r) { openReport(r.id) }
+const reportAction = ref(null)
+function openReportActions(r) { reportAction.value = r }
+function closeReportActions() { reportAction.value = null }
 function insertCapture(c) {
   // URI curta no markdown; resolvida na pré-visualização/exportação.
   const markdown = `![${c.name}](capture:${c.id})`
@@ -75,6 +80,11 @@ function doDelete() {
   toast(t('capture.deleted', { name }))
 }
 function insertPreview() { if (preview.value) insertCapture(preview.value) }
+
+// ---- ações de scripts (renomear / salvar arquivo / excluir) ----
+const scriptAction = ref(null)
+function openScriptActions(tab) { scriptAction.value = tab }
+function closeScriptActions() { scriptAction.value = null }
 // o menu "…" fecha com clique fora, Esc ou ao escolher um item
 function onDoc(e) { if (menu.value && !dd.value?.contains(e.target)) menu.value = false }
 function onKey(e) { if (menu.value && e.key === 'Escape') { menu.value = false; e.stopPropagation() } }
@@ -98,14 +108,21 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', onDoc); docu
     <div class="tree">
       <button class="node h" :aria-expanded="open.script" @click="open.script = !open.script"><Icon :name="open.script ? 'chevronDown' : 'chevron'" :size="12" /><Icon name="code" :size="14" /><span class="lb strong">{{ t('nav.script') }}</span></button>
       <div v-if="open.script" class="kids">
-        <button v-for="tab in store.tabs" :key="tab.id" class="node" :class="{ sel: tab.id === store.activeId }" @click="focusEditor()">
-          <span class="dot" /><span class="lb mono">{{ tabName(tab) }}</span><span v-if="tab.readonly" class="pill gray">{{ t('nav.readonly') }}</span></button>
+        <div v-for="tab in store.tabs" :key="tab.id" class="script-row">
+          <button class="node script-main" :class="{ sel: tab.id === store.activeId, closed: tab.open === false }" @click="openTab(tab.id)">
+            <span class="dot" /><span class="lb mono">{{ tabName(tab) }}</span><span v-if="tab.readonly" class="pill gray">{{ t('nav.readonly') }}</span><span v-else-if="tab.open === false" class="pill gray">{{ t('editor.closed_tag') }}</span>
+          </button>
+          <button class="btn ghost icon sm script-action" :aria-label="t('script.actions')" :data-tip="t('script.actions')" @click.stop="openScriptActions(tab)"><Icon name="dots" :size="12" /></button>
+        </div>
       </div>
 
       <button class="node h" :aria-expanded="open.reports" @click="open.reports = !open.reports"><Icon :name="open.reports ? 'chevronDown' : 'chevron'" :size="12" /><Icon name="file" :size="14" /><span class="lb strong">{{ t('report.section') }}</span><span class="count">{{ fmtInt(store.reports.length) }}</span></button>
       <div v-if="open.reports" class="kids">
         <p v-if="!store.reports.length" class="empty">{{ t('report.empty') }}</p>
-        <button v-for="r in store.reports" :key="r.id" class="node" @click="handleOpenReport(r)" :title="r.name"><span class="dot" /><span class="lb mono">{{ r.name }}</span></button>
+        <div v-for="r in store.reports" :key="r.id" class="report-row">
+          <button class="node report-main" @click="handleOpenReport(r)" :title="r.name"><span class="dot" /><span class="lb mono">{{ r.name }}</span></button>
+          <button class="btn ghost icon sm report-action" :aria-label="t('report.actions')" :data-tip="t('report.actions')" @click.stop="openReportActions(r)"><Icon name="dots" :size="12" /></button>
+        </div>
         <button class="node add" @click="toggleReportTemplateModal"><Icon name="plus" :size="12" /><span class="lb">{{ t('report.new') }}</span></button>
       </div>
 
@@ -178,6 +195,8 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', onDoc); docu
           </template>
         </template>
       </Modal>
+      <ScriptActionsModal v-if="scriptAction" :tab="scriptAction" @close="closeScriptActions" />
+      <ReportActionsModal v-if="reportAction" :report="reportAction" @close="closeReportActions" />
     </Teleport>
   </aside>
 </template>
@@ -196,6 +215,7 @@ button.node:hover { background: var(--surface-3); }
 .node.h > svg:first-child { color: var(--text-muted); }
 .strong { font-weight: 500; }
 .node.sel { background: var(--accent-soft); }
+.node.closed .lb { color: var(--text-muted); }
 .lb { flex: 1 0 auto; min-width: 2.5ch; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kids { margin-left: 18px; border-left: 1px solid var(--border); padding-left: var(--sp-1); }
 .kids .node { padding-left: 10px; }
@@ -213,6 +233,14 @@ button.node:hover { background: var(--surface-3); }
 .cap-row .cap-main { flex: 1; min-width: 0; }
 .cap-add { flex: none; opacity: .45; }
 .cap-row:hover .cap-add, .cap-add:focus-visible { opacity: 1; }
+.script-row { display: flex; align-items: center; gap: 2px; padding-right: 6px; }
+.script-row .script-main { flex: 1; min-width: 0; }
+.script-action { flex: none; opacity: .45; }
+.script-row:hover .script-action, .script-action:focus-visible { opacity: 1; }
+.report-row { display: flex; align-items: center; gap: 2px; padding-right: 6px; }
+.report-row .report-main { flex: 1; min-width: 0; }
+.report-action { flex: none; opacity: .45; }
+.report-row:hover .report-action, .report-action:focus-visible { opacity: 1; }
 .cap-view { display: flex; flex-direction: column; gap: var(--sp-4); }
 .cap-img { width: 100%; max-height: 60vh; object-fit: contain; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); }
 .cap-noimg { margin: 0; padding: 40px; text-align: center; border: 1px dashed var(--border); border-radius: var(--radius); }

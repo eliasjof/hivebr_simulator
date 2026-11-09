@@ -4,7 +4,9 @@ import { marked } from 'marked'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
 import Icon from './Icon.vue'
-import { store, toggleReportsPanel, toggleReportsMaximized, toggleReportTemplateModal, addCapture, captures, getCapture, openReport } from '../state/store.js'
+import ReportActionsModal from './ReportActionsModal.vue'
+import { store, toggleReportsPanel, toggleReportsMaximized, toggleReportTemplateModal, addCapture, captures, getCapture, openReport, deleteReport as deleteReportStore, toast } from '../state/store.js'
+import { t } from '../i18n/index.js'
 
 const localContent = ref('')
 const isEditing = ref(true)
@@ -19,6 +21,8 @@ const showTemplateModal = computed({
 
 const showCapturesModal = ref(false)
 const showReportList = ref(false)
+const showReportActions = ref(false)
+const actionReport = ref(null)
 
 function openCapturesModal() {
   showCapturesModal.value = true
@@ -339,16 +343,16 @@ function resolveCaptureUrls(html) {
   })
 }
 
-function exportPDF() {
-  if (!activeReport.value) return
-  const html = marked.parse(activeReport.value.content)
+function exportPDF(report = activeReport.value) {
+  if (!report) return
+  const html = marked.parse(report.content)
   const resolvedHtml = resolveCaptureUrls(html)
   const printWindow = window.open('', '_blank')
   printWindow.document.write(`
     <!DOCTYPE html>
     <html>
     <head>
-      <title>${activeReport.value.name}</title>
+      <title>${report.name}</title>
       <meta charset="utf-8">
       <style>
         @page { margin: 2cm; }
@@ -395,15 +399,15 @@ function exportPDF() {
   }
 }
 
-function exportHTML() {
-  if (!activeReport.value) return
-  const html = marked.parse(activeReport.value.content)
+function exportHTML(report = activeReport.value) {
+  if (!report) return
+  const html = marked.parse(report.content)
   const resolvedHtml = resolveCaptureUrls(html)
   const fullHTML = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>${activeReport.value.name}</title>
+  <title>${report.name}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.7; max-width: 900px; margin: 0 auto; padding: 40px 20px; color: #1e293b; background: #f8fafc; }
@@ -448,20 +452,20 @@ function exportHTML() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = activeReport.value.name.replace('.md', '.html')
+  a.download = report.name.replace('.md', '.html')
   document.body.appendChild(a)
   a.click()
   a.remove()
   URL.revokeObjectURL(url)
 }
 
-function exportMD() {
-  if (!activeReport.value) return
-  const blob = new Blob([activeReport.value.content], { type: 'text/markdown' })
+function exportMD(report = activeReport.value) {
+  if (!report) return
+  const blob = new Blob([report.content], { type: 'text/markdown' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = activeReport.value.name.endsWith('.md') ? activeReport.value.name : `${activeReport.value.name}.md`
+  a.download = report.name.endsWith('.md') ? report.name : `${report.name}.md`
   document.body.appendChild(a)
   a.click()
   a.remove()
@@ -488,21 +492,29 @@ function closeReportTab(id) {
 }
 
 function deleteReport(id) {
-  const idx = store.reports.findIndex(r => r.id === id)
-  if (idx < 0) return
-  if (!confirm(`Excluir "${store.reports[idx].name}"?`)) return
-  const ids = openReports.value.map(r => r.id)
-  const wasActive = store.activeReportId === id
-  const next = wasActive ? neighbourOf(id, ids) : null
-  store.reports.splice(idx, 1)
-  const oi = store.openReportIds.indexOf(id)
-  if (oi >= 0) store.openReportIds.splice(oi, 1)
-  if (wasActive) store.activeReportId = next
+  const r = store.reports.find(x => x.id === id)
+  if (!r) return
+  if (!confirm(t('report.confirm_delete'))) return
+  deleteReportStore(id)
+  toast(t('report.deleted', { name: r.name }))
+}
+
+// ---- ações do relatório (renomear / salvar arquivo / excluir) ----
+function openReportActions(r) {
+  actionReport.value = r
+  showReportActions.value = true
+  showReportList.value = false
+}
+
+function closeReportActions() {
+  showReportActions.value = false
+  actionReport.value = null
 }
 
 function openReportTab(r) {
   openReport(r.id)
   showReportList.value = false
+  closeReportActions()
 }
 
 function newReport() {
@@ -565,11 +577,14 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
         <button class="btn ghost icon sm" @click.stop="showReportList = !showReportList" data-tip="Abrir relatório" aria-label="Abrir relatório" :aria-expanded="showReportList"><Icon name="list" :size="14" /></button>
         <div v-if="showReportList" class="report-menu" role="menu" @click.stop>
           <p v-if="!store.reports.length" class="report-menu-empty">Nenhum relatório salvo</p>
-          <button v-for="r in store.reports" :key="r.id" class="report-menu-item" :class="{ active: r.id === store.activeReportId }" role="menuitem" :title="r.name" @click="openReportTab(r)">
-            <Icon name="file" :size="13" />
-            <span class="report-menu-name">{{ r.name }}</span>
-            <span v-if="store.openReportIds.includes(r.id)" class="report-menu-tag">aberta</span>
-          </button>
+          <div v-for="r in store.reports" :key="r.id" class="report-menu-row">
+            <button class="report-menu-item" :class="{ active: r.id === store.activeReportId }" role="menuitem" :title="r.name" @click="openReportTab(r)">
+              <Icon name="file" :size="13" />
+              <span class="report-menu-name">{{ r.name }}</span>
+              <span v-if="store.openReportIds.includes(r.id)" class="report-menu-tag">aberta</span>
+            </button>
+            <button class="btn ghost icon sm report-menu-action" :aria-label="t('report.actions')" :data-tip="t('report.actions')" @click.stop="openReportActions(r)"><Icon name="dots" :size="13" /></button>
+          </div>
         </div>
       </div>
       <button class="btn ghost icon sm" @click="newReport" data-tip="Novo relatório" aria-label="Novo relatório"><Icon name="plus" :size="14" /></button>
@@ -583,9 +598,12 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
         <p>Nenhum relatório aberto</p>
         <div v-if="store.reports.length" class="saved-reports">
           <p class="saved-title">Relatórios salvos</p>
-          <button v-for="r in store.reports" :key="r.id" class="btn sm" :title="r.name" @click="openReportTab(r)">
-            <Icon name="file" :size="12" /><span class="saved-name">{{ r.name }}</span>
-          </button>
+          <div v-for="r in store.reports" :key="r.id" class="saved-row">
+            <button class="btn sm" :title="r.name" @click="openReportTab(r)">
+              <Icon name="file" :size="12" /><span class="saved-name">{{ r.name }}</span>
+            </button>
+            <button class="btn ghost icon sm" :aria-label="t('report.actions')" :data-tip="t('report.actions')" @click.stop="openReportActions(r)"><Icon name="dots" :size="13" /></button>
+          </div>
         </div>
         <button class="btn" @click="newReport"><Icon name="plus" :size="12" />Criar relatório</button>
       </div>
@@ -595,6 +613,7 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
       <div class="report-tabs" role="tablist">
         <div v-for="r in openReports" :key="r.id" class="tab" :class="{ active: r.id === store.activeReportId }" @click="store.activeReportId = r.id" role="tab" :aria-selected="r.id === store.activeReportId" tabindex="0" @keydown.enter="store.activeReportId = r.id">
           <Icon name="file" :size="13" /><span class="tab-name">{{ r.name }}</span>
+          <button class="tab-actions" :aria-label="t('report.actions')" :data-tip="t('report.actions')" @click.stop="openReportActions(r)"><Icon name="dots" :size="10" /></button>
           <span class="close-tab" @click.stop="closeReportTab(r.id)" aria-label="Fechar aba" title="Fechar aba" tabindex="0" @keydown.enter.stop="closeReportTab(r.id)"><Icon name="close" :size="10" /></span>
         </div>
       </div>
@@ -608,6 +627,7 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
             <button class="btn ghost icon sm" @click="exportMD" data-tip="Export .md"><Icon name="download" :size="14" /></button>
             <button class="btn ghost icon sm" @click="exportHTML" data-tip="Export HTML"><Icon name="code" :size="14" /></button>
             <button class="btn ghost icon sm" @click="exportPDF" data-tip="Export PDF"><Icon name="file" :size="14" /></button>
+            <button class="btn ghost icon sm" @click="openReportActions(activeReport)" :data-tip="t('report.actions')" :aria-label="t('report.actions')"><Icon name="dots" :size="14" /></button>
             <button class="btn ghost icon sm" @click="openCapturesModal" data-tip="Inserir captura" aria-label="Inserir captura de tela"><Icon name="image" :size="14" /></button>
             <button class="btn ghost icon sm danger" @click="deleteReport(activeReport.id)" data-tip="Excluir relatório" aria-label="Excluir relatório"><Icon name="trash" :size="14" /></button>
             <span class="sp" />
@@ -653,6 +673,11 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
         </footer>
       </div>
     </div>
+
+    <!-- Report Actions Modal -->
+    <Teleport to="body">
+      <ReportActionsModal v-if="showReportActions && actionReport" :report="actionReport" @close="closeReportActions" />
+    </Teleport>
 
     <!-- Captures Modal -->
     <div v-if="showCapturesModal" class="modal-overlay" @click.self="showCapturesModal = false">
@@ -707,6 +732,10 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
   border: none; background: none; color: var(--text); font-size: 12px;
   cursor: pointer; border-radius: 3px; text-align: left;
 }
+.report-menu-row { display: flex; align-items: center; gap: 2px; }
+.report-menu-row .report-menu-item { flex: 1; min-width: 0; }
+.report-menu-action { flex: none; opacity: .5; }
+.report-menu-row:hover .report-menu-action, .report-menu-action:focus-visible { opacity: 1; }
 .report-menu-item:hover { background: var(--surface-3); }
 .report-menu-item.active { color: var(--accent); }
 .report-menu-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -714,7 +743,10 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
 .report-menu-empty { margin: 0; padding: 8px; color: var(--text-muted); font-size: 12px; }
 .saved-reports { display: flex; flex-direction: column; gap: 4px; max-width: 100%; }
 .saved-title { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); }
-.saved-reports .btn { justify-content: flex-start; max-width: 100%; }
+.saved-row { display: flex; align-items: center; gap: 2px; }
+.saved-row .btn.sm { flex: 1; min-width: 0; justify-content: flex-start; max-width: 100%; }
+.saved-row .btn.ghost { flex: none; opacity: .5; }
+.saved-row:hover .btn.ghost, .saved-row .btn.ghost:focus-visible { opacity: 1; }
 .saved-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .report-tabs {
   display: flex; flex-wrap: wrap; gap: 2px; padding: 4px 6px;
@@ -734,6 +766,14 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
   color: var(--text-faint); cursor: pointer; border-radius: 2px;
   display: flex; align-items: center; justify-content: center; width: 16px; height: 16px;
 }
+.tab-actions {
+  background: none; border: none; padding: 0; margin-left: 4px; flex: none;
+  color: var(--text-faint); cursor: pointer; border-radius: 2px;
+  display: flex; align-items: center; justify-content: center; width: 16px; height: 16px;
+  opacity: 0;
+}
+.tab:hover .tab-actions, .tab.active .tab-actions, .tab-actions:focus-visible { opacity: 1; }
+.tab-actions:hover { background: var(--surface-3); color: var(--text); }
 .close-tab:hover { background: var(--danger-soft); color: var(--danger); }
 .empty-state {
   flex: 1; display: flex; align-items: center; justify-content: center;

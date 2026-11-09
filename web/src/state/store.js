@@ -94,8 +94,14 @@ if (!tabsInit || !Array.isArray(tabsInit.tabs) || !tabsInit.tabs.length) {
   const base = localStorage.getItem(LS.baseline) != null ? lsGet(LS.baseline, '') : (defaultExample?.source ?? '')
   tabsInit = { activeId: 't1', tabs: [{ id: 't1', name: defaultExample ? `${defaultExample.id}.py` : t('script.default_name'), code: legacy, baseline: base }] }
 }
-if (!tabsInit.tabs.some((t) => t.id === tabsInit.activeId)) tabsInit.activeId = tabsInit.tabs[0].id
+// Abas fechadas continuam salvas (open: false) e podem ser reabertas.
+tabsInit.tabs.forEach((t) => { if (t.open === undefined) t.open = true })
+if (!tabsInit.tabs.some((t) => t.id === tabsInit.activeId && t.open !== false)) {
+  const firstOpen = tabsInit.tabs.find((t) => t.open !== false)
+  tabsInit.activeId = firstOpen ? firstOpen.id : null
+}
 const activeInit = tabsInit.tabs.find((t) => t.id === tabsInit.activeId)
+  || { name: t('script.default_name'), code: '', baseline: '' }
 
 const LAYOUT_DEFAULTS = { leftOpen: true, rightOpen: true, bottomOpen: true, leftW: 240, rightW: 460, bottomH: 220, bottomTab: 'console', rightMaximized: false, reportsOpen: false, reportsW: 460, reportsMaximized: false, activeReportId: null, showReportTemplateModal: false }
 const client = new SimClient({ clientConfig: lsGet(LS.clientConfig, null) })
@@ -323,28 +329,75 @@ function loadTab(t) {
   store.codeRev++
 }
 export function switchTab(id) {
-  if (id === store.activeId) return
-  syncActive()
   const t = store.tabs.find((x) => x.id === id)
-  if (t) { loadTab(t); store.error = null; saveNow() }
+  if (!t) return
+  if (t.id !== store.activeId) syncActive()
+  t.open = true
+  if (t.id !== store.activeId) { loadTab(t); store.error = null }
+  saveNow()
 }
 export function addTab(name, code, { readonly = false, activate = true } = {}) {
   syncActive()
-  const t = { id: 't' + ++tabSeq, name, code, baseline: code, readonly }
+  const t = { id: 't' + ++tabSeq, name, code, baseline: code, readonly, open: true }
   store.tabs.push(t)
   if (activate) loadTab(t)
   saveNow()
   return t
 }
+// Abrir/reabrir uma aba fechada (o arquivo continua salvo em store.tabs).
+export function openTab(id) {
+  const t = store.tabs.find((x) => x.id === id)
+  if (!t) return
+  t.open = true
+  switchTab(id)
+  openPanel('right')
+  saveNow()
+}
 export function closeTab(id) {
-  const i = store.tabs.findIndex((t) => t.id === id)
-  if (i < 0) return
+  const t = store.tabs.find((x) => x.id === id)
+  if (!t) return
   const wasActive = id === store.activeId
   if (wasActive) syncActive()
-  store.tabs.splice(i, 1)
-  if (!store.tabs.length) addTab(t('script.default_name'), t('script.new_template'))
-  else if (wasActive) loadTab(store.tabs[Math.min(i, store.tabs.length - 1)])
+  // Fechar só esconde: o arquivo permanece salvo em store.tabs para reabrir.
+  const i = store.tabs.filter((x) => x.open !== false).indexOf(t)
+  t.open = false
+  if (wasActive) activateNeighbour(i)
   saveNow()
+}
+// Excluir de verdade (ação confirmada na interface).
+export function deleteScript(id) {
+  const t = store.tabs.find((x) => x.id === id)
+  if (!t) return
+  const wasActive = id === store.activeId
+  if (wasActive) syncActive()
+  const i = store.tabs.filter((x) => x.open !== false).indexOf(t)
+  store.tabs.splice(store.tabs.indexOf(t), 1)
+  if (wasActive) activateNeighbour(i)
+  saveNow()
+}
+export function renameScript(id, name) {
+  const tab = store.tabs.find((x) => x.id === id)
+  const clean = String(name ?? '').trim()
+  if (!tab || !clean) return null
+  tab.name = /\.py$/i.test(clean) ? clean : `${clean}.py`
+  if (id === store.activeId) store.fileName = tab.name
+  saveNow()
+  return tab
+}
+function activateNeighbour(from) {
+  const open = store.tabs.filter((x) => x.open !== false)
+  if (open.length) loadTab(open[Math.max(0, Math.min(from, open.length - 1))])
+  else clearActive()
+}
+function clearActive() {
+  store.activeId = null
+  store.code = ''
+  store.baseline = ''
+  store.fileName = t('script.default_name')
+  store.readonly = false
+  store.error = null
+  store.saveState = 'saved'
+  store.codeRev++
 }
 export function setCode(text) {
   if (store.readonly) return
@@ -356,14 +409,23 @@ export function setCode(text) {
 export function saveNow() {
   clearTimeout(saveTimer)
   syncActive()
+  const userTabs = store.tabs.filter((t) => !t.readonly)
+  const firstOpen = userTabs.find((t) => t.open !== false)
+  const activeUser = userTabs.find((t) => t.id === store.activeId && t.open !== false)
   lsSet(LS.tabs, {
-    activeId: store.activeId === 'demo' || store.readonly ? (store.tabs.find((t) => !t.readonly)?.id) : store.activeId,
-    tabs: store.tabs.filter((t) => !t.readonly).map((t) => ({ id: t.id, name: t.name, code: t.code, baseline: t.baseline })),
+    activeId: activeUser?.id ?? firstOpen?.id ?? userTabs[0]?.id ?? null,
+    tabs: userTabs.map((t) => ({ id: t.id, name: t.name, code: t.code, baseline: t.baseline, open: t.open !== false })),
   })
   store.saveState = 'saved'
 }
 export function replaceCode(text, { baseline = true, fileName } = {}) {
-  if (store.readonly) { addTab(fileName || t('script.default_name'), text); store.error = null; return }
+  // Sem aba ativa (todos os scripts fechados) ou em modo somente leitura,
+  // carregar um exemplo precisa criar uma nova aba de script.
+  if (store.readonly || !activeTab()) {
+    addTab(fileName || t('script.default_name'), text)
+    store.error = null
+    return
+  }
   store.code = text
   if (baseline) store.baseline = text
   if (fileName) store.fileName = fileName
@@ -401,7 +463,7 @@ export async function runDemo() {
   const ex = catalog.value.find((e) => e.id === DEMO_EXAMPLE_ID)
   if (!ex) { toast(t('toast.demo_unavailable'), 'warn'); return }
   const existing = store.tabs.find((x) => x.readonly)
-  if (existing) { syncActive(); existing.code = ex.source; loadTab(existing) } else addTab(t('tab.demo'), ex.source, { readonly: true })
+  if (existing) { syncActive(); existing.code = ex.source; existing.open = true; loadTab(existing) } else addTab(t('tab.demo'), ex.source, { readonly: true })
   store.error = null
   openPanel('right')
   if (store.run.state !== 'idle') {
@@ -494,12 +556,29 @@ export function createReport() {
   openReport(id)
   return r
 }
+export function renameReport(id, name) {
+  const r = reports.find(r => r.id === id)
+  const clean = String(name ?? '').trim()
+  if (!r || !clean) return null
+  r.name = /\.md$/i.test(clean) ? clean : `${clean}.md`
+  r.modified = Date.now()
+  return r
+}
 export function deleteReport(id) {
   const i = reports.findIndex(r => r.id === id)
-  if (i >= 0) reports.splice(i, 1)
+  if (i < 0) return null
+  const wasActive = store.activeReportId === id
+  let next = store.activeReportId
+  if (wasActive) {
+    const oi = openReportIds.indexOf(id)
+    const remaining = openReportIds.filter(x => x !== id)
+    next = remaining[oi - 1] ?? remaining[oi] ?? remaining[0] ?? null
+  }
+  const removed = reports.splice(i, 1)[0]
   const oi = openReportIds.indexOf(id)
   if (oi >= 0) openReportIds.splice(oi, 1)
-  if (store.activeReportId === id) store.activeReportId = null
+  if (wasActive) store.activeReportId = next
+  return removed
 }
 // ---- captures ----
 export function addCapture(dataUrl, name = null) {
@@ -569,6 +648,8 @@ function scriptName(tab) {
 
 export function runCode() {
   if (!store.boot.ready || store.run.state !== 'idle') return
+  const active = store.tabs.find((tab) => tab.id === store.activeId)
+  if (!active) { toast(t('toast.no_script'), 'warn'); return }
   consoleBus.clear()
   store.error = null
   store.run.state = 'starting'
@@ -582,7 +663,6 @@ export function runCode() {
   saveNow()
   // Every editor tab is a file; the active one is the entry script. This lets
   // the main script import modules kept in the other tabs.
-  const active = store.tabs.find((tab) => tab.id === store.activeId)
   const userFiles = store.tabs.map((tab) => ({ name: scriptName(tab), code: tab.code }))
   client.run(store.code, { autostart: store.autostart, files: userFiles, mainName: scriptName(active) }).catch((e) => {
     store.run.state = 'idle'
@@ -764,10 +844,12 @@ export function pickFile() {
   document.body.appendChild(i)
   i.click()
 }
-export function downloadScript() {
-  const name = /\.py$/.test(store.fileName) ? store.fileName : store.fileName + '.py'
-  download(name, new Blob([store.code], { type: 'text/x-python' }))
-  saveNow()
+export function downloadScript(tab = null) {
+  if (!tab && !activeTab()) return
+  const name = scriptName(tab || activeTab())
+  const code = tab ? tab.code : store.code
+  download(name, new Blob([code], { type: 'text/x-python' }))
+  if (!tab) saveNow()
 }
 /** Catálogo no idioma atual (reativo). */
 export const catalog = computed(() => getCatalog(locale.value))
