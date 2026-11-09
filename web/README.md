@@ -182,6 +182,29 @@ arquivos estáticos e erros. `/assets/` tem cache de um ano e imutável. `index.
 endpoint do healthcheck. O contêiner roda com sistema de arquivos somente leitura
 (`/tmp` é tmpfs), `cap_drop: ALL`, `no-new-privileges` e limite de 128 MB de memória.
 
+### Deploy automático no servidor
+
+`web/deploy/` tem um deploy por *pull*: um timer do systemd consulta o GitHub a
+cada 2 minutos e, se a branch acompanhada recebeu commits, atualiza o clone e roda
+`docker compose up -d --build`. Não abre porta de entrada nem guarda segredos.
+Se o build falhar, o contêiner anterior continua no ar e o mesmo commit não é
+tentado de novo até haver outro.
+
+```bash
+# no servidor, com o repositório clonado em /docker/hivebr
+install -m 755 web/deploy/hivebr-deploy.sh /usr/local/bin/
+install -m 644 web/deploy/hivebr-deploy.{service,timer} /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now hivebr-deploy.timer
+
+journalctl -u hivebr-deploy -n 30      # histórico
+systemctl list-timers hivebr-deploy    # próxima verificação
+hivebr-deploy.sh --force               # reimplanta o commit atual
+```
+
+A branch acompanhada fica em `Environment=HIVEBR_BRANCH=` no `hivebr-deploy.service`
+(hoje `feature/browser-simulator`; troque para `main` quando for integrada).
+Depois de alterar os arquivos em `web/deploy/`, copie-os de novo como acima.
+
 ## Testes
 
 Execute a partir de `web/`:

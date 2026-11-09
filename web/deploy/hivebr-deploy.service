@@ -1,0 +1,13 @@
+[Unit]
+Description=Atualiza o HiveBR web a partir do GitHub
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Environment=HIVEBR_DIR=/docker/hivebr
+Environment=HIVEBR_BRANCH=feature/browser-simulator
+ExecStart=/usr/local/bin/hivebr-deploy.sh
+TimeoutStartSec=20min
+Nice=10
