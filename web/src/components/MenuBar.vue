@@ -13,7 +13,7 @@ const sub = ref(null)    // índice do submenu aberto dentro do menu atual
 const root = ref(null)
 const idle = computed(() => store.run.state === 'idle')
 const live = computed(() => store.run.state === 'running')
-const examples = computed(() => catalog.value.filter((e) => e.id !== 'demonstracao').slice(0, 8))
+const examples = computed(() => catalog.value.filter((e) => e.id !== 'demonstracao'))
 
 const menus = computed(() => [
   { id: 'file', label: t('menu.file'), items: [

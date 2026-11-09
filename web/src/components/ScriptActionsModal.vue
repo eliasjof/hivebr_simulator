@@ -5,13 +5,15 @@ import Modal from './Modal.vue'
 import {
   store, renameScript, deleteScript, downloadScript, openTab, toast,
 } from '../state/store.js'
-import { t } from '../i18n/index.js'
+import { t, locale } from '../i18n/index.js'
+import { translateText } from '../services/translate.js'
 
 const props = defineProps({ tab: { type: Object, required: true } })
 const emit = defineEmits(['close'])
 
 const draftName = ref(props.tab.name)
 const confirmDelete = ref(false)
+const translating = ref(false)
 
 watch(() => props.tab, (tab) => {
   draftName.value = tab?.name || ''
@@ -43,6 +45,33 @@ function openIt() {
   openTab(props.tab.id)
   emit('close')
 }
+
+async function translateScript() {
+  if (translating.value) return
+  translating.value = true
+  try {
+    const targetLang = locale.value === 'pt-BR' ? 'en' : 'pt-BR'
+    const translated = await translateText(props.tab.code, locale.value, targetLang)
+    if (translated !== props.tab.code) {
+      // Update the tab's code
+      const tab = store.tabs.find(t => t.id === props.tab.id)
+      if (tab) {
+        tab.code = translated
+        tab.baseline = translated
+        store.codeRev++
+        // Force save
+        const { saveNow } = await import('../state/store.js')
+        saveNow()
+      }
+      const langLabel = targetLang === 'pt-BR' ? t('lang.pt') : t('lang.en')
+      toast(t('toast.translated', { lang: langLabel }))
+    } else {
+      toast(t('toast.translation_failed'), 'warn')
+    }
+  } finally {
+    translating.value = false
+  }
+}
 </script>
 
 <template>
@@ -59,6 +88,7 @@ function openIt() {
     <template #footer>
       <button class="btn sm" @click="openIt"><Icon name="open" :size="12" />{{ t('script.open') }}</button>
       <button class="btn sm" @click="saveFile"><Icon name="download" :size="12" />{{ t('script.download') }}</button>
+      <button class="btn sm" :disabled="translating" @click="translateScript"><Icon name="translate" :size="12" />{{ translating ? t('script.translating') : t('script.translate') }}</button>
       <span class="foot-sp" />
       <button v-if="!confirmDelete" class="btn sm danger" @click="confirmDelete = true"><Icon name="trash" :size="12" />{{ t('script.delete') }}</button>
       <template v-else>
