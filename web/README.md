@@ -185,7 +185,7 @@ endpoint do healthcheck. O contêiner roda com sistema de arquivos somente leitu
 ### Deploy automático no servidor
 
 `web/deploy/` tem um deploy por *pull*: um timer do systemd consulta o GitHub a
-cada 2 minutos e, se a branch acompanhada recebeu commits, atualiza o clone e roda
+cada 30 minutos e, se a branch acompanhada recebeu commits, atualiza o clone e roda
 `docker compose up -d --build`. Não abre porta de entrada nem guarda segredos.
 Se o build falhar, o contêiner anterior continua no ar e o mesmo commit não é
 tentado de novo até haver outro.
