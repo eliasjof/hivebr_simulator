@@ -449,7 +449,8 @@ function exportPDF(report = activeReport.value) {
   if (!report) return
   const fail = (err) => toast(t('report.export_failed', { error: String(err?.message || err) }), 'error')
   try {
-    const html = marked.parse(report.content)
+    const content = typeof report.content === 'string' ? report.content : ''
+    const html = marked.parse(content)
     printHtml(buildPrintDocument(report, resolveCaptureUrls(html)), fail)
   } catch (err) {
     fail(err)
@@ -458,7 +459,8 @@ function exportPDF(report = activeReport.value) {
 
 function exportHTML(report = activeReport.value) {
   if (!report) return
-  const html = marked.parse(report.content)
+  const content = typeof report.content === 'string' ? report.content : ''
+  const html = marked.parse(content)
   const resolvedHtml = resolveCaptureUrls(html)
   const fullHTML = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -518,7 +520,8 @@ function exportHTML(report = activeReport.value) {
 
 function exportMD(report = activeReport.value) {
   if (!report) return
-  const blob = new Blob([report.content], { type: 'text/markdown' })
+  const content = typeof report.content === 'string' ? report.content : ''
+  const blob = new Blob([content], { type: 'text/markdown' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
