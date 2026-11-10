@@ -34,7 +34,7 @@ def _normalize_prints(tree):
 
 
 def logic_dump(path):
-    tree = ast.parse(path.read_text())
+    tree = ast.parse(path.read_text(encoding="utf-8"))
     return ast.dump(_normalize_prints(_strip_docstrings(tree)))
 
 
@@ -42,7 +42,7 @@ def test_en_templates_exist_and_are_english():
     en = sorted(p.name for p in (TPL / "en").glob("*.py"))
     check(en == NAMES, (en, NAMES))
     for n in NAMES:
-        text = (TPL / "en" / n).read_text()
+        text = (TPL / "en" / n).read_text(encoding="utf-8")
         check(not any(c in text for c in "áàâãçéêíóôõúÁÃÇÉÓ"), f"{n}: accented (Portuguese) text left in the English version")
 
 
@@ -53,7 +53,7 @@ def test_en_templates_have_identical_logic():
 
 def _run_template(path, frames, expect_text):
     with env() as e:
-        r = run_for(e, path.read_text(), frames)
+        r = run_for(e, path.read_text(encoding="utf-8"), frames)
         check(r["ok"] and r["error"] is None, (path.name, r))
         check(expect_text in e.stdout, (path.name, e.stdout[-300:]))
         check(moved(e.host) > 0.05 or path.name.startswith("seguidor"), f"{path.name}: robots did not move")
@@ -69,7 +69,6 @@ def test_templates_run_in_both_languages():
         "swarm_descentralizado.py": ("Enxame com", "Swarm with"),
         "demonstracao.py": ("Demonstração:", "Demo:"),
     }
-    for n in NAMES:
-        pt, en = expect[n]
+    for n, (pt, en) in expect.items():
         _run_template(TPL / n, 80, pt)
         _run_template(TPL / "en" / n, 80, en)

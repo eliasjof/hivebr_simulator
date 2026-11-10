@@ -27,8 +27,7 @@ def full_controller(robot, world, goal, cfg, dt, lidar_readings=None, r_tol=None
             "omega": 0.0
         }
     """
-    Non-holonomic controller (position and orientation), considering transformation
-    to polar coordinates Kanayama (1990).
+    Non-holonomic controller (position and orientation), considering transformation to polar coordinates Kanayama (1990).
     """
 
     # current waypoint (target)

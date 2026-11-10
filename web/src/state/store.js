@@ -92,7 +92,7 @@ let tabsInit = lsGet(LS.tabs, null)
 if (!tabsInit || !Array.isArray(tabsInit.tabs) || !tabsInit.tabs.length) {
   const legacy = localStorage.getItem(LS.code) != null ? lsGet(LS.code, '') : (defaultExample?.source ?? '')
   const base = localStorage.getItem(LS.baseline) != null ? lsGet(LS.baseline, '') : (defaultExample?.source ?? '')
-  tabsInit = { activeId: 't1', tabs: [{ id: 't1', name: defaultExample ? `${defaultExample.id}.py` : t('script.default_name'), code: legacy, baseline: base }] }
+  tabsInit = { activeId: 't1', tabs: [{ id: 't1', name: defaultExample ? defaultExample.filename : t('script.default_name'), code: legacy, baseline: base }] }
 }
 // Abas fechadas continuam salvas (open: false) e podem ser reabertas.
 tabsInit.tabs.forEach((t) => { if (t.open === undefined) t.open = true })
@@ -110,8 +110,8 @@ const client = new SimClient({ clientConfig: lsGet(LS.clientConfig, null) })
 const savedReports = lsGet(LS.reports, [])
 const initialReports = savedReports.length ? savedReports : [{
   id: 'rpt_welcome',
-  name: 'welcome.md',
-  content: '# Welcome\n\nStart writing reports here...',
+  name: t('report.welcome_name'),
+  content: t('report.welcome_content'),
   created: Date.now(),
   modified: Date.now()
 }]
@@ -448,7 +448,7 @@ export async function confirmDiscard(what) {
 }
 export async function loadExample(ex) {
   if (!(await confirmDiscard(t('discard.what_example', { title: ex.title })))) return false
-  replaceCode(ex.source, { fileName: `${ex.id}.py` })
+  replaceCode(ex.source, { fileName: ex.filename || `${ex.id}.py` })
   store.modals.examples = false
   openPanel('right')
   toast(t('toast.example_loaded', { title: ex.title }))
@@ -552,7 +552,7 @@ export function closeReportsPanel() {
 // ---- reports ----
 export function createReport() {
   const id = 'rpt_' + Date.now()
-  const r = { id, name: `report_${reports.length + 1}.md`, content: '# New Report\n\n', created: Date.now(), modified: Date.now() }
+  const r = { id, name: t('report.default_name', { n: reports.length + 1 }), content: t('report.new_content'), created: Date.now(), modified: Date.now() }
   reports.push(r)
   openReport(id)
   return r
@@ -584,7 +584,7 @@ export function deleteReport(id) {
 // ---- captures ----
 export function addCapture(dataUrl, name = null) {
   const id = 'cap_' + Date.now()
-  const capture = { id, name: name || `sim_${captures.length + 1}.png`, dataUrl, created: Date.now() }
+  const capture = { id, name: name || t('capture.default_name', { n: captures.length + 1 }), dataUrl, created: Date.now() }
   captures.unshift(capture) // newest first
   if (captures.length > 50) captures.pop() // limit to 50
   return capture

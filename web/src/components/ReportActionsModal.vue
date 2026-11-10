@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import Modal from './Modal.vue'
 import {
-  renameReport, deleteReport, openReport, download, toast,
+  store, renameReport, deleteReport, openReport, download, toast,
 } from '../state/store.js'
 import { t, locale } from '../i18n/index.js'
 import { translateText } from '../services/translate.js'
