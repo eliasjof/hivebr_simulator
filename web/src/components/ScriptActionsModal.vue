@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import Modal from './Modal.vue'
 import {
-  store, renameScript, deleteScript, downloadScript, openTab, toast,
+  store, renameScript, deleteScript, downloadScript, openTab, toast, isPythonFile,
 } from '../state/store.js'
 import { t, locale } from '../i18n/index.js'
 import { translateText } from '../services/translate.js'
@@ -88,7 +88,7 @@ async function translateScript() {
     <template #footer>
       <button class="btn sm" @click="openIt"><Icon name="open" :size="12" />{{ t('script.open') }}</button>
       <button class="btn sm" @click="saveFile"><Icon name="download" :size="12" />{{ t('script.download') }}</button>
-      <button class="btn sm" :disabled="translating" @click="translateScript"><Icon name="translate" :size="12" />{{ translating ? t('script.translating') : t('script.translate') }}</button>
+      <button v-if="isPythonFile(tab.name)" class="btn sm" :disabled="translating" @click="translateScript"><Icon name="translate" :size="12" />{{ translating ? t('script.translating') : t('script.translate') }}</button>
       <span class="foot-sp" />
       <button v-if="!confirmDelete" class="btn sm danger" @click="confirmDelete = true"><Icon name="trash" :size="12" />{{ t('script.delete') }}</button>
       <template v-else>

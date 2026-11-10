@@ -1,6 +1,7 @@
 // Worker that hosts Pyodide and runs the hiveBr simulator.
 // While Python runs, this thread is blocked: UI commands arrive through the SAB ring.
 import { RingReader } from './ring.js'
+import { safeFileName } from '../utils/fileNames.js'
 
 let pyodide = null
 let reader = null
@@ -124,12 +125,9 @@ async function init({ zipUrl, sab, pyodideUrl, clientConfig }) {
 
 // Editor tabs are written to a dedicated folder so the entry script can import
 // its siblings (`from my_module import ...`). The folder is cleared every run,
-// so removing a tab also removes the module.
-function safeName(name) {
-  const base = String(name || 'user_script.py').split(/[\\/]/).pop().trim()
-  const cleaned = base.replace(/[^\w.\- ]/g, '_') || 'user_script.py'
-  return /\.py$/i.test(cleaned) ? cleaned : `${cleaned}.py`
-}
+// so removing a tab also removes the module. Helper extensions (.json, .csv,
+// .txt…) are kept so scripts can read them too.
+const safeName = safeFileName
 
 function syncUserFiles(files, mainName, mainCode) {
   pyodide.FS.mkdirTree(USER_DIR)

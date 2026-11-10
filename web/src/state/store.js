@@ -2,6 +2,9 @@ import { reactive, shallowRef, markRaw, ref, watch, computed } from 'vue'
 import { SimClient } from '../runtime/client.js'
 import { getCatalog, DEFAULT_EXAMPLE_ID, DEMO_EXAMPLE_ID } from '../examples/catalog.js'
 import { t, tOr, locale, fmtNum } from '../i18n/index.js'
+import { fileExtension, isPythonFile, normalizeFileName } from '../utils/fileNames.js'
+
+export { fileExtension, isPythonFile, normalizeFileName }
 
 const LS = {
   windows: 'hivebr.web.windows.v1',
@@ -380,7 +383,7 @@ export function renameScript(id, name) {
   const tab = store.tabs.find((x) => x.id === id)
   const clean = String(name ?? '').trim()
   if (!tab || !clean) return null
-  tab.name = /\.py$/i.test(clean) ? clean : `${clean}.py`
+  tab.name = normalizeFileName(clean)
   if (id === store.activeId) store.fileName = tab.name
   saveNow()
   return tab
@@ -643,14 +646,16 @@ export function send(cmd) {
   return ok
 }
 function scriptName(tab) {
-  const raw = String(tab?.name || store.fileName || 'user_script.py').trim()
-  return /\.py$/i.test(raw) ? raw : `${raw || 'user_script'}.py`
+  return normalizeFileName(tab?.name || store.fileName || 'user_script.py')
 }
 
 export function runCode() {
   if (!store.boot.ready || store.run.state !== 'idle') return
   const active = store.tabs.find((tab) => tab.id === store.activeId)
   if (!active) { toast(t('toast.no_script'), 'warn'); return }
+  // Helper files (JSON, CSV, extra modules…) can stay open, but the entry
+  // script that Python executes must be a .py file.
+  if (!isPythonFile(scriptName(active))) { toast(t('toast.entry_not_python'), 'warn'); return }
   consoleBus.clear()
   store.error = null
   store.run.state = 'starting'
@@ -831,14 +836,15 @@ export function pickFile() {
   const i = document.createElement('input')
   i.type = 'file'
   i.multiple = true
-  i.accept = '.py,text/x-python,text/plain'
+  // `.py` scripts plus common text/data helpers used by a script.
+  i.accept = '.py,.txt,.json,.yaml,.yml,.csv,.md,.xml,.ini,.cfg,.toml,text/*'
   i.style.display = 'none'
   i.addEventListener('cancel', () => i.remove())
   i.onchange = async () => {
     const picked = [...(i.files || [])]
     i.remove()
     if (!picked.length) return
-    for (const f of picked) addTab(f.name, await f.text())
+    for (const f of picked) addTab(normalizeFileName(f.name), await f.text())
     openPanel('right')
     toast(t('toast.file_opened', { name: picked.map((f) => f.name).join(', ') }))
   }
@@ -849,7 +855,8 @@ export function downloadScript(tab = null) {
   if (!tab && !activeTab()) return
   const name = scriptName(tab || activeTab())
   const code = tab ? tab.code : store.code
-  download(name, new Blob([code], { type: 'text/x-python' }))
+  const type = isPythonFile(name) ? 'text/x-python' : 'text/plain'
+  download(name, new Blob([code], { type }))
   if (!tab) saveNow()
 }
 /** Catálogo no idioma atual (reativo). */

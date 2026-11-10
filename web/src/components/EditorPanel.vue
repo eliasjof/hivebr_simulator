@@ -13,7 +13,7 @@ import { t, locale } from '../i18n/index.js'
 import { CM_PHRASES_PT } from '../i18n/cm-phrases.js'
 import {
   store, setCode, runCode, stopCode, newFile, pickFile, downloadScript,
-  switchTab, closeTab, openTab, duplicateDemo, openPanel, toggleRightMaximized,
+  switchTab, closeTab, openTab, duplicateDemo, openPanel, toggleRightMaximized, isPythonFile,
 } from '../state/store.js'
 
 const host = ref(null)
@@ -29,6 +29,11 @@ function onDocClick() { scriptList.value = false }
 const themeComp = new Compartment()
 const roComp = new Compartment()
 const phrasesComp = new Compartment()
+const langComp = new Compartment()
+
+// Python tabs get syntax highlighting; helper files (JSON, CSV, TXT…) are
+// edited as plain text without trying to parse them as Python.
+const langExt = () => (isPythonFile(activeTab.value?.name || store.fileName) ? python() : [])
 
 // Textos do próprio CodeMirror (busca, dobras…): em inglês vale o padrão da biblioteca.
 const phrasesExt = () => EditorState.phrases.of(locale.value === 'pt-BR' ? CM_PHRASES_PT : {})
@@ -93,7 +98,7 @@ onMounted(() => {
     state: EditorState.create({
       doc: store.code,
       extensions: [
-        basicSetup, python(), indentUnit.of(INDENT),
+        basicSetup, langComp.of(langExt()), indentUnit.of(INDENT),
         keymap.of([{ key: 'Tab', run: tabIndent }, { key: 'Shift-Tab', run: indentLess }]),
         EditorView.lineWrapping, baseTheme, errorField, themeComp.of(themeExt()), roComp.of(roExt()), phrasesComp.of(phrasesExt()),
         EditorView.contentAttributes.of({ 'aria-label': t('editor.aria'), spellcheck: 'false' }),
@@ -120,9 +125,10 @@ watch(() => store.codeRev, () => {
   if (!view) return
   view.dispatch({
     changes: { from: 0, to: view.state.doc.length, insert: store.code },
-    effects: [setErrorLine.of(0), roComp.reconfigure(roExt())],
+    effects: [setErrorLine.of(0), roComp.reconfigure(roExt()), langComp.reconfigure(langExt())],
   })
 })
+watch(() => store.fileName, () => view?.dispatch({ effects: langComp.reconfigure(langExt()) }))
 function highlightError() {
   if (!view) return
   const line = store.error?.line

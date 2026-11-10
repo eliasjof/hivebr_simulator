@@ -125,6 +125,38 @@ await test('the demo (read-only) tab is not changed by Tab', async () => {
   check((await editorText()).split('\n')[0] === before, 'the read-only demo changed')
 })
 
+await test('opens helper files (JSON/py) next to the main script', async () => {
+  await page.locator('.ed').getByRole('button', { name: 'Novo script', exact: true }).click()
+  await sleep(200)
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.locator('.tabs').getByRole('button', { name: 'Abrir arquivo', exact: true }).click(),
+  ])
+  await chooser.setFiles([
+    { name: 'helper_data.json', mimeType: 'application/json', buffer: Buffer.from('{"answer": 42}') },
+    { name: 'helper_module.py', mimeType: 'text/x-python', buffer: Buffer.from('VALUE = 7\n') },
+  ])
+  await sleep(500)
+  const tabs = (await page.locator('.etab .tab').allTextContents()).join('|')
+  check(tabs.includes('helper_data.json'), `JSON helper tab missing: ${tabs}`)
+  check(tabs.includes('helper_module.py'), `Python helper tab missing: ${tabs}`)
+  await page.locator('.etab .tab').filter({ hasText: 'helper_data.json' }).click()
+  await sleep(300)
+  check((await editorText()) === '{"answer": 42}', `JSON content not shown as text: ${JSON.stringify(await editorText())}`)
+})
+
+await test('running a non-Python helper warns that the entry must be .py', async () => {
+  // The demo test starts a run; stop it so the footer shows the run button.
+  const stopBtn = page.locator('.efoot .run-stop')
+  if (await stopBtn.count()) await stopBtn.click()
+  const runBtn = page.locator('.efoot .run-go')
+  await runBtn.waitFor({ timeout: 15000 })
+  await runBtn.click()
+  await sleep(400)
+  const warnings = (await page.locator('.toast.warn').allTextContents()).join(' ')
+  check(warnings.includes('.py'), `expected a .py warning, got: ${warnings}`)
+})
+
 const failed = results.filter((r) => !r.ok)
 if (pageErrors.length) console.log('\nPage errors:\n' + pageErrors.join('\n'))
 console.log(`\n${results.length - failed.length} passed, ${failed.length} failed` + (pageErrors.length ? `, ${pageErrors.length} page error(s)` : ''))
