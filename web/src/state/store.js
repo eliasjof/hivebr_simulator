@@ -217,6 +217,10 @@ export const logData = shallowRef(null)
 export const files = shallowRef([])
 export const canvasRef = shallowRef(null)
 
+// The scene can be edited as soon as Python is ready. During a run this needs
+// the SAB command channel (limited browsers only edit while idle).
+export const editable = computed(() => store.boot.ready && (store.run.state === 'idle' || store.interactive))
+
 // ---- console ----
 export const consoleBus = {
   lines: [],
@@ -638,7 +642,10 @@ export function bytesToB64(buf) {
 let lastWarn = 0
 export function send(cmd) {
   let ok = false
-  try { ok = client.send(cmd) } catch (e) { console.warn('send falhou', e) }
+  try {
+    const live = client.state === 'running' || client.state === 'stopping'
+    ok = live ? client.send(cmd) : client.edit(cmd)
+  } catch (e) { console.warn('send falhou', e) }
   if (!ok && Date.now() - lastWarn > 4000) {
     lastWarn = Date.now()
     toast(t(store.interactive ? 'toast.run_first' : 'toast.limited_mode'), 'warn')
@@ -660,10 +667,8 @@ export function runCode() {
   store.error = null
   store.run.state = 'starting'
   store.hasRun = true
-  scene.value = null
   telemetry.value = null
   store.stats.running = false
-  Object.assign(store.sceneCounts, { obstacles: 0, recharge: 0, waypoints: 0 })
   files.value = []
   store.figures = []
   saveNow()
@@ -830,7 +835,13 @@ export const params = ref(null)
 export function setNarrow(v) {
   if (v === store.narrow) return
   store.narrow = v
-  if (v) { store.layout.leftOpen = false; store.layout.rightOpen = false }
+  if (v) {
+    store.layout.leftOpen = false
+    // Não fecha o painel direito se ele estiver maximizado (ou relatórios maximizados)
+    if (!store.layout.rightMaximized && !store.layout.reportsMaximized) {
+      store.layout.rightOpen = false
+    }
+  }
 }
 
 // ---- arquivos ----
