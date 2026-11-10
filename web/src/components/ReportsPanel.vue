@@ -356,15 +356,20 @@ function escapeHtml(text) {
 function printHtml(html, onError) {
   const frame = document.createElement('iframe')
   frame.setAttribute('aria-hidden', 'true')
-  frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:800px;height:600px;border:0;'
+  frame.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;'
   document.body.appendChild(frame)
   const win = frame.contentWindow
+  if (!win) {
+    document.body.removeChild(frame)
+    if (onError) onError(new Error('iframe contentWindow unavailable'))
+    return
+  }
   const doc = win.document
   let removed = false
   const cleanup = () => {
     if (removed) return
     removed = true
-    frame.remove()
+    if (frame.parentNode) frame.remove()
   }
   const fail = (err) => {
     cleanup()
@@ -382,7 +387,6 @@ function printHtml(html, onError) {
       fail(err)
       return
     }
-    // Some browsers return from print() before the dialog closes.
     setTimeout(cleanup, 60000)
   }
   const waitForImages = () => {
@@ -395,10 +399,14 @@ function printHtml(html, onError) {
       img.addEventListener('load', done, { once: true })
       img.addEventListener('error', done, { once: true })
     })
-    // Never block the print dialog on a broken image.
     setTimeout(() => { if (left > 0) { left = 0; setTimeout(print, 30) } }, 3000)
   }
-  setTimeout(waitForImages, 50)
+  // Ensure the document is ready before waiting for images
+  if (doc.readyState === 'complete') {
+    setTimeout(waitForImages, 0)
+  } else {
+    win.addEventListener('load', () => setTimeout(waitForImages, 0), { once: true })
+  }
 }
 
 function buildPrintDocument(report, bodyHtml) {
