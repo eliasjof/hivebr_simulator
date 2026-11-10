@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import os
 import shutil
 import tempfile
@@ -242,45 +243,82 @@ def _clear_map(sim, msg):
     sim._track_gray = None
 
 
-def _rasterize(sim, strokes):
-    """Draw strokes on the track canvas (PIL stands in for the pygame surface)."""
+def _rasterize(sim, strokes, fresh=False, default_width=0.02):
+    """Draw strokes on the track canvas (PIL stands in for the pygame surface).
+
+    ``fresh=True`` replaces the whole track with the drawn strokes instead of
+    compositing them over the track that is currently applied.
+    """
     from PIL import Image, ImageDraw
 
     ed = sim.track_editor
-    if sim._track_gray is None:
+    if fresh or sim._track_gray is None:
         sim._track_gray = Image.new("L", (ed.width_px, ed.height_px), 255)
-        lm = getattr(sim.world, "line_map", None)
-        if lm is not None:
-            sim._track_gray = Image.fromarray(lm.to_gray(), "L").resize((ed.width_px, ed.height_px))
     draw = ImageDraw.Draw(sim._track_gray)
+    first_pose = None
+    first_stroke = None
     for stroke in strokes:
-        pts = [(float(p[0]), float(p[1])) for p in stroke]
+        # Support both formats: {points, width} and a plain list of points.
+        if isinstance(stroke, dict) and "points" in stroke:
+            pts = [(float(p[0]), float(p[1])) for p in stroke["points"]]
+            line_width = float(stroke.get("width", default_width))
+        else:
+            pts = [(float(p[0]), float(p[1])) for p in stroke]
+            line_width = float(default_width)
         if not pts:
             continue
-        ed.begin(*pts[0])
-        for p in pts[1:]:
-            ed.extend(*p)
-        ed.end()
+        if first_pose is None and len(pts) >= 2:
+            x0, y0 = pts[0]
+            x1, y1 = pts[1]
+            first_pose = (x0, y0, math.atan2(y1 - y0, x1 - x0))
+            first_stroke = pts
         px = [ed.world_to_canvas(*p) for p in pts]
-        r = max(1, ed.line_px // 2)
+        # Convert line width from meters to pixels (resolution is m/px).
+        line_px = max(1, int(round(line_width / ed.resolution)))
+        r = max(1, line_px // 2)
         if len(px) > 1:
-            draw.line(px, fill=0, width=ed.line_px)
+            draw.line(px, fill=0, width=line_px)
         for c in (px[0], px[-1]) if len(px) > 1 else px:
             draw.ellipse([c[0] - r, c[1] - r, c[0] + r, c[1] + r], fill=0)
-    return np.array(sim._track_gray, dtype=np.uint8)
+    # Keep the pygame canvas in sync: TrackEditor.apply/save read from it.
+    import pygame
+    gray = np.array(sim._track_gray, dtype=np.uint8)
+    rgb = np.ascontiguousarray(np.repeat(gray[:, :, None], 3, axis=2))
+    ed.canvas = pygame.image.frombuffer(rgb.tobytes(), (ed.width_px, ed.height_px), "RGB")
+    ed.stroke_world = first_stroke or []
+    ed.start_pose = first_pose
+    # The browser pygame stand-in has no pixels: make TrackEditor.build_line_map
+    # read the raster we just drew instead of the blank canvas.
+    ed._gray_array = lambda: np.array(sim._track_gray, dtype=np.uint8)
+    return gray
 
 
 def _track_apply(sim, msg):
-    gray = _rasterize(sim, msg.get("strokes") or [])
-    sim.track_editor._gray_array = lambda: gray
+    # Apply replaces the current track with the drawing (draw -> apply).
+    _rasterize(
+        sim,
+        msg.get("strokes") or [],
+        fresh=True,
+        default_width=float(msg.get("line_width", 0.02)),
+    )
     sim.apply_track()  # same as the desktop "Apply Track" button
     path = sim.config.get("world", {}).get("drawn_line_map_image", "config/line_drawn.png")
     sim._track_gray.save(path)
 
 
 def _track_clear(sim, msg):
+    # Clear the drawing and the track that was generated from it.
     sim._track_gray = None
+    ed = sim.track_editor
+    if ed is not None and "_gray_array" in getattr(ed, "__dict__", {}):
+        del ed._gray_array
     sim.clear_track()
+    if getattr(sim.world, "line_map", None) is not None:
+        sim.world.line_map = None
+    world_cfg = sim.config.get("world", {})
+    drawn_path = world_cfg.get("drawn_line_map_image", "config/line_drawn.png")
+    if world_cfg.get("line_map_image") in (drawn_path, "config/line_drawn.png"):
+        world_cfg["line_map_image"] = ""
 
 
 def _track_export(sim, msg):

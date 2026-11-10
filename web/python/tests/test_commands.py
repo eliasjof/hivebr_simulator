@@ -259,6 +259,27 @@ def test_track_commands():
         check(fm["name"] == "track.png" and fm["mime"] == "image/png" and base64.b64decode(fm["b64"])[:4] == b"\x89PNG")
         cmd(sim, cmd="track_clear")
         check(sim._track_gray is None and not sim.track_editor.has_content)
+        check(sim.world.line_map is None, "clear must remove the applied track")
+        check(not e.host.notices("warn"), e.host.notices())
+
+
+def test_track_apply_replaces_and_respects_width():
+    with env() as e:
+        sim = make_sim(e, robots=1)
+        # Per-stroke width: 0.3 m is several pixels wide at 0.1 m/px.
+        cmd(sim, cmd="track_apply", strokes=[{"points": [[2.0, 3.0], [8.0, 3.0]], "width": 0.3}])
+        lm = sim.world.line_map
+        check(lm.sample(5.0, 3.0) > 0.5, "thick stroke not rasterized")
+        check(lm.sample(5.0, 3.1) > 0.5, "stroke width was not applied")
+        # Applying a new drawing replaces the previous track.
+        cmd(sim, cmd="track_apply", strokes=[{"points": [[3.0, 6.0], [3.0, 2.0]], "width": 0.05}])
+        lm = sim.world.line_map
+        check(lm.sample(3.0, 4.0) > 0.5, "new stroke missing")
+        check(lm.sample(7.0, 3.0) < 0.1, "old track was not replaced")
+        r = sim.robots[0]
+        check(abs(r.x - 3.0) < 1e-6 and abs(r.y - 6.0) < 1e-6, "robot not placed on the first stroke")
+        cmd(sim, cmd="track_clear")
+        check(sim.world.line_map is None and sim.config["world"]["line_map_image"] == "")
         check(not e.host.notices("warn"), e.host.notices())
 
 

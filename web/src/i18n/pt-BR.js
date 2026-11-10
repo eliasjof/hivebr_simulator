@@ -237,6 +237,8 @@ export default {
   "map.preview": "Pré-visualização de {name}",
   "map.remove": "Remover mapa",
   "map.resolution": "Resolução (m/px)",
+  "map.line_width": "Espessura da linha (m)",
+  "map.line_width_tip": "Espessura da linha do traço em metros (ex: 0.02 = 2 cm)",
   "map.sent": "Mapa “{name}” enviado.",
   "menu.aria": "Menu principal",
   "menu.edit": "Editar",

@@ -188,7 +188,7 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
             <button class="btn ghost icon sm" :aria-label="t('view.fit')" :data-tip="viewFitTip" data-tip-pos="end" @click="cv?.fit()"><Icon name="fit" :size="14" /></button>
           </header>
           <div class="cv">
-            <SimCanvas ref="cv" :scene="scene" :tool="store.tool" :options="store.options" :interactive="store.interactive"
+            <SimCanvas ref="cv" :scene="scene" :tool="store.tool" :options="store.options" :interactive="store.interactive" :lineWidth="store.lineWidth"
               @add-waypoint="onAddWaypoint" @waypoint-drag-orientation="onWaypointOrient" @add-obstacle="onAddObstacle"
               @add-recharge="(p) => send({ cmd: 'add_recharge', x: p.x, y: p.y })" @context="onContext" @select-robot="(p) => selectRobot(p.index)"
               @move-robot="onMove" @cursor="onCursor" />

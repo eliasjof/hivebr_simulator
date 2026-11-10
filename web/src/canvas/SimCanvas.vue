@@ -7,6 +7,7 @@ const props = defineProps({
   tool: { type: String, default: 'select' },
   options: { type: Object, default: () => ({}) },
   interactive: { type: Boolean, default: true },
+  lineWidth: { type: Number, default: 0.02 },
 });
 
 const emit = defineEmits([
@@ -35,7 +36,7 @@ const pointers = new Map(); // id -> {x, y}
 let gesture = null; // active one-pointer gesture
 let pinch = null; // {dist, cx, cy}
 let spaceDown = false;
-let strokes = [];
+let strokes = []; // [{ points: [[x,y],...], width: number }, ...]
 let preview = { strokes: null, arrow: null, robot: null };
 let cursorRaf = 0;
 let cursorPending = null;
@@ -79,7 +80,10 @@ function pushPreview() {
 }
 
 function refreshStrokePreview() {
-  preview.strokes = strokes.length ? strokes : null;
+  // Preserve each stroke's width so the preview matches the rasterized track.
+  preview.strokes = strokes.length
+    ? strokes.map((s) => ({ points: s.points, width: s.width }))
+    : null;
   pushPreview();
 }
 
@@ -186,7 +190,7 @@ function onPointerDown(e) {
       gesture = { kind: 'click', id: e.pointerId, sx: px, sy: py, wx, wy };
       break;
     case 'draw':
-      strokes.push([[wx, wy]]);
+      strokes.push({ points: [[wx, wy]], width: props.lineWidth });
       gesture = { kind: 'draw', id: e.pointerId, lx: px, ly: py };
       refreshStrokePreview();
       break;
@@ -260,7 +264,7 @@ function onPointerMove(e) {
     case 'draw': {
       if (Math.hypot(px - g.lx, py - g.ly) >= 2) {
         const [wx, wy] = toWorld(px, py);
-        strokes[strokes.length - 1].push([wx, wy]);
+        strokes[strokes.length - 1].points.push([wx, wy]);
         g.lx = px;
         g.ly = py;
         refreshStrokePreview();
@@ -378,7 +382,7 @@ function clearStrokes() {
   refreshStrokePreview();
 }
 function getStrokes() {
-  return strokes.map((s) => s.slice());
+  return strokes.map((s) => ({ points: s.points.slice(), width: s.width }));
 }
 function undoStroke() {
   strokes.pop();

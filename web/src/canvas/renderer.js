@@ -813,7 +813,8 @@ export class Renderer {
     }
   }
 
-  // preview = { strokes: [[[x,y],...]], arrow: {x,y,theta}, robot: {index,x,y,theta}, circle: {x,y,r}, point: {x,y} }
+  // preview = { strokes: [{points:[[x,y],...], width} | [[x,y],...]],
+  //             arrow: {x,y,theta}, robot: {index,x,y,theta}, circle: {x,y,r}, point: {x,y} }
   _drawPreview(ctx, now) {
     const p = this.preview;
     if (!p) return;
@@ -821,19 +822,21 @@ export class Renderer {
     const col = this.pal.preview;
     if (p.strokes) {
       ctx.strokeStyle = col;
-      ctx.lineWidth = Math.max(2, (p.width || 0.05) * cam.scale);
       ctx.globalAlpha = 0.6;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       for (const s of p.strokes) {
-        if (!s.length) continue;
+        const pts = Array.isArray(s) ? s : s.points;
+        const width = Array.isArray(s) ? p.width : s.width;
+        if (!pts?.length) continue;
+        ctx.lineWidth = Math.max(2, (width || p.width || 0.05) * cam.scale);
         ctx.beginPath();
-        s.forEach((q, j) => {
+        pts.forEach((q, j) => {
           const [x, y] = cam.worldToScreen(q[0], q[1]);
           if (j === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
         });
-        if (s.length === 1) ctx.lineTo(...cam.worldToScreen(s[0][0] + 1e-4, s[0][1]));
+        if (pts.length === 1) ctx.lineTo(...cam.worldToScreen(pts[0][0] + 1e-4, pts[0][1]));
         ctx.stroke();
       }
       ctx.globalAlpha = 1;

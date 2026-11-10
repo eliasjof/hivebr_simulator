@@ -455,6 +455,9 @@ class Simulator:
         if self.track_editor is not None:
             self.track_editor.clear()
             print("[TrackEditor] Pista limpa.")
+        # Also clear the world's line_map
+        if hasattr(self.world, 'line_map'):
+            self.world.line_map = None
 
     def save_track(self):
         """Salva a pista desenhada pelo usuário em arquivo PNG.

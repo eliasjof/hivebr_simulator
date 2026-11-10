@@ -20,6 +20,7 @@ const picked = ref(null) // { name, bytes, url }
 const asLine = ref(false)
 const live = computed(() => store.run.state === 'running')
 const res = computed({ get: () => store.mapResolution, set: (v) => { store.mapResolution = v } })
+const lineWidth = computed({ get: () => store.lineWidth, set: (v) => { store.lineWidth = v } })
 const hasMap = computed(() => !!(scene.value?.map || scene.value?.lineMap))
 
 function setPicked(name, bytes, mime = 'image/png') {
@@ -51,7 +52,7 @@ function clearMap() { send({ cmd: 'clear_map' }) }
 function trackApply() {
   const strokes = canvasRef.value?.getStrokes?.() || []
   if (!strokes.length) { toast(t('map.draw_first'), 'warn'); return }
-  send({ cmd: 'track_apply', strokes })
+  send({ cmd: 'track_apply', strokes, line_width: Number(lineWidth.value) })
 }
 function trackClear() { canvasRef.value?.clearStrokes?.(); send({ cmd: 'track_clear' }) }
 </script>
@@ -94,11 +95,15 @@ function trackClear() { canvasRef.value?.clearStrokes?.(); send({ cmd: 'track_cl
           <li>{{ t('map.guide2') }}</li>
           <li>{{ t('map.guide3_a') }}<b>{{ t('map.apply') }}</b>{{ t('map.guide3_b') }}</li>
         </ol>
+        <div class="field">
+          <label for="lw">{{ t('map.line_width') }}</label>
+          <input id="lw" class="input mono" type="number" min="0.001" step="0.005" v-model.number="lineWidth" :title="t('map.line_width_tip')" />
+        </div>
         <div class="row">
           <button class="btn sm" :class="{ active: store.tool === 'draw' }" @click="store.tool = 'draw'"><Icon name="pen" :size="13" />{{ t('map.draw') }}</button>
-          <button class="btn primary sm" :disabled="!live" @click="trackApply">{{ t('map.apply') }}</button>
-          <button class="btn sm" :disabled="!live" @click="trackClear"><Icon name="eraser" :size="13" />{{ t('map.clear') }}</button>
-          <button class="btn sm" :disabled="!live" @click="send({ cmd: 'track_export' })"><Icon name="download" :size="13" />{{ t('map.export_png') }}</button>
+          <button class="btn primary sm" @click="trackApply">{{ t('map.apply') }}</button>
+          <button class="btn sm" @click="trackClear"><Icon name="eraser" :size="13" />{{ t('map.clear') }}</button>
+          <button class="btn sm" @click="send({ cmd: 'track_export' })"><Icon name="download" :size="13" />{{ t('map.export_png') }}</button>
         </div>
       </section>
     </div>

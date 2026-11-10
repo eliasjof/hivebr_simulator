@@ -186,6 +186,7 @@ export const store = reactive({
   theme: initialTheme,
   obstacleRadius: prefs.obstacleRadius ?? 0.4,
   mapResolution: prefs.mapResolution ?? 0.05,
+  lineWidth: prefs.lineWidth ?? 0.02,
   // estatísticas (≤4 Hz)
   stats: { t: 0, rtf: 0, fps: 0, running: false, step: 0, collisions: 0 },
   cursor: { x: null, y: null },
@@ -300,7 +301,7 @@ function persistPrefs() {
     obstacleRadius: store.obstacleRadius, mapResolution: store.mapResolution, layout: { ...store.layout },
   })
 }
-watch(() => [store.theme, store.autostart, store.speed, store.obstacleRadius, store.mapResolution, { ...store.layout }, { ...store.options }], persistPrefs, { deep: true })
+watch(() => [store.theme, store.autostart, store.speed, store.obstacleRadius, store.mapResolution, store.lineWidth, { ...store.layout }, { ...store.options }], persistPrefs, { deep: true })
 
 export function applyTheme(theme) {
   store.theme = theme

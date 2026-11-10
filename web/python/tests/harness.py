@@ -81,8 +81,12 @@ class FakeHost:
 def make_root(tmp: Path | None = None) -> Path:
     """Temporary copy of the repo layout: src (link), config and examples (copies)."""
     root = Path(tmp or tempfile.mkdtemp(prefix="hivebr_root_"))
-    (root / "src").symlink_to(REPO / "src", target_is_directory=True)
     ignore = shutil.ignore_patterns("__pycache__", "*.pkl")
+    try:
+        (root / "src").symlink_to(REPO / "src", target_is_directory=True)
+    except OSError:
+        # Windows without symlink privileges (Developer Mode off): copy instead.
+        shutil.copytree(REPO / "src", root / "src", ignore=ignore)
     shutil.copytree(REPO / "config", root / "config", ignore=ignore)
     shutil.copytree(REPO / "examples", root / "examples", ignore=ignore)
     (root / "templates").mkdir()

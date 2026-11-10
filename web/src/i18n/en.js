@@ -237,6 +237,8 @@ export default {
   "map.preview": "Preview of {name}",
   "map.remove": "Remove map",
   "map.resolution": "Resolution (m/px)",
+  "map.line_width": "Line width (m)",
+  "map.line_width_tip": "Stroke line width in meters (e.g., 0.02 = 2 cm)",
   "map.sent": "Map “{name}” sent.",
   "menu.aria": "Main menu",
   "menu.edit": "Edit",
