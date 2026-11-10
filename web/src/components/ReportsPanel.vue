@@ -48,17 +48,16 @@ const activeReport = computed(() => {
 try {
   const renderer = new marked.Renderer()
   const originalImage = renderer.image.bind(renderer)
-  renderer.image = (token) => {
-    // marked 18.x passes an object with { href, title, text } properties
-    const href = token?.href
+  // marked 18.x: image(href, title, text) — not a token object
+  renderer.image = (href, title, text) => {
     if (typeof href === 'string' && href.startsWith('capture:')) {
       const id = href.slice('capture:'.length)
       const capture = getCapture(id)
       if (capture) {
-        return originalImage({ ...token, href: capture.dataUrl })
+        return originalImage(capture.dataUrl, title, text)
       }
     }
-    return originalImage(token)
+    return originalImage(href, title, text)
   }
   marked.setOptions({
     breaks: true,
@@ -343,16 +342,66 @@ function resolveCaptureUrls(html) {
   })
 }
 
-function exportPDF(report = activeReport.value) {
-  if (!report) return
-  const html = marked.parse(report.content)
-  const resolvedHtml = resolveCaptureUrls(html)
-  const printWindow = window.open('', '_blank')
-  printWindow.document.write(`
-    <!DOCTYPE html>
+function escapeHtml(text) {
+  return String(text ?? '').replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ))
+}
+
+/** Prints `html` from an off-screen iframe (no popup blocker, no onload race). */
+function printHtml(html, onError) {
+  const frame = document.createElement('iframe')
+  frame.setAttribute('aria-hidden', 'true')
+  frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:800px;height:600px;border:0;'
+  document.body.appendChild(frame)
+  const win = frame.contentWindow
+  const doc = win.document
+  let removed = false
+  const cleanup = () => {
+    if (removed) return
+    removed = true
+    frame.remove()
+  }
+  const fail = (err) => {
+    cleanup()
+    if (onError) onError(err)
+  }
+  doc.open()
+  doc.write(html)
+  doc.close()
+  win.addEventListener('afterprint', cleanup, { once: true })
+  const print = () => {
+    try {
+      win.focus()
+      win.print()
+    } catch (err) {
+      fail(err)
+      return
+    }
+    // Some browsers return from print() before the dialog closes.
+    setTimeout(cleanup, 60000)
+  }
+  const waitForImages = () => {
+    let pending
+    try { pending = [...doc.images].filter((img) => !img.complete) } catch (err) { fail(err); return }
+    if (!pending.length) { setTimeout(print, 30); return }
+    let left = pending.length
+    const done = () => { if (--left <= 0) setTimeout(print, 30) }
+    pending.forEach((img) => {
+      img.addEventListener('load', done, { once: true })
+      img.addEventListener('error', done, { once: true })
+    })
+    // Never block the print dialog on a broken image.
+    setTimeout(() => { if (left > 0) { left = 0; setTimeout(print, 30) } }, 3000)
+  }
+  setTimeout(waitForImages, 50)
+}
+
+function buildPrintDocument(report, bodyHtml) {
+  return `<!DOCTYPE html>
     <html>
     <head>
-      <title>${report.name}</title>
+      <title>${escapeHtml(report.name)}</title>
       <meta charset="utf-8">
       <style>
         @page { margin: 2cm; }
@@ -382,20 +431,24 @@ function exportPDF(report = activeReport.value) {
         hr:last-of-type { margin-top: 3em; border-top: 2px solid #c7d2fe; }
         hr:last-of-type + p { text-align: center; color: #94a3b8; font-size: 0.85em; font-style: italic; }
 
-        @media print { 
+        @media print {
           body { padding: 0; }
           .no-print { display: none; }
         }
       </style>
     </head>
-    <body>${html}</body>
-    </html>
-  `)
-  printWindow.document.close()
-  printWindow.onload = () => {
-    printWindow.focus()
-    printWindow.print()
-    setTimeout(() => printWindow.close(), 1000)
+    <body>${bodyHtml}</body>
+    </html>`
+}
+
+function exportPDF(report = activeReport.value) {
+  if (!report) return
+  const fail = (err) => toast(t('report.export_failed', { error: String(err?.message || err) }), 'error')
+  try {
+    const html = marked.parse(report.content)
+    printHtml(buildPrintDocument(report, resolveCaptureUrls(html)), fail)
+  } catch (err) {
+    fail(err)
   }
 }
 
