@@ -700,6 +700,8 @@ function onFrame(f) {
   latest = f
   seq++
   fpsCount++
+  // Keep the pause/resume controls honest between the 5 Hz stats updates.
+  if (typeof f.running === 'boolean') store.stats.running = f.running
   canvasRef.value?.pushFrame(f)
   if (f.obstacles) { store.sceneCounts.obstacles = f.obstacles.length; store.sceneCounts.recharge = f.recharge?.length || 0 }
   if (f.waypoints) store.sceneCounts.waypoints = f.waypoints.reduce((a, l) => a + l.length, 0)

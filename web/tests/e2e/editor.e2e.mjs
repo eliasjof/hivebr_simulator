@@ -22,7 +22,13 @@ const server = http.createServer((req, res) => {
   const rel = decodeURIComponent(url.pathname.slice('/hivebr/'.length)) || 'index.html'
   const file = path.resolve(dist, rel)
   if (!file.startsWith(dist) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end('not found') }
-  res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' })
+  res.writeHead(200, {
+    'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
+    // Interactive mode: cross-origin isolation enables the SharedArrayBuffer
+    // ring used by pause/resume and the other live commands.
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'require-corp',
+  })
   fs.createReadStream(file).pipe(res)
 })
 await new Promise((r) => server.listen(0, '127.0.0.1', r))
@@ -48,6 +54,53 @@ async function test(name, fn) {
 
 await page.goto(BASE)
 await page.waitForFunction(() => /pronto/i.test(document.querySelector('[data-testid="pill"]')?.textContent || ''), null, { timeout: 180000 })
+
+await test('config editor selects the searched word and replaces the right occurrence', async () => {
+  const yaml = 'a: alpha\nb: beta\nc: alpha\nd: ALPHA\n'
+  await page.keyboard.press('p')
+  await page.getByRole('button', { name: 'Editar YAML' }).click()
+  const ta = page.locator('textarea.yaml')
+  await ta.waitFor({ timeout: 10000 })
+  await page.locator('[role="dialog"] input[type="file"]').setInputFiles({
+    name: 'find.yaml', mimeType: 'text/yaml', buffer: Buffer.from(yaml),
+  })
+  await page.waitForFunction((expected) => document.querySelector('textarea.yaml')?.value === expected, yaml, { timeout: 10000 })
+
+  const sel = () => ta.evaluate((el) => ({
+    start: el.selectionStart, end: el.selectionEnd, text: el.value.slice(el.selectionStart, el.selectionEnd),
+  }))
+  const selectionIs = (start, text) => page.waitForFunction(([s, w]) => {
+    const el = document.querySelector('textarea.yaml')
+    return el && el.selectionStart === s && el.value.slice(el.selectionStart, el.selectionEnd) === w
+  }, [start, text], { timeout: 5000 })
+
+  await page.getByRole('button', { name: 'Procurar e substituir' }).click()
+  const find = page.getByLabel('Procurar', { exact: true })
+  await find.fill('alpha')
+  await find.press('Enter')
+  await selectionIs(3, 'alpha')
+  check((await sel()).start === 3, `first match at 3, got ${JSON.stringify(await sel())}`)
+
+  // F3 / Shift+F3 walk through matches while the editor has focus.
+  await page.keyboard.press('F3')
+  await selectionIs(20, 'alpha')
+  await page.keyboard.press('Shift+F3')
+  await selectionIs(3, 'alpha')
+
+  await page.getByLabel('Substituir por', { exact: true }).fill('omega')
+  await page.getByRole('button', { name: 'Substituir', exact: true }).click()
+  await selectionIs(20, 'alpha')
+  check((await ta.inputValue()).startsWith('a: omega\n'), 'the first occurrence was not replaced')
+
+  await page.getByRole('button', { name: 'Substituir tudo', exact: true }).click()
+  await page.waitForFunction(() => document.querySelector('textarea.yaml')?.value === 'a: omega\nb: beta\nc: omega\nd: omega\n', null, { timeout: 5000 })
+  check((await page.locator('.find-count').innerText()) === '0', 'the match count should be 0 after replacing all')
+
+  await page.keyboard.press('Escape')
+  await page.locator('[role="dialog"][aria-label="Editar config do cliente"]').waitFor({ state: 'detached', timeout: 5000 })
+  await page.keyboard.press('p')
+  await page.locator('section[aria-label="Parâmetros"]').waitFor({ state: 'detached', timeout: 5000 })
+})
 
 // a aba de demonstração é somente leitura: abre um script novo para editar
 await page.locator('.ed').getByRole('button', { name: 'Novo script', exact: true }).click()
@@ -125,6 +178,39 @@ await test('the demo (read-only) tab is not changed by Tab', async () => {
   check((await editorText()).split('\n')[0] === before, 'the read-only demo changed')
 })
 
+await test('Run button cycles run → pause → stop', async () => {
+  // the demo test above left a run active
+  const pauseBtn = page.locator('.efoot .run-pause')
+  await pauseBtn.waitFor({ timeout: 15000 })
+  await pauseBtn.click()
+  const stopBtn = page.locator('.efoot .run-stop')
+  await stopBtn.waitFor({ timeout: 15000 })
+  await stopBtn.click()
+  await page.locator('.efoot .run-go').waitFor({ timeout: 15000 })
+})
+
+await test('Clear works at idle after the run stops', async () => {
+  await page.locator('.tb').getByRole('button', { name: 'Demonstração' }).click()
+  await page.locator('.efoot .run-pause').waitFor({ timeout: 30000 })
+  await page.keyboard.press('k')
+  const win = page.locator('section[aria-label="Mapa"]')
+  await win.waitFor({ timeout: 10000 })
+  await win.getByRole('button', { name: 'Mapa 1', exact: true }).click()
+  await win.locator('.prev img').waitFor({ timeout: 10000 })
+  await win.getByRole('button', { name: 'Aplicar', exact: true }).first().click()
+  await page.waitForFunction(() => /Ocupação/.test(document.querySelector('.nav')?.textContent || ''), null, { timeout: 15000 })
+
+  // run → pause → stop, then clear the map that the stopped run left on screen
+  await page.locator('.efoot .run-pause').click()
+  await page.locator('.efoot .run-stop').click()
+  await page.locator('.efoot .run-go').waitFor({ timeout: 15000 })
+  const remove = win.getByRole('button', { name: 'Remover mapa' })
+  check(await remove.isEnabled(), 'remove map should stay enabled at idle')
+  await remove.click()
+  await page.waitForFunction(() => !/Ocupação/.test(document.querySelector('.nav')?.textContent || ''), null, { timeout: 10000 })
+  await page.keyboard.press('k')
+})
+
 await test('opens helper files (JSON/py) next to the main script', async () => {
   await page.locator('.ed').getByRole('button', { name: 'Novo script', exact: true }).click()
   await sleep(200)
@@ -146,9 +232,9 @@ await test('opens helper files (JSON/py) next to the main script', async () => {
 })
 
 await test('running a non-Python helper warns that the entry must be .py', async () => {
-  // The demo test starts a run; stop it so the footer shows the run button.
-  const stopBtn = page.locator('.efoot .run-stop')
-  if (await stopBtn.count()) await stopBtn.click()
+  // Stop any active run so the footer shows the run button.
+  const toolbarStop = page.locator('.tb .act.stop')
+  if (await toolbarStop.isEnabled().catch(() => false)) await toolbarStop.click()
   const runBtn = page.locator('.efoot .run-go')
   await runBtn.waitFor({ timeout: 15000 })
   await runBtn.click()

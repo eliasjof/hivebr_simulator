@@ -188,6 +188,7 @@ button { cursor: pointer; }
 .btn.icon.sm { width: 26px; min-height: 26px; }
 .btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
 .btn.run-go { background: var(--ok); color: var(--on-solid); border-color: transparent; }
+.btn.run-pause { background: var(--warn); color: var(--on-solid); border-color: transparent; }
 .btn.run-stop { background: var(--danger); color: var(--on-solid); border-color: transparent; }
 
 /* tooltips */

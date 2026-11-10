@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, onBeforeUnmount, markRaw } from 'vue'
 import FloatingWindow from './FloatingWindow.vue'
 import Icon from './Icon.vue'
 import { store, send, canvasRef, bytesToB64, toast, scene } from '../state/store.js'
@@ -19,9 +19,20 @@ const fileInput = ref(null)
 const picked = ref(null) // { name, bytes, url }
 const asLine = ref(false)
 const live = computed(() => store.run.state === 'running')
+// `send` only reaches Python while a run is active. Without one, the map from
+// the last run is still on screen and can be cleared locally.
+const canSend = computed(() => store.run.state === 'running' || store.run.state === 'stopping')
 const res = computed({ get: () => store.mapResolution, set: (v) => { store.mapResolution = v } })
 const lineWidth = computed({ get: () => store.lineWidth, set: (v) => { store.lineWidth = v } })
 const hasMap = computed(() => !!(scene.value?.map || scene.value?.lineMap))
+
+// scene is a shallowRef: replacing the object (instead of mutating it) makes
+// the canvas, navigator and these buttons update immediately.
+function patchScene(patch) {
+  if (!scene.value) return false
+  scene.value = markRaw({ ...scene.value, ...patch })
+  return true
+}
 
 function setPicked(name, bytes, mime = 'image/png') {
   if (picked.value) URL.revokeObjectURL(picked.value.url)
@@ -47,14 +58,21 @@ function apply() {
   send({ cmd: 'load_map', name: p.name, b64: bytesToB64(p.bytes), resolution: r, kind: asLine.value ? 'line' : 'occupancy' })
   toast(t('map.sent', { name: p.name }))
 }
-function clearMap() { send({ cmd: 'clear_map' }) }
+function clearMap() {
+  if (canSend.value && send({ cmd: 'clear_map' })) return
+  if (patchScene({ map: null, lineMap: null })) toast(t('map.cleared'))
+}
 
 function trackApply() {
   const strokes = canvasRef.value?.getStrokes?.() || []
   if (!strokes.length) { toast(t('map.draw_first'), 'warn'); return }
   send({ cmd: 'track_apply', strokes, line_width: Number(lineWidth.value) })
 }
-function trackClear() { canvasRef.value?.clearStrokes?.(); send({ cmd: 'track_clear' }) }
+function trackClear() {
+  canvasRef.value?.clearStrokes?.()
+  if (canSend.value && send({ cmd: 'track_clear' })) return
+  if (patchScene({ lineMap: null })) toast(t('map.track_cleared'))
+}
 </script>
 
 <template>
@@ -85,7 +103,7 @@ function trackClear() { canvasRef.value?.clearStrokes?.(); send({ cmd: 'track_cl
         </div>
         <div class="row">
           <button class="btn primary sm" :disabled="!live || !picked" @click="apply">{{ t('map.apply') }}</button>
-          <button class="btn sm" :disabled="!live || !hasMap" @click="clearMap"><Icon name="trash" :size="13" />{{ t('map.remove') }}</button>
+          <button class="btn sm" :disabled="!hasMap" @click="clearMap"><Icon name="trash" :size="13" />{{ t('map.remove') }}</button>
         </div>
       </section>
       <section>

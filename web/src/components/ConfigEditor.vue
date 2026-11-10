@@ -32,25 +32,34 @@ function toggleFind() {
   if (showFind.value) nextTick(() => findInput.value?.focus())
 }
 
-function selectRange(start, end) {
+// The textarea normalizes CRLF to LF, so the text model must use LF too or
+// match offsets no longer line up with the cursor positions.
+function normalizeNewlines(value) {
+  return String(value ?? '').replace(/\r\n?/g, '\n')
+}
+
+// Vue writes `text.value` to the textarea on the next tick; only then do the
+// offsets match the DOM and can the match be selected/scrolled into view.
+async function selectRange(start, end) {
+  await nextTick()
   const el = area.value
   if (!el) return
   el.focus()
   el.setSelectionRange(start, end)
 }
 
-function findNext(dir = 1, fromPos = null) {
+async function findNext(dir = 1, fromPos = null) {
   const list = matches.value
   if (!list.length) { findInfo.value = t('config.find_none'); return }
   const el = area.value
   const start = fromPos ?? (el?.selectionStart ?? 0)
   const end = fromPos ?? (el?.selectionEnd ?? 0)
   const pos = nextMatchIndex(list, { start, end, dir })
-  selectRange(pos, pos + findText.value.length)
+  await selectRange(pos, pos + findText.value.length)
   findInfo.value = t('config.find_count', { i: list.indexOf(pos) + 1, n: list.length })
 }
 
-function replaceOne() {
+async function replaceOne() {
   const list = matches.value
   if (!list.length) { findInfo.value = t('config.find_none'); return }
   const el = area.value
@@ -63,14 +72,36 @@ function replaceOne() {
   text.value = text.value.slice(0, target) + replaceText.value + text.value.slice(target + len)
   const nextPos = target + replaceText.value.length
   findInfo.value = t('config.replaced_count', { n: 1 })
-  findNext(1, nextPos)
+  // With no matches left there is nothing to jump to, but the caret should
+  // still land after the replacement instead of at the end of the document.
+  if (matches.value.length) await findNext(1, nextPos)
+  else await selectRange(nextPos, nextPos)
 }
 
-function replaceAll() {
+async function replaceAll() {
   const result = replaceAllMatches(text.value, findText.value, replaceText.value, matchCase.value)
   if (!result.count) { findInfo.value = t('config.find_none'); return }
   text.value = result.text
   findInfo.value = t('config.replaced_count', { n: result.count })
+  await nextTick()
+}
+
+// Ctrl+F opens the find bar; F3 / Shift+F3 walk through matches while the
+// editor itself has focus (the match stays visibly selected).
+function onFindEnter(e) {
+  findNext(e.shiftKey ? -1 : 1)
+}
+
+function onAreaKey(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+    e.preventDefault()
+    showFind.value = true
+    findInfo.value = ''
+    nextTick(() => findInput.value?.focus())
+  } else if (e.key === 'F3') {
+    e.preventDefault()
+    findNext(e.shiftKey ? -1 : 1)
+  }
 }
 
 function targetPath() {
@@ -85,7 +116,7 @@ async function load() {
   error.value = ''
   try {
     path.value = targetPath()
-    text.value = new TextDecoder().decode(await readClientFile(path.value))
+    text.value = normalizeNewlines(new TextDecoder().decode(await readClientFile(path.value)))
     loadedFile.value = ''
   } catch (e) {
     error.value = String(e?.message || e)
@@ -101,7 +132,7 @@ async function onFile(e) {
   e.target.value = ''
   if (!file) return
   try {
-    text.value = await file.text()
+    text.value = normalizeNewlines(await file.text())
     loadedFile.value = file.name
     error.value = ''
   } catch (err) {
@@ -142,7 +173,8 @@ async function save() {
       <div v-if="showFind && !loading" class="find-row">
         <input ref="findInput" v-model="findText" class="input mono find-input" spellcheck="false"
           :placeholder="t('config.find')" :aria-label="t('config.find')"
-          @keydown.enter.prevent="findNext(1)" @keydown.shift.enter.prevent="findNext(-1)" />
+          @keydown.enter.prevent="onFindEnter" />
+        <span v-if="findText" class="find-count" aria-live="polite">{{ matches.length }}</span>
         <input v-model="replaceText" class="input mono find-input" spellcheck="false"
           :placeholder="t('config.replace')" :aria-label="t('config.replace')"
           @keydown.enter.prevent="replaceOne" />
@@ -159,7 +191,7 @@ async function save() {
       <p v-if="showFind && !loading && findInfo" class="find-info" aria-live="polite">{{ findInfo }}</p>
       <div v-if="loading" class="faint">{{ t('config.loading') }}</div>
       <textarea v-else ref="area" v-model="text" class="input mono yaml" spellcheck="false" data-autofocus
-        :aria-label="t('config.editor_title')"></textarea>
+        :aria-label="t('config.editor_title')" @keydown="onAreaKey"></textarea>
       <p v-if="error" class="err" role="alert">{{ error }}</p>
       <template #footer>
         <button class="btn" @click="emit('close')">{{ t('common.cancel') }}</button>
@@ -177,6 +209,7 @@ async function save() {
 .loaded { margin: 0 0 var(--sp-4); color: var(--text-muted); font-size: var(--fs-sm); }
 .find-row { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-bottom: var(--sp-2); }
 .find-input { flex: 1 1 180px; min-width: 120px; }
+.find-count { min-width: 1.6em; text-align: center; color: var(--text-muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 .find-check { display: inline-flex; gap: var(--sp-2); align-items: center; font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap; }
 .find-info { margin: 0 0 var(--sp-2); color: var(--text-muted); font-size: var(--fs-sm); }
 .yaml {
