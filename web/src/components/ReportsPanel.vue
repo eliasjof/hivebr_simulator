@@ -49,24 +49,28 @@ try {
   const renderer = new marked.Renderer()
   const originalImage = renderer.image.bind(renderer)
   // marked 18.x: image(href, title, text) — not a token object
+  // Arguments can be null/undefined, so guard them
   renderer.image = (href, title, text) => {
-    if (typeof href === 'string' && href.startsWith('capture:')) {
-      const id = href.slice('capture:'.length)
+    const safeHref = typeof href === 'string' ? href : ''
+    if (safeHref.startsWith('capture:')) {
+      const id = safeHref.slice('capture:'.length)
       const capture = getCapture(id)
       if (capture) {
-        return originalImage(capture.dataUrl, title, text)
+        return originalImage(capture.dataUrl, title ?? '', text ?? '')
       }
     }
-    return originalImage(href, title, text)
+    return originalImage(safeHref, title ?? '', text ?? '')
   }
   marked.setOptions({
     breaks: true,
     gfm: true,
     highlight: (code, lang) => {
-      if (lang && hljs.getLanguage(lang)) {
-        try { return hljs.highlight(code, { language: lang }).value } catch { return code }
+      const safeCode = typeof code === 'string' ? code : ''
+      const safeLang = typeof lang === 'string' ? lang : ''
+      if (safeLang && hljs.getLanguage(safeLang)) {
+        try { return hljs.highlight(safeCode, { language: safeLang }).value } catch { return safeCode }
       }
-      return code
+      return safeCode
     },
     renderer
   })
