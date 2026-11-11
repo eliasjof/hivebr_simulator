@@ -106,7 +106,7 @@ if (!tabsInit.tabs.some((t) => t.id === tabsInit.activeId && t.open !== false)) 
 const activeInit = tabsInit.tabs.find((t) => t.id === tabsInit.activeId)
   || { name: t('script.default_name'), code: '', baseline: '' }
 
-const LAYOUT_DEFAULTS = { leftOpen: true, rightOpen: true, bottomOpen: true, leftW: 240, rightW: 460, bottomH: 220, bottomTab: 'console', rightMaximized: false, reportsOpen: false, reportsW: 460, reportsMaximized: false, activeReportId: null, showReportTemplateModal: false }
+const LAYOUT_DEFAULTS = { leftOpen: true, rightOpen: true, bottomOpen: true, leftW: 240, rightW: 460, bottomH: 220, bottomTab: 'console', rightMaximized: false, reportsOpen: false, reportsW: 460, reportsMaximized: false, activeReportId: null, showReportTemplateModal: false, centerTab: 'sim' }
 const client = new SimClient({ clientConfig: lsGet(LS.clientConfig, null) })
 
 // ---- reports ----

@@ -26,7 +26,7 @@ import {
   store, scene, canvasRef, startClient, send, ask, selectRobot, setCursor, runCode, stopCode, toggleSim, stepOnce, resetSim,
   saveNow, toggleTheme, toggleWindow, windows, clampWindow, setNarrow, openPanel, togglePanel, focusEditor, runDemo, pickFile, toast,
   toggleRightMaximized, toggleReportsPanel, toggleReportsMaximized, editable,
-  addCapture,
+  addCapture, b64ToBlob, download,
 } from './state/store.js'
 import { t, fmtNum, fmtInt } from './i18n/index.js'
 
@@ -66,6 +66,10 @@ function captureSimulation() {
   const dataUrl = canvas.toDataURL('image/png')
   const capture = addCapture(dataUrl)
   toast(t('toast.capture_saved', { name: capture.name }))
+}
+
+function downloadFigure(f, i) {
+  download(`${(f.title || 'figure' + i).replace(/[^\w-]+/g, '_')}.png`, b64ToBlob(f.png_b64, 'image/png'))
 }
 
 // ---- teclado ----
@@ -151,8 +155,13 @@ onBeforeUnmount(() => {
 watch(() => [store.layout.leftOpen, store.layout.rightOpen, store.layout.reportsOpen, store.layout.bottomOpen], () => requestAnimationFrame(() => window.dispatchEvent(new Event('resize'))))
 
 const effLeft = computed(() => Math.min(store.layout.leftW, Math.round(store.vw * 0.22)))
-const effRight = computed(() => Math.min(store.layout.rightW, Math.round(store.vw * 0.36)))
-const effReports = computed(() => Math.min(store.layout.reportsW, Math.round(store.vw * 0.36)))
+// The side panels can grow much wider now, but always leave room for the canvas.
+const maxSide = computed(() => {
+  const left = store.layout.leftOpen && !store.narrow ? effLeft.value : 0
+  return Math.max(320, Math.min(Math.round(store.vw * 0.72), store.vw - left - 240))
+})
+const effRight = computed(() => Math.min(store.layout.rightW, maxSide.value))
+const effReports = computed(() => Math.min(store.layout.reportsW, maxSide.value))
 // recolhido = altura das abas + as duas bordas do dock
 const bottomStyle = computed(() => ({ height: store.layout.bottomOpen ? store.layout.bottomH + 'px' : 'calc(var(--tabs-h) + 2px)' }))
 const maxLeft = computed(() => Math.min(420, Math.round(store.vw * 0.4)))
@@ -175,18 +184,24 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
 
       <!-- centro -->
       <section v-if="!store.layout.rightMaximized && !store.layout.reportsMaximized" class="center">
-        <div class="docbar" role="tablist" :aria-label="t('card.docs')"><div class="doctab on" role="tab" aria-selected="true"><Icon name="hex" :size="14" />{{ t('card.sim') }}</div></div>
+        <div class="docbar" role="tablist" :aria-label="t('card.docs')">
+          <button class="doctab" :class="{ on: store.layout.centerTab === 'sim' }" role="tab" :aria-selected="store.layout.centerTab === 'sim'" @click="store.layout.centerTab = 'sim'"><Icon name="hex" :size="14" />{{ t('card.sim') }}</button>
+          <button class="doctab" :class="{ on: store.layout.centerTab === 'figs' }" role="tab" :aria-selected="store.layout.centerTab === 'figs'" @click="store.layout.centerTab = 'figs'"><Icon name="image" :size="14" />{{ t('plots.figures') }}<span v-if="store.figures.length" class="tab-count">{{ fmtInt(store.figures.length) }}</span></button>
+        </div>
         <div class="card">
           <header class="card-h">
-            <span class="sec-h"><b>{{ t('card.sim') }}</b> <span class="muted">· {{ cardTitle }}</span></span>
+            <span v-if="store.layout.centerTab === 'sim'" class="sec-h"><b>{{ t('card.sim') }}</b> <span class="muted">· {{ cardTitle }}</span></span>
+            <span v-else class="sec-h"><b>{{ t('plots.figures') }}</b> <span class="muted">· {{ fmtInt(store.figures.length) }}</span></span>
             <span class="sp" />
-            <button class="btn ghost icon sm" :aria-label="t('capture.aria')" :data-tip="t('capture.tip')" @click="captureSimulation"><Icon name="camera" :size="14" /></button>
-            <button class="btn ghost icon sm" :aria-label="t('zoom.out')" :data-tip="zoomOutTip" @click="cv?.zoomOut()"><Icon name="zoomOut" :size="14" /></button>
-            <span class="zoom mono">{{ fmtInt(store.zoomPct) }}%</span>
-            <button class="btn ghost icon sm" :aria-label="t('zoom.in')" :data-tip="zoomInTip" @click="cv?.zoomIn()"><Icon name="zoomIn" :size="14" /></button>
-            <button class="btn ghost icon sm" :aria-label="t('view.fit')" :data-tip="viewFitTip" data-tip-pos="end" @click="cv?.fit()"><Icon name="fit" :size="14" /></button>
+            <template v-if="store.layout.centerTab === 'sim'">
+              <button class="btn ghost icon sm" :aria-label="t('capture.aria')" :data-tip="t('capture.tip')" @click="captureSimulation"><Icon name="camera" :size="14" /></button>
+              <button class="btn ghost icon sm" :aria-label="t('zoom.out')" :data-tip="zoomOutTip" @click="cv?.zoomOut()"><Icon name="zoomOut" :size="14" /></button>
+              <span class="zoom mono">{{ fmtInt(store.zoomPct) }}%</span>
+              <button class="btn ghost icon sm" :aria-label="t('zoom.in')" :data-tip="zoomInTip" @click="cv?.zoomIn()"><Icon name="zoomIn" :size="14" /></button>
+              <button class="btn ghost icon sm" :aria-label="t('view.fit')" :data-tip="viewFitTip" data-tip-pos="end" @click="cv?.fit()"><Icon name="fit" :size="14" /></button>
+            </template>
           </header>
-          <div class="cv">
+          <div v-show="store.layout.centerTab === 'sim'" class="cv">
             <SimCanvas ref="cv" :scene="scene" :tool="store.tool" :options="store.options" :interactive="editable" :lineWidth="store.lineWidth"
               @add-waypoint="onAddWaypoint" @waypoint-drag-orientation="onWaypointOrient" @add-obstacle="onAddObstacle"
               @add-recharge="(p) => send({ cmd: 'add_recharge', x: p.x, y: p.y })" @context="onContext" @select-robot="(p) => selectRobot(p.index)"
@@ -197,18 +212,34 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
               <button class="btn sm" @click="runDemo"><Icon name="demo" :size="14" />{{ t('hint.see_demo') }}</button>
             </div>
           </div>
+          <div v-if="store.layout.centerTab === 'figs'" class="figs-pane">
+            <div v-if="!store.figures.length" class="fig-empty">
+              <Icon name="image" :size="28" />
+              <h3>{{ t('plots.no_figs') }}</h3>
+              <p>{{ t('plots.no_figs_a') }}<code class="mono">plt.show()</code>{{ t('plots.no_figs_b') }}</p>
+            </div>
+            <div v-else class="figs">
+              <figure v-for="(f, i) in store.figures" :key="i" class="fig">
+                <img :src="'data:image/png;base64,' + f.png_b64" :alt="f.title || t('plots.fig_n', { n: i + 1 })" />
+                <figcaption>
+                  <span>{{ f.title || t('plots.fig_n', { n: i + 1 }) }}</span>
+                  <button class="btn sm" @click="downloadFigure(f, i)"><Icon name="download" :size="12" />{{ t('plots.download_png') }}</button>
+                </figcaption>
+              </figure>
+            </div>
+          </div>
         </div>
         <Splitter v-if="store.layout.bottomOpen" axis="y" v-model:value="store.layout.bottomH" invert :min="90" :max="520" :label="t('split.bottom')" />
         <div class="bottom" :style="bottomStyle"><BottomDock /></div>
       </section>
 
       <!-- painel direito - código -->
-      <Splitter v-if="store.layout.rightOpen && !store.narrow && !store.layout.rightMaximized && !store.layout.reportsMaximized" axis="x" v-model:value="store.layout.rightW" invert :min="300" :max="720" :label="t('split.code')" />
+      <Splitter v-if="store.layout.rightOpen && !store.narrow && !store.layout.rightMaximized && !store.layout.reportsMaximized" axis="x" v-model:value="store.layout.rightW" invert :min="300" :max="maxSide" :label="t('split.code')" />
       <aside v-if="store.layout.rightOpen" class="side right code" :style="{ width: store.layout.rightMaximized ? 'auto' : effRight + 'px' }"><EditorPanel /></aside>
       <button v-if="!store.layout.rightOpen && !store.layout.rightMaximized" class="rail right" :aria-label="t('rail.open_code')" :data-tip="t('view.code') + ' (E)'" data-tip-pos="end" @click="openPanel('right')"><Icon name="panelR" :size="16" /></button>
 
       <!-- painel direito - relatórios -->
-      <Splitter v-if="store.layout.reportsOpen && !store.narrow && !store.layout.reportsMaximized && !store.layout.rightMaximized" axis="x" v-model:value="store.layout.reportsW" invert :min="300" :max="720" :label="t('split.reports')" />
+      <Splitter v-if="store.layout.reportsOpen && !store.narrow && !store.layout.reportsMaximized && !store.layout.rightMaximized" axis="x" v-model:value="store.layout.reportsW" invert :min="300" :max="maxSide" :label="t('split.reports')" />
       <aside v-if="store.layout.reportsOpen" class="side right reports" :style="{ width: store.layout.reportsMaximized ? 'auto' : effReports + 'px' }"><ReportsPanel /></aside>
       <button v-if="!store.layout.reportsOpen && !store.layout.reportsMaximized" class="rail right" :aria-label="t('report.section')" :data-tip="t('report.section')" data-tip-pos="end" @click="toggleReportsPanel"><Icon name="file" :size="16" /></button>
     </main>
@@ -249,8 +280,12 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
 .reportsMaximized .side.right.reports { flex: 1 1 auto; width: auto !important; }
 .reportsMaximized .rail.right { display: none; }
 .docbar { height: var(--docbar-h); display: flex; align-items: flex-end; gap: var(--sp-2); padding-top: var(--sp-3); flex: none; }
-.doctab { display: flex; align-items: center; gap: var(--sp-3); padding: 0 14px; height: var(--tabs-h); background: var(--surface); border: 1px solid var(--border); border-bottom: none; border-radius: var(--radius) var(--radius) 0 0; font-weight: 500; box-shadow: 0 1px 0 var(--surface); position: relative; top: 1px; }
+.doctab { display: flex; align-items: center; gap: var(--sp-3); padding: 0 14px; height: var(--tabs-h); background: var(--surface); border: 1px solid var(--border); border-bottom: none; border-radius: var(--radius) var(--radius) 0 0; font-weight: 500; box-shadow: 0 1px 0 var(--surface); position: relative; top: 1px; color: var(--text-muted); }
 .doctab svg { color: var(--accent); }
+.doctab:hover { color: var(--text); }
+.doctab.on { color: var(--text); border-color: var(--border); box-shadow: 0 2px 0 var(--surface); }
+.doctab.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; background: var(--accent); border-radius: 2px; }
+.doctab .tab-count { margin-left: var(--sp-2); padding: 0 6px; border-radius: 999px; background: var(--surface-2); color: var(--text-muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 .card { flex: 1; min-height: 80px; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 0 var(--radius) var(--radius) var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
 .card-h { display: flex; align-items: center; gap: var(--sp-2); height: var(--panel-head-h); padding: 0 var(--sp-4) 0 var(--sp-5); border-bottom: 1px solid var(--border); flex: none; }
 .card-h b { color: var(--text); font-weight: 700; }
@@ -261,5 +296,14 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
 .cv > :deep(*:first-child) { position: absolute; inset: 0; }
 .hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); text-align: center; padding: 18px var(--sp-7); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); max-width: 90%; }
 .hint p { margin: 0; color: var(--text-muted); } .hint p.small { font-size: var(--fs-sm); margin-bottom: var(--sp-3); }
+.figs-pane { flex: 1; min-height: 0; overflow: auto; padding: 14px var(--sp-5); }
+.fig-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-3); height: 100%; text-align: center; color: var(--text-muted); }
+.fig-empty svg { color: var(--accent); }
+.fig-empty h3 { margin: 0; font-size: var(--fs-md); color: var(--text); }
+.fig-empty p { max-width: 420px; margin: 0; line-height: 1.5; }
+.figs { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--sp-5); }
+.fig { margin: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.fig img { width: 100%; display: block; }
+.fig figcaption { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); background: var(--surface-2); color: var(--text); }
 .bottom { flex: none; min-height: 0; margin-top: 9px; }
 </style>

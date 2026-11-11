@@ -656,11 +656,13 @@ await flow('n. en: nenhum português sobra no shell, janelas e modais', async ()
       if (key === 'g') {
         await pg.locator(`section[aria-label="${name}"]`).getByRole('button', { name: 'Toggle table' }).click(); await sleep(300); await snap('plots-table')
         await pg.locator(`section[aria-label="${name}"]`).getByRole('button', { name: 'Toggle table' }).click()
-        await pg.locator(`section[aria-label="${name}"]`).getByRole('tab', { name: /Figures/ }).click(); await snap('plots-figures')
       }
       await pg.screenshot({ path: path.join(SHOTS, `${String(++shotN).padStart(2, '0')}-n-en-${name}.png`) })
       if (key !== 'b') { await body.click({ position: { x: 300, y: 10 } }); await pg.keyboard.press(key) }
     }
+    // the Figures screen lives as a tab of the simulation panel now
+    await pg.locator('.docbar').getByRole('tab', { name: /Figures/ }).click(); await sleep(300); await snap('figures')
+    await pg.locator('.docbar').getByRole('tab', { name: /Simulation/ }).click()
     await pg.locator('section[aria-label="Telemetry"] button[aria-label="Close"]').click()
     // modals
     await pg.locator('.tb').getByRole('button', { name: /^Examples/ }).click(); await sleep(400); await snap('modal-examples')
@@ -696,6 +698,33 @@ await flow('n. en: nenhum português sobra no shell, janelas e modais', async ()
     await pg.screenshot({ path: path.join(SHOTS, `${String(++shotN).padStart(2, '0')}-n-en-error.png`) })
   } finally { await c.close() }
   check(problems.length === 0, 'Portuguese text left in the English UI:\n' + problems.join('\n'))
+})
+
+await flow('o. figuras como aba da simulação: galeria, canvas montado e download', async () => {
+  const b64 = pngBytes(32, 24, (x, y) => (((x >> 2) + (y >> 2)) % 2 ? 0 : 255)).toString('base64')
+  await setCode(`from hivebr_web import host\nhost.post('figure', {'title': 'Figura de teste', 'png_b64': '${b64}'})\n`)
+  await tb('Executar').click()
+  await page.locator('.docbar .tab-count').waitFor({ timeout: 60000 })
+
+  const tab = page.locator('.docbar').getByRole('tab', { name: /Figuras/ })
+  check(await tab.count() === 1, 'the Figures tab is missing from the simulation panel')
+  await tab.click()
+  await page.locator('.figs-pane .fig').first().waitFor({ timeout: 5000 })
+
+  const fig = page.locator('.figs-pane .fig').first()
+  check(await fig.locator('img').evaluate((img) => img.complete && img.naturalWidth > 0), 'the figure image did not render')
+  check((await fig.innerText()).includes('Figura de teste'), 'the figure title is missing')
+  check(await page.locator('.cv canvas').count() === 1, 'the simulation canvas was unmounted when switching tabs')
+
+  const [dl] = await Promise.all([
+    page.waitForEvent('download'),
+    fig.getByRole('button', { name: /PNG/ }).click(),
+  ])
+  check(/\.png$/i.test(dl.suggestedFilename()), `figure download is not a PNG: ${dl.suggestedFilename()}`)
+
+  await shot('o-figures')
+  await page.locator('.docbar').getByRole('tab', { name: /Simula/ }).click()
+  check(await page.locator('.cv canvas').isVisible(), 'the canvas did not come back on the Simulation tab')
 })
 
 // ------------------------------------------------------------------ summary

@@ -124,6 +124,36 @@ await test('navigator header button hides it and the rail reopens it', async () 
   check(await visible('.side.left'), 'navigator did not reopen from the rail')
 })
 
+await test('code and reports panels can grow much wider than the old 720px cap', async () => {
+  await page.reload()
+  await page.waitForFunction(() => /pronto/i.test(document.querySelector('[data-testid="pill"]')?.textContent || ''), null, { timeout: 180000 })
+  await sleep(400)
+  const dragLeft = async (label, dx) => {
+    const sep = page.locator(`[role="separator"][aria-label="${label}"]`)
+    const sb = await sep.boundingBox()
+    const y = sb.y + sb.height / 2
+    await page.mouse.move(sb.x + 2, y)
+    await page.mouse.down()
+    await page.mouse.move(sb.x + 2 - dx, y, { steps: 8 })
+    await page.mouse.up()
+    await sleep(300)
+  }
+
+  check(await visible('.side.right.code'), 'the code panel should start open')
+  await dragLeft('Redimensionar código', 400)
+  let w = await widthOf('.side.right.code')
+  check(w > 720, `code panel is still capped at ${w}px`)
+  check(w < 1300, `code panel swallowed the canvas: ${w}px`)
+
+  await openReports()
+  check(await visible('.reports-panel'), 'the reports panel did not open')
+  await dragLeft('Redimensionar relatórios', 400)
+  w = await widthOf('.reports-panel')
+  check(w > 720, `reports panel is still capped at ${w}px`)
+  check(w < 1300, `reports panel swallowed the canvas: ${w}px`)
+  check(await widthOf('.center') >= 200, 'the simulation panel lost all its room')
+})
+
 const failed = results.filter((r) => !r.ok)
 if (pageErrors.length) console.log('\nPage errors:\n' + pageErrors.join('\n'))
 console.log(`\n${results.length - failed.length} passed, ${failed.length} failed` + (pageErrors.length ? `, ${pageErrors.length} page error(s)` : ''))

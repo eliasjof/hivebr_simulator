@@ -3,10 +3,9 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import FloatingWindow from './FloatingWindow.vue'
 import Icon from './Icon.vue'
 import PlotChart from './PlotChart.vue'
-import { store, scene, logData, send, b64ToBlob, download, addCapture, toast } from '../state/store.js'
-import { t, fmtNum, fmtInt, tn } from '../i18n/index.js'
+import { store, scene, logData, send, addCapture, toast } from '../state/store.js'
+import { t, fmtNum, fmtInt } from '../i18n/index.js'
 
-const tab = ref('signals')
 const table = ref(false)
 const hidden = ref(new Set())
 const live = computed(() => store.run.state === 'running')
@@ -205,29 +204,22 @@ function resetLog() { send({ cmd: 'reset_logger' }); setTimeout(refresh, 100) }
 let timer = null
 onMounted(() => {
   refresh()
-  timer = setInterval(() => { if (live.value && tab.value === 'signals') refresh() }, 2000)
+  timer = setInterval(() => { if (live.value) refresh() }, 2000)
   document.addEventListener('pointerdown', onDocClick)
 })
 onBeforeUnmount(() => { clearInterval(timer); document.removeEventListener('pointerdown', onDocClick) })
 watch(live, (v) => { if (v) setTimeout(refresh, 300) })
-
-function dlFig(f, i) { download(`${(f.title || 'figure' + i).replace(/[^\w-]+/g, '_')}.png`, b64ToBlob(f.png_b64, 'image/png')) }
 </script>
 
 <template>
   <FloatingWindow id="plots">
     <template #actions>
-      <button v-if="tab === 'signals'" class="btn ghost icon sm" :disabled="!live" :aria-label="t('plots.refresh')" :data-tip="t('plots.refresh_tip')" @click="refresh"><Icon name="refresh" /></button>
-      <button v-if="tab === 'signals'" class="btn ghost icon sm" :disabled="!hasData || !shownCount || capturing" :aria-label="t('plots.capture')" :data-tip="t('plots.capture_tip')" @click="capturePlots"><Icon name="camera" /></button>
-      <button v-if="tab === 'signals'" class="btn ghost icon sm" :class="{ active: table }" :aria-label="t('plots.toggle_table')" :aria-pressed="table" :data-tip="t('plots.table')" @click="table = !table"><Icon name="table" /></button>
+      <button class="btn ghost icon sm" :disabled="!live" :aria-label="t('plots.refresh')" :data-tip="t('plots.refresh_tip')" @click="refresh"><Icon name="refresh" /></button>
+      <button class="btn ghost icon sm" :disabled="!hasData || !shownCount || capturing" :aria-label="t('plots.capture')" :data-tip="t('plots.capture_tip')" @click="capturePlots"><Icon name="camera" /></button>
+      <button class="btn ghost icon sm" :class="{ active: table }" :aria-label="t('plots.toggle_table')" :aria-pressed="table" :data-tip="t('plots.table')" @click="table = !table"><Icon name="table" /></button>
     </template>
-    <div class="tabs" role="tablist">
-      <button class="tab" role="tab" :aria-selected="tab === 'signals'" @click="tab = 'signals'">{{ t('plots.signals') }}</button>
-      <button class="tab" role="tab" :aria-selected="tab === 'figs'" @click="tab = 'figs'">{{ t('plots.figures') }}<span v-if="store.figures.length" class="chip n">{{ fmtInt(store.figures.length) }}</span></button>
-    </div>
 
-    <template v-if="tab === 'signals'">
-      <div class="bar">
+    <div class="bar">
         <div v-if="robots.length" class="filters" role="group" :aria-label="t('plots.filter')">
           <label v-for="r in robots" :key="r.id" class="flt" :class="{ off: hidden.has(r.id) }">
             <input type="checkbox" :checked="!hidden.has(r.id)" @change="toggle(r.id)" />
@@ -289,27 +281,10 @@ function dlFig(f, i) { download(`${(f.title || 'figure' + i).replace(/[^\w-]+/g,
           <ul class="mono"><li v-for="(c, i) in logData.collisions" :key="i">{{ c }}</li></ul>
         </section>
       </div>
-    </template>
-
-    <div v-else class="scroll">
-      <div v-if="!store.figures.length" class="empty">
-        <Icon name="image" :size="28" />
-        <h3>{{ t('plots.no_figs') }}</h3>
-        <p>{{ t('plots.no_figs_a') }}<code class="mono">plt.show()</code>{{ t('plots.no_figs_b') }}</p>
-      </div>
-      <div class="figs">
-        <figure v-for="(f, i) in store.figures" :key="i" class="fig">
-          <img :src="'data:image/png;base64,' + f.png_b64" :alt="f.title || t('plots.fig_n', { n: i + 1 })" />
-          <figcaption><span>{{ f.title || t('plots.fig_n', { n: i + 1 }) }}</span>
-            <button class="btn sm" @click="dlFig(f, i)"><Icon name="download" :size="12" />{{ t('plots.download_png') }}</button></figcaption>
-        </figure>
-      </div>
-    </div>
   </FloatingWindow>
 </template>
 
 <style scoped>
-.n { margin-left: var(--sp-3); padding: 0 var(--sp-3); }
 .bar { display: flex; flex-wrap: wrap; gap: var(--sp-4) var(--sp-6); align-items: center; padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); flex: none; }
 .filters { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-5); }
 .flt { display: inline-flex; align-items: center; gap: var(--sp-3); cursor: pointer; }
@@ -338,8 +313,4 @@ function dlFig(f, i) { download(`${(f.title || 'figure' + i).replace(/[^\w-]+/g,
 .coll { margin-top: 14px; }
 .coll h3 { font-size: var(--fs-sm); margin-bottom: var(--sp-2); }
 .coll ul { margin: 0; padding-left: var(--sp-6); max-height: 120px; overflow: auto; font-size: var(--fs-label); color: var(--text-muted); }
-.figs { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--sp-5); }
-.fig { margin: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
-.fig img { width: 100%; display: block; }
-.fig figcaption { display: flex; justify-content: space-between; align-items: center; padding: var(--sp-3) var(--sp-4); background: var(--surface-2); color: var(--text); }
 </style>
