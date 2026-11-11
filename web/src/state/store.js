@@ -494,66 +494,124 @@ export function duplicateDemo() {
 }
 
 // ---- painéis ----
+// Guarda o layout antes de maximizar um painel: ao restaurar, os demais painéis
+// voltam exatamente como estavam (antes só left/bottom eram salvos).
+function rememberLayout(key) {
+  store.layout[key] = {
+    leftOpen: store.layout.leftOpen,
+    rightOpen: store.layout.rightOpen,
+    reportsOpen: store.layout.reportsOpen,
+    bottomOpen: store.layout.bottomOpen,
+  }
+}
+function restoreLayout(key) {
+  const prev = store.layout[key]
+  if (!prev) return
+  if (typeof prev.leftOpen === 'boolean') store.layout.leftOpen = prev.leftOpen
+  if (typeof prev.rightOpen === 'boolean') store.layout.rightOpen = prev.rightOpen
+  if (typeof prev.reportsOpen === 'boolean') store.layout.reportsOpen = prev.reportsOpen
+  if (typeof prev.bottomOpen === 'boolean') store.layout.bottomOpen = prev.bottomOpen
+  delete store.layout[key]
+}
+// Em modo estreito só um painel lateral fica visível por vez; registra a escolha
+// do usuário para que, ao alargar a janela, o layout anterior volte.
+function rememberNarrow(which, open) {
+  const prev = store.layout._narrowPrev
+  if (!prev) return
+  prev[which + 'Open'] = open
+  if (open) {
+    if (which === 'left') { prev.rightOpen = false; prev.reportsOpen = false }
+    if (which === 'right') { prev.leftOpen = false; prev.reportsOpen = false }
+    if (which === 'reports') { prev.leftOpen = false; prev.rightOpen = false }
+  }
+}
+
 export function openPanel(which, tab) {
   if (which === 'left') store.layout.leftOpen = true
   if (which === 'right') store.layout.rightOpen = true
   if (which === 'bottom') { store.layout.bottomOpen = true; if (tab) store.layout.bottomTab = tab }
-  if (store.narrow && which !== 'bottom') { if (which === 'left') store.layout.rightOpen = false; else store.layout.leftOpen = false }
+  if (store.narrow && which !== 'bottom') {
+    if (which === 'left') { store.layout.rightOpen = false; store.layout.reportsOpen = false }
+    else { store.layout.leftOpen = false; if (which === 'right') store.layout.reportsOpen = false }
+    rememberNarrow(which, true)
+  }
 }
 export function togglePanel(which) {
   const k = which + 'Open'
-  if (store.layout[k]) store.layout[k] = false
-  else openPanel(which)
+  if (store.layout[k]) {
+    // Fechar um painel maximizado precisa sair do modo maximizado; senão o
+    // centro/esquerda continuam ocultos e não há botão para reabrir o painel.
+    if (which === 'right' && store.layout.rightMaximized) toggleRightMaximized()
+    store.layout[k] = false
+    if (store.narrow) rememberNarrow(which, false)
+  } else openPanel(which)
 }
 export function toggleRightMaximized() {
-  store.layout.rightMaximized = !store.layout.rightMaximized
   if (store.layout.rightMaximized) {
-    store.layout._prevLeft = store.layout.leftOpen
-    store.layout._prevBottom = store.layout.bottomOpen
-    store.layout.leftOpen = false
-    store.layout.bottomOpen = false
-    store.layout.rightOpen = true
-  } else {
-    store.layout.leftOpen = store.layout._prevLeft ?? true
-    store.layout.bottomOpen = store.layout._prevBottom ?? true
+    store.layout.rightMaximized = false
+    restoreLayout('_prevRightMax')
+    return
   }
+  if (store.layout.reportsMaximized) toggleReportsMaximized()
+  rememberLayout('_prevRightMax')
+  store.layout.rightMaximized = true
+  store.layout.reportsMaximized = false
+  store.layout.reportsOpen = false
+  store.layout.leftOpen = false
+  store.layout.bottomOpen = false
+  store.layout.rightOpen = true
 }
 export function toggleReportsMaximized() {
-  store.layout.reportsMaximized = !store.layout.reportsMaximized
   if (store.layout.reportsMaximized) {
-    store.layout._prevLeft = store.layout.leftOpen
-    store.layout._prevBottom = store.layout.bottomOpen
-    store.layout.leftOpen = false
-    store.layout.bottomOpen = false
-    store.layout.reportsOpen = true
-  } else {
-    store.layout.leftOpen = store.layout._prevLeft ?? true
-    store.layout.bottomOpen = store.layout._prevBottom ?? true
+    store.layout.reportsMaximized = false
+    restoreLayout('_prevReportsMax')
+    return
   }
+  if (store.layout.rightMaximized) toggleRightMaximized()
+  rememberLayout('_prevReportsMax')
+  store.layout.reportsMaximized = true
+  store.layout.rightMaximized = false
+  store.layout.rightOpen = false
+  store.layout.leftOpen = false
+  store.layout.bottomOpen = false
+  store.layout.reportsOpen = true
 }
 export function toggleReportsPanel() {
-  store.layout.reportsOpen = !store.layout.reportsOpen
   if (store.layout.reportsOpen) {
-    store.layout.rightOpen = false // close code panel when opening reports
+    if (store.layout.reportsMaximized) toggleReportsMaximized()
+    store.layout.reportsOpen = false
+    if (store.narrow) rememberNarrow('reports', false)
+    return
   }
+  if (store.layout.rightMaximized) toggleRightMaximized()
+  store.layout.reportsOpen = true
+  store.layout.reportsMaximized = false
+  store.layout.rightOpen = false // close code panel when opening reports
+  if (store.narrow) rememberNarrow('reports', true)
 }
 export function toggleReportTemplateModal() {
-  store.layout.showReportTemplateModal = !store.layout.showReportTemplateModal
-  if (store.layout.showReportTemplateModal) {
+  const opening = !store.layout.showReportTemplateModal
+  if (opening) {
+    if (store.layout.rightMaximized) toggleRightMaximized()
     store.layout.reportsOpen = true
     store.layout.rightOpen = false
+    if (store.narrow) rememberNarrow('reports', true)
   }
+  store.layout.showReportTemplateModal = opening
 }
 export function openReport(id) {
   if (!reports.some((r) => r.id === id)) return
   if (!openReportIds.includes(id)) openReportIds.push(id)
   store.activeReportId = id
+  if (store.layout.rightMaximized) toggleRightMaximized()
   store.layout.reportsOpen = true
   store.layout.rightOpen = false
+  if (store.narrow) rememberNarrow('reports', true)
 }
 export function closeReportsPanel() {
   // Keep the open tabs (and the active one) so reopening the panel returns to
   // the same report; closing a tab is what hides a report.
+  if (store.layout.reportsMaximized) toggleReportsMaximized()
   store.layout.reportsOpen = false
 }
 // ---- reports ----
@@ -836,10 +894,26 @@ export function setNarrow(v) {
   if (v === store.narrow) return
   store.narrow = v
   if (v) {
+    // Guarda o layout atual para devolvê-lo quando a janela voltar a ser larga.
+    store.layout._narrowPrev = {
+      leftOpen: store.layout.leftOpen,
+      rightOpen: store.layout.rightOpen,
+      reportsOpen: store.layout.reportsOpen,
+    }
     store.layout.leftOpen = false
     // Não fecha o painel direito se ele estiver maximizado (ou relatórios maximizados)
     if (!store.layout.rightMaximized && !store.layout.reportsMaximized) {
       store.layout.rightOpen = false
+      store.layout.reportsOpen = false
+    }
+  } else {
+    // Alargar a janela deve trazer de volta os painéis que estavam abertos.
+    const prev = store.layout._narrowPrev
+    if (prev) {
+      if (typeof prev.leftOpen === 'boolean') store.layout.leftOpen = prev.leftOpen
+      if (typeof prev.rightOpen === 'boolean') store.layout.rightOpen = prev.rightOpen
+      if (typeof prev.reportsOpen === 'boolean') store.layout.reportsOpen = prev.reportsOpen
+      delete store.layout._narrowPrev
     }
   }
 }

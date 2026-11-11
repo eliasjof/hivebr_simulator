@@ -13,7 +13,7 @@ import { t, locale } from '../i18n/index.js'
 import { CM_PHRASES_PT } from '../i18n/cm-phrases.js'
 import {
   store, setCode, runCode, stopCode, toggleSim, newFile, pickFile, downloadScript,
-  switchTab, closeTab, openTab, duplicateDemo, openPanel, toggleRightMaximized, isPythonFile,
+  switchTab, closeTab, openTab, duplicateDemo, openPanel, togglePanel, toggleRightMaximized, isPythonFile,
 } from '../state/store.js'
 
 const host = ref(null)
@@ -173,7 +173,7 @@ function onRunClick() {
         </div>
       </div>
       <button class="btn ghost icon sm" :aria-label="store.layout.rightMaximized ? t('win.restore') : t('win.maximize')" :data-tip="store.layout.rightMaximized ? t('win.restore') : t('win.maximize')" @click="toggleRightMaximized"><Icon :name="store.layout.rightMaximized ? 'restore' : 'max'" :size="14" /></button>
-      <button class="btn ghost icon sm" :aria-label="t('editor.collapse')" :data-tip="t('dock.collapse')" data-tip-pos="end" @click="store.layout.rightOpen = false"><Icon name="panelR" :size="14" /></button>
+      <button class="btn ghost icon sm" :aria-label="t('editor.collapse')" :data-tip="t('dock.collapse')" data-tip-pos="end" @click="togglePanel('right')"><Icon name="panelR" :size="14" /></button>
     </header>
     <div class="tabs" role="tablist" :aria-label="t('editor.tabs')">
       <div v-for="tab in openTabs" :key="tab.id" class="etab" :class="{ on: tab.id === store.activeId }">

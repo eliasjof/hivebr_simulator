@@ -6,7 +6,7 @@ import ScriptActionsModal from './ScriptActionsModal.vue'
 import ReportActionsModal from './ReportActionsModal.vue'
 import {
   store, scene, files, selectRobot, readClientFile, download, toast, toggleWindow, openWindow,
-  openReport, toggleReportTemplateModal, deleteCapture, renameCapture, openTab,
+  openReport, toggleReportTemplateModal, deleteCapture, renameCapture, openTab, togglePanel,
 } from '../state/store.js'
 import { t, fmtNum, fmtInt } from '../i18n/index.js'
 
@@ -96,12 +96,13 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', onDoc); docu
   <aside class="nav" :aria-label="t('nav.title')">
     <header class="ph">
       <Icon name="list" :size="14" /><span class="sec-h">{{ t('nav.title') }}</span><span class="sp" />
+      <button class="btn ghost icon sm" :aria-label="t('nav.hide')" :data-tip="t('nav.hide')" @click="togglePanel('left')"><Icon name="panelL" :size="14" /></button>
       <div ref="dd" class="dd">
         <button class="btn ghost icon sm" :aria-label="t('nav.more')" aria-haspopup="true" :aria-expanded="menu" @click="menu = !menu"><Icon name="dots" :size="14" /></button>
         <div v-if="menu" class="pop panel float" role="menu">
           <button class="mi" role="menuitem" @click="setAll(true)">{{ t('nav.expand_all') }}</button>
           <button class="mi" role="menuitem" @click="setAll(false)">{{ t('nav.collapse_all') }}</button>
-          <button class="mi" role="menuitem" @click="store.layout.leftOpen = false; menu = false">{{ t('nav.hide') }}</button>
+          <button class="mi" role="menuitem" @click="togglePanel('left'); menu = false">{{ t('nav.hide') }}</button>
         </div>
       </div>
     </header>

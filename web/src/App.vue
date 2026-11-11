@@ -133,7 +133,6 @@ onMounted(() => {
   window.addEventListener('keyup', onKeyUp)
   window.addEventListener('pointerdown', onPointerDownAny, true)
   window.addEventListener('resize', onResize)
-  if (window.innerWidth < 1100) { store.narrow = true; store.layout.leftOpen = false; store.layout.rightOpen = false }
   onResize()
   zoomTimer = setInterval(() => {
     const cam = cv.value?.getCamera?.()
@@ -205,12 +204,12 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
 
       <!-- painel direito - código -->
       <Splitter v-if="store.layout.rightOpen && !store.narrow && !store.layout.rightMaximized && !store.layout.reportsMaximized" axis="x" v-model:value="store.layout.rightW" invert :min="300" :max="720" :label="t('split.code')" />
-      <aside v-if="store.layout.rightOpen" class="side right" :style="{ width: store.layout.rightMaximized ? '100vw' : effRight + 'px' }"><EditorPanel /></aside>
+      <aside v-if="store.layout.rightOpen" class="side right code" :style="{ width: store.layout.rightMaximized ? 'auto' : effRight + 'px' }"><EditorPanel /></aside>
       <button v-if="!store.layout.rightOpen && !store.layout.rightMaximized" class="rail right" :aria-label="t('rail.open_code')" :data-tip="t('view.code') + ' (E)'" data-tip-pos="end" @click="openPanel('right')"><Icon name="panelR" :size="16" /></button>
 
       <!-- painel direito - relatórios -->
       <Splitter v-if="store.layout.reportsOpen && !store.narrow && !store.layout.reportsMaximized && !store.layout.rightMaximized" axis="x" v-model:value="store.layout.reportsW" invert :min="300" :max="720" :label="t('split.reports')" />
-      <aside v-if="store.layout.reportsOpen" class="side right" :style="{ width: store.layout.reportsMaximized ? '100vw' : effReports + 'px' }"><ReportsPanel /></aside>
+      <aside v-if="store.layout.reportsOpen" class="side right reports" :style="{ width: store.layout.reportsMaximized ? 'auto' : effReports + 'px' }"><ReportsPanel /></aside>
       <button v-if="!store.layout.reportsOpen && !store.layout.reportsMaximized" class="rail right" :aria-label="t('report.section')" :data-tip="t('report.section')" data-tip-pos="end" @click="toggleReportsPanel"><Icon name="file" :size="16" /></button>
     </main>
     <StatusBar />
@@ -243,11 +242,11 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
 .center { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 0 10px 10px; }
 .rightMaximized .center { display: none; }
 .rightMaximized .side.left { display: none; }
-.rightMaximized .side.right { width: 100vw !important; }
+.rightMaximized .side.right.code { flex: 1 1 auto; width: auto !important; }
 .rightMaximized .rail.right { display: none; }
 .reportsMaximized .center { display: none; }
 .reportsMaximized .side.left { display: none; }
-.reportsMaximized .side.right { width: 100vw !important; }
+.reportsMaximized .side.right.reports { flex: 1 1 auto; width: auto !important; }
 .reportsMaximized .rail.right { display: none; }
 .docbar { height: var(--docbar-h); display: flex; align-items: flex-end; gap: var(--sp-2); padding-top: var(--sp-3); flex: none; }
 .doctab { display: flex; align-items: center; gap: var(--sp-3); padding: 0 14px; height: var(--tabs-h); background: var(--surface); border: 1px solid var(--border); border-bottom: none; border-radius: var(--radius) var(--radius) 0 0; font-weight: 500; box-shadow: 0 1px 0 var(--surface); position: relative; top: 1px; }

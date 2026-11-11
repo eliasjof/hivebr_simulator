@@ -13,6 +13,7 @@
     "test:app": "npm run build && node tests/e2e/app.e2e.mjs",
     "test:editor": "npm run build && node tests/e2e/editor.e2e.mjs",
     "test:reports": "npm run build && node tests/e2e/reports.e2e.mjs",
+    "test:panels": "npm run build && node tests/e2e/panels.e2e.mjs",
     "test:i18n": "node --test tests/i18n/i18n.test.mjs",
     "test:examples": "node --test tests/examples/examples.test.mjs",
     "test:utils": "node --test tests/utils/findReplace.test.mjs tests/utils/fileNames.test.mjs",
