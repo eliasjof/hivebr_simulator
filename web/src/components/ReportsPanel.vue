@@ -390,8 +390,12 @@ function printHtml(html, onError) {
   // Two animation frames + a short delay guarantee the document is laid out
   // before the print dialog snapshots it.
   const nextFrame = () => new Promise((resolve) => {
+    let done = false
+    const finish = () => { if (!done) { done = true; setTimeout(resolve, 80) } }
     const raf = win.requestAnimationFrame ? win.requestAnimationFrame.bind(win) : (cb) => setTimeout(cb, 16)
-    raf(() => raf(() => setTimeout(resolve, 80)))
+    raf(() => raf(finish))
+    // rAF can be throttled; never block the print on it.
+    setTimeout(finish, 250)
   })
   const fontsReady = () => {
     try { return doc.fonts?.ready ? doc.fonts.ready.catch(() => {}) : Promise.resolve() } catch { return Promise.resolve() }
