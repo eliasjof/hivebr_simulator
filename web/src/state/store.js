@@ -587,7 +587,7 @@ export function toggleReportsPanel() {
   store.layout.reportsOpen = true
   store.layout.reportsMaximized = false
   store.layout.rightOpen = false // close code panel when opening reports
-  if (store.narrow) rememberNarrow('reports', true)
+  if (store.narrow) { store.layout.leftOpen = false; rememberNarrow('reports', true) }
 }
 export function toggleReportTemplateModal() {
   const opening = !store.layout.showReportTemplateModal
@@ -595,7 +595,7 @@ export function toggleReportTemplateModal() {
     if (store.layout.rightMaximized) toggleRightMaximized()
     store.layout.reportsOpen = true
     store.layout.rightOpen = false
-    if (store.narrow) rememberNarrow('reports', true)
+    if (store.narrow) { store.layout.leftOpen = false; rememberNarrow('reports', true) }
   }
   store.layout.showReportTemplateModal = opening
 }
@@ -606,7 +606,7 @@ export function openReport(id) {
   if (store.layout.rightMaximized) toggleRightMaximized()
   store.layout.reportsOpen = true
   store.layout.rightOpen = false
-  if (store.narrow) rememberNarrow('reports', true)
+  if (store.narrow) { store.layout.leftOpen = false; rememberNarrow('reports', true) }
 }
 export function closeReportsPanel() {
   // Keep the open tabs (and the active one) so reopening the panel returns to
