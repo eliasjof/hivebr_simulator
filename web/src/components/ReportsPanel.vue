@@ -263,10 +263,10 @@ ${meta.content || 'Escreva sua nota aqui...'}
 
 <table>
   <tr><td style="width:26%;color:#1e4d2e;font-weight:600;">Data</td><td>${meta.date}</td></tr>
-  <tr><td style="color:#1e4d2e;font-weight:600;">Professor(a)</td><td>—</td></tr>
-  <tr><td style="color:#1e4d2e;font-weight:600;">Matéria</td><td>—</td></tr>
-  <tr><td style="color:#1e4d2e;font-weight:600;">Turma</td><td>—</td></tr>
-  <tr><td style="color:#1e4d2e;font-weight:600;">Estudante(s)</td><td>—</td></tr>
+  <tr><td style="color:#1e4d2e;font-weight:600;">Professor(a)</td><td>Escreva aqui o nome do professor</td></tr>
+  <tr><td style="color:#1e4d2e;font-weight:600;">Matéria</td><td>Escreva aqui o nome da matéria</td></tr>
+  <tr><td style="color:#1e4d2e;font-weight:600;">Turma</td><td>Escreva aqui o nome da turma</td></tr>
+  <tr><td style="color:#1e4d2e;font-weight:600;">Estudante(s)</td><td>Escreva aqui o nome do estudante</td></tr>
 </table>
 
 # Título principal do relatório
