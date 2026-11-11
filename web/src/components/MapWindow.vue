@@ -2,7 +2,7 @@
 import { ref, computed, onBeforeUnmount, markRaw } from 'vue'
 import FloatingWindow from './FloatingWindow.vue'
 import Icon from './Icon.vue'
-import { store, send, canvasRef, bytesToB64, toast, scene } from '../state/store.js'
+import { store, send, canvasRef, bytesToB64, toast, scene, editable } from '../state/store.js'
 import { t } from '../i18n/index.js'
 import mapa1 from '../../../src/hivebr/engine/assets/mapa_1.png?url'
 import mapaL from '../../../src/hivebr/engine/assets/mapa_l.png?url'
@@ -18,10 +18,8 @@ const bundled = [
 const fileInput = ref(null)
 const picked = ref(null) // { name, bytes, url }
 const asLine = ref(false)
-const live = computed(() => store.run.state === 'running')
-// `send` only reaches Python while a run is active. Without one, the map from
-// the last run is still on screen and can be cleared locally.
-const canSend = computed(() => store.run.state === 'running' || store.run.state === 'stopping')
+// `send` routes to the idle editor before a run and to the SAB ring during one.
+const canSend = computed(() => editable.value)
 const res = computed({ get: () => store.mapResolution, set: (v) => { store.mapResolution = v } })
 const lineWidth = computed({ get: () => store.lineWidth, set: (v) => { store.lineWidth = v } })
 const hasMap = computed(() => !!(scene.value?.map || scene.value?.lineMap))
@@ -77,7 +75,7 @@ function trackClear() {
 
 <template>
   <FloatingWindow id="map">
-    <div v-if="!live" class="note"><Icon name="info" :size="14" />{{ t('map.note') }}</div>
+    <div v-if="!editable" class="note"><Icon name="info" :size="14" />{{ t('map.note') }}</div>
     <div class="scroll">
       <section>
         <h3>{{ t('map.image') }}</h3>
@@ -102,7 +100,7 @@ function trackClear() {
           <label class="switch"><input type="radio" :value="true" v-model="asLine" /> {{ t('map.kind_line') }}</label>
         </div>
         <div class="row">
-          <button class="btn primary sm" :disabled="!live || !picked" @click="apply">{{ t('map.apply') }}</button>
+          <button class="btn primary sm" :disabled="!editable || !picked" @click="apply">{{ t('map.apply') }}</button>
           <button class="btn sm" :disabled="!hasMap" @click="clearMap"><Icon name="trash" :size="13" />{{ t('map.remove') }}</button>
         </div>
       </section>

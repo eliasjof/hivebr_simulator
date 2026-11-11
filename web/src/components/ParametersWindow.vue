@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import FloatingWindow from './FloatingWindow.vue'
 import Icon from './Icon.vue'
 import ConfigEditor from './ConfigEditor.vue'
-import { store, scene, send, ask } from '../state/store.js'
+import { store, scene, send, ask, editable } from '../state/store.js'
 import { t } from '../i18n/index.js'
 
 const DEFS = [
@@ -46,29 +46,29 @@ async function resetConfig() {
 
 <template>
   <FloatingWindow id="params">
-    <div v-if="!live" class="note"><Icon name="info" :size="14" />{{ t('params.note') }}</div>
+    <div v-if="!editable" class="note"><Icon name="info" :size="14" />{{ t('params.note') }}</div>
     <div class="scroll">
       <div v-for="d in shown" :key="d.key" class="prm">
         <label :for="'p-' + d.key">{{ t(d.labelKey) }}</label>
         <div class="ctl">
-          <input type="range" :min="d.min" :max="d.max" :step="d.step" :value="vals[d.key]" :disabled="!live" :aria-label="t(d.labelKey)" @input="set(d, $event.target.value)" />
+          <input type="range" :min="d.min" :max="d.max" :step="d.step" :value="vals[d.key]" :disabled="!editable" :aria-label="t(d.labelKey)" @input="set(d, $event.target.value)" />
           <input :id="'p-' + d.key" class="input mono num" type="number" :min="d.min" :max="d.max" :step="d.step" :value="Number(vals[d.key]).toFixed(2)"
-            :disabled="!live" @change="set(d, $event.target.value)" />
+            :disabled="!editable" @change="set(d, $event.target.value)" />
         </div>
       </div>
       <p v-if="!shown.length" class="faint">{{ t('params.empty') }}</p>
       <div class="sw">
-        <label class="switch"><input type="checkbox" :checked="lidarOn" :disabled="!live" @change="toggleLidar" /> {{ t('params.lidar') }}</label>
-        <label class="switch"><input type="checkbox" :checked="noiseOn" :disabled="!live" @change="toggleNoise" /> {{ t('params.noise') }}</label>
+        <label class="switch"><input type="checkbox" :checked="lidarOn" :disabled="!editable" @change="toggleLidar" /> {{ t('params.lidar') }}</label>
+        <label class="switch"><input type="checkbox" :checked="noiseOn" :disabled="!editable" @change="toggleNoise" /> {{ t('params.noise') }}</label>
       </div>
       <div class="acts">
-        <button class="btn sm" :disabled="!live" @click="send({ cmd: 'clear_waypoints' })"><Icon name="flag" :size="13" />{{ t('params.clear_waypoints') }}</button>
-        <button class="btn sm" :disabled="!live" @click="clearObs"><Icon name="obstacle" :size="13" />{{ t('params.clear_obstacles') }}</button>
-        <button class="btn sm" :disabled="!live" @click="send({ cmd: 'clear_path' })"><Icon name="eraser" :size="13" />{{ t('params.clear_trails') }}</button>
+        <button class="btn sm" :disabled="!editable" @click="send({ cmd: 'clear_waypoints' })"><Icon name="flag" :size="13" />{{ t('params.clear_waypoints') }}</button>
+        <button class="btn sm" :disabled="!editable" @click="clearObs"><Icon name="obstacle" :size="13" />{{ t('params.clear_obstacles') }}</button>
+        <button class="btn sm" :disabled="!editable" @click="send({ cmd: 'clear_path' })"><Icon name="eraser" :size="13" />{{ t('params.clear_trails') }}</button>
         <button class="btn sm" :disabled="!store.boot.ready || live" :data-tip="t('params.edit_config_tip')" @click="editorOpen = true"><Icon name="file" :size="13" />{{ t('params.edit_config') }}</button>
-        <button class="btn sm" :disabled="!live" :data-tip="t('params.reset_config_tip')" @click="resetConfig"><Icon name="reset" :size="13" />{{ t('params.reset_config') }}</button>
-        <button class="btn sm primary" :disabled="!live" :data-tip="t('params.update_config_tip')" @click="send({ cmd: 'update_config' })"><Icon name="check" :size="13" />{{ t('params.update_config') }}</button>
-        <button class="btn sm" :disabled="!live" @click="send({ cmd: 'save_config' })"><Icon name="download" :size="13" />{{ t('params.save_config') }}</button>
+        <button class="btn sm" :disabled="!editable" :data-tip="t('params.reset_config_tip')" @click="resetConfig"><Icon name="reset" :size="13" />{{ t('params.reset_config') }}</button>
+        <button class="btn sm primary" :disabled="!editable" :data-tip="t('params.update_config_tip')" @click="send({ cmd: 'update_config' })"><Icon name="check" :size="13" />{{ t('params.update_config') }}</button>
+        <button class="btn sm" :disabled="!editable" @click="send({ cmd: 'save_config' })"><Icon name="download" :size="13" />{{ t('params.save_config') }}</button>
       </div>
     </div>
     <ConfigEditor v-if="editorOpen" @close="editorOpen = false" />

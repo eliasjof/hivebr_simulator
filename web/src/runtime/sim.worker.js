@@ -9,6 +9,7 @@ let interruptView = null
 let scipyPromise = null
 let scipyDone = false
 let runner = null
+let running = false
 
 const USER_DIR = '/hivebr/user_scripts'
 
@@ -109,6 +110,15 @@ async function init({ zipUrl, sab, pyodideUrl, clientConfig }) {
     runner = pyodide.pyimport('hivebr_web.runner')
     runner.boot()
 
+    // The idle editor exists from the start, so the scene can be edited before
+    // the first run. It is replaced by the last run simulator when a run ends.
+    try {
+      const ed = runner.ensure_editor()
+      if (ed && ed.destroy) ed.destroy()
+    } catch (e) {
+      send('notice', { level: 'warn', code: 'editor_failed', params: { error: String((e && e.message) || e) }, text: `Could not create the editor (${(e && e.message) || e})` })
+    }
+
     send('ready', { pyodide_version: pyodide.version, interactive: !!reader })
 
     // scipy is imported by the occupancy-grid code while Python is blocked, so it
@@ -149,6 +159,7 @@ function syncUserFiles(files, mainName, mainCode) {
 }
 
 async function run({ code, autostart, files, mainName }) {
+  running = true
   try {
     if (!scipyDone && scipyPromise) {
       boot('scipy', 0.97)
@@ -180,6 +191,19 @@ async function run({ code, autostart, files, mainName }) {
     send('finished', result)
   } catch (e) {
     send('fatal', { message: String((e && e.message) || e) })
+  } finally {
+    running = false
+  }
+}
+
+// Idle editing: the Python side owns the editor simulator, so this only needs
+// to forward one command (the reply arrives as scene/frame messages).
+function edit({ cmd }) {
+  if (!runner || running) return
+  try {
+    runner.dispatch_edit(JSON.stringify(cmd))
+  } catch (e) {
+    send('notice', { level: 'warn', code: 'edit_failed', params: { error: String((e && e.message) || e) }, text: `Edit failed (${(e && e.message) || e})` })
   }
 }
 
@@ -231,6 +255,7 @@ self.onmessage = (ev) => {
   switch (m.type) {
     case 'init': init(m); break
     case 'run': run(m); break
+    case 'edit': edit(m); break
     case 'read_file': readFile(m); break
     case 'write_config': writeConfig(m); break
   }

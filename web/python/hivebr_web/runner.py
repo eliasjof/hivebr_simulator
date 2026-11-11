@@ -31,6 +31,23 @@ def boot():
             sys.path.insert(0, p)
     from . import simulator
     simulator.install()
+    simulator.reset_editor()
+
+
+# ------------------------------------------------------------- editor ----
+def ensure_editor():
+    """Simulator used by the UI while no script is running."""
+    from . import simulator
+    return simulator.ensure_editor(os.path.join(ROOT, "config", "default.yaml"))
+
+
+def dispatch_edit(raw):
+    """Apply one UI command to the idle editor (there is no execution loop)."""
+    from . import commands, simulator
+    sim = simulator.editor() or ensure_editor()
+    commands.dispatch(sim, raw, editing=True)
+    sim._emit()
+    return None
 
 
 def script_path(filename: str | None = None) -> str:
@@ -236,5 +253,10 @@ def run_user_code(code: str, autostart: bool = False, filename: str | None = Non
         sys.path[:] = saved[1]
         os.chdir(saved[2])
         _purge_user_modules(modules_before)
+        try:
+            simulator.enter_edit_mode()
+        except Exception as exc:  # never hide the run result behind an editor error
+            traceback.print_exc()
+            host.notice("warn", f"Could not return to edit mode: {exc!r}", "edit_mode_failed", error=repr(exc))
     result["files"] = _changed_files(files_before)
     return json.dumps(result)

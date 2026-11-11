@@ -11,7 +11,7 @@ import tempfile
 import numpy as np
 import yaml
 
-from . import host, serialize
+from . import edits, host, serialize
 
 # The client config lives inside the extracted /hivebr tree (CWD during a run).
 CONFIG_PATH = os.path.join("config", "default.yaml")
@@ -26,24 +26,83 @@ PARAM_RANGES = {
 }
 
 
-def dispatch(sim, raw):
-    """Run one command (JSON string or dict). Never raises."""
+# Commands that change scene collections; their effect is recorded as a delta.
+_COLLECTION_COMMANDS = {
+    "add_waypoint", "clear_waypoints", "remove_waypoint",
+    "add_obstacle", "remove_obstacle", "clear_obstacles",
+    "add_recharge", "remove_recharge",
+}
+# Run controls only make sense while a script is executing.
+_RUN_CONTROLS = {"start", "pause", "toggle", "stop", "step_once"}
+
+
+def dispatch(sim, raw, editing=False):
+    """Run one command (JSON string or dict). Never raises.
+
+    ``editing`` is set when the command comes from the idle editor: run
+    controls are ignored, because there is no execution loop to drive.
+    """
     try:
         msg = json.loads(raw) if isinstance(raw, (str, bytes)) else dict(raw)
         name = msg["cmd"]
     except Exception:
         host.notice("warn", f"Invalid command: {str(raw)[:80]}", "invalid_command", raw=str(raw)[:80])
         return
+    if editing and name in _RUN_CONTROLS:
+        return
     handler = HANDLERS.get(name)
     if handler is None:
         host.notice("warn", f"Unknown command: {name}", "unknown_command", name=name)
         return
     try:
-        handler(sim, msg)
+        before = edits.state().snapshot(sim) if name in _COLLECTION_COMMANDS else None
+        result = handler(sim, msg)
     except Exception as exc:  # a bad command must never break the run
         host.notice("warn", f"Command '{name}' failed: {type(exc).__name__}: {exc}", "command_failed",
                     name=name, error=f"{type(exc).__name__}: {exc}")
+    else:
+        if before is not None:
+            edits.state().record_collections(before, edits.state().snapshot(sim))
+        _record_single(sim, name, msg, result)
     sim.mark_dirty()
+
+
+def _record_single(sim, name, msg, result):
+    """Record explicit (single-valued) choices made through the UI."""
+    st = edits.state()
+    if name == "set_pose":
+        index = _robot(sim, msg)
+        robot = sim.robots[index]
+        st.record_pose(index, robot.x, robot.y, robot.theta)
+    elif name == "set_param":
+        _record_param(sim, msg.get("name"))
+    elif name == "load_map" and result:
+        st.record_map(result["kind"], result["path"], result["res"])
+    elif name == "clear_map":
+        st.record_clear_map()
+    elif name == "track_apply" and result:
+        st.record_track(result)
+        # `apply_track` puts every robot on the track start; keep that choice.
+        for index, robot in enumerate(sim.robots):
+            st.record_pose(index, robot.x, robot.y, robot.theta)
+    elif name == "track_clear":
+        st.record_clear_track()
+
+
+def _record_param(sim, name):
+    if name in ("max_speed", "max_omega", "max_steer", "servo_max_speed"):
+        value = sim.config.get("robot", {}).get(name)
+    elif name == "grid_size":
+        value = sim.world.grid_size
+    elif name == "noise_sigma":
+        value = sim.config.get("noise", {}).get("sigma_v")
+    elif name == "goal_tolerance":
+        value = sim.waypoint_managers[0].goal_tolerance
+    else:
+        return
+    if value is not None:
+        edits.state().record_param(name, value)
+
 
 
 def _robot(sim, msg, key="robot"):
@@ -122,7 +181,14 @@ def _remove_waypoint(sim, msg):
 
 # ------------------------------------------------------------ obstacles ----
 def _sync_obstacles(sim):
-    sim.config.setdefault("world", {})["obstacles"] = np.array(sim.world.obstacles).tolist()
+    """Keep the config in sync so a later `load_scene_from_config` sees them."""
+    sim.config["obstacles"] = [
+        {"x": float(o[0]), "y": float(o[1]), "radius": float(o[2])}
+        for o in sim.world.obstacles
+    ]
+    sim.config.setdefault("world", {})["obstacles"] = [
+        [float(o[0]), float(o[1]), float(o[2])] for o in sim.world.obstacles
+    ]
 
 
 def _add_obstacle(sim, msg):
@@ -138,7 +204,10 @@ def _remove_obstacle(sim, msg):
     _sync_obstacles(sim)
 
 
-def _clear_obstacles(sim, msg): sim.world.clear_obstacles()
+def _clear_obstacles(sim, msg):
+    sim.world.clear_obstacles()
+    _sync_obstacles(sim)
+
 def _remove_recharge(sim, msg):
     del sim.world.recharge_places[int(msg["index"])]
 
@@ -223,17 +292,21 @@ def _load_map(sim, msg):
     if kind not in ("occupancy", "line"):
         raise ValueError("kind must be 'occupancy' or 'line'")
     try:
+        world_cfg = sim.config.setdefault("world", {})
         if kind == "line":
             sim.world.load_line_map(path, res)
-            sim.config.setdefault("world", {})["line_map_image"] = path
+            world_cfg["line_map_image"] = path
         else:
             sim.world.load_map(path, res)
             sim.grid_map = sim.world.grid_map
+            world_cfg["map_image"] = path
+        world_cfg["resolution"] = res
     except Exception as exc:
         host.notice("error", f"Could not load map: {exc}", "map_load_failed", error=exc)
-        return
+        return None
     host.notice("info", f"{'Line track' if kind == 'line' else 'Map'} loaded: {name} (res {res} m/px)",
                 "line_track_loaded" if kind == "line" else "map_loaded", name=name, res=res)
+    return {"kind": kind, "path": path, "res": res}
 
 
 def _clear_map(sim, msg):
@@ -241,6 +314,10 @@ def _clear_map(sim, msg):
     sim.grid_map = None
     sim.world.line_map = None
     sim._track_gray = None
+    world_cfg = sim.config.setdefault("world", {})
+    world_cfg.pop("map_image", None)
+    world_cfg.pop("line_map_image", None)
+
 
 
 def _rasterize(sim, strokes, fresh=False, default_width=0.02):
@@ -295,15 +372,19 @@ def _rasterize(sim, strokes, fresh=False, default_width=0.02):
 
 def _track_apply(sim, msg):
     # Apply replaces the current track with the drawing (draw -> apply).
+    strokes = msg.get("strokes") or []
+    line_width = float(msg.get("line_width", 0.02))
     _rasterize(
         sim,
-        msg.get("strokes") or [],
+        strokes,
         fresh=True,
-        default_width=float(msg.get("line_width", 0.02)),
+        default_width=line_width,
     )
     sim.apply_track()  # same as the desktop "Apply Track" button
     path = sim.config.get("world", {}).get("drawn_line_map_image", "config/line_drawn.png")
     sim._track_gray.save(path)
+    return {"strokes": strokes, "line_width": line_width, "path": path}
+
 
 
 def _track_clear(sim, msg):
@@ -403,6 +484,7 @@ def _reset_config(sim, msg):
     if "enabled" in noise:
         sim.config.setdefault("noise", {})["enabled"] = bool(noise["enabled"])
     _post_client_config(CONFIG_PATH, reset=True)
+    edits.state().params.clear()  # the restored values are the new baseline
     host.notice(
         "info",
         f"Config restored: {CONFIG_PATH}",

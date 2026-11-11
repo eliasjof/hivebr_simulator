@@ -98,7 +98,8 @@ class Env:
 
     def __init__(self):
         import hivebr.engine  # noqa: F401  (load from the repo, not from the temporary root)
-        from hivebr_web import host as host_mod, runner
+        from hivebr_web import edits, host as host_mod, runner
+        edits.reset()                # each test starts without user edits
         self.host = FakeHost()
         host_mod.set_host(self.host)
         self.root = make_root()

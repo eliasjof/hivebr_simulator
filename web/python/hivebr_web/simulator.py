@@ -6,6 +6,8 @@ host commands and output goes out as ``scene``/``frame`` messages.
 """
 from __future__ import annotations
 
+import copy
+import os
 import traceback
 from collections import deque
 
@@ -15,13 +17,15 @@ import hivebr.engine as engine_pkg
 import hivebr.engine.simulator as sim_mod
 from hivebr.engine.camera import Camera2D
 
-from . import commands, host, serialize
+from . import commands, edits, host, serialize
 
 # Set by the runner before executing user code.
 autostart = False
 
 _Base = getattr(sim_mod.Simulator, "_browser_base", sim_mod.Simulator)
 _current = None  # last simulator created; used by the log plot hook
+_editor = None   # persistent simulator used while no script is running
+DEFAULT_EDITOR_CONFIG = os.path.join("config", "default.yaml")
 
 FRAME_MS = 1000.0 / 60.0
 FRAME_MS_UNPACED = 1000.0 / 30.0
@@ -69,6 +73,7 @@ class BrowserSimulator(_Base):
         self._sig = None
         self._dirty = True
         self._last_emit = -1e9
+        self._last_frame_running = False
         self._next_tick = None
         self._rt = deque()
         self._overlay_disabled = False
@@ -76,6 +81,8 @@ class BrowserSimulator(_Base):
         self._track_gray = None
         if autostart:
             self.running_simulation = True
+        # User edits made while idle are merged on top of every new scene.
+        edits.apply(self)
         self._post_scene()
         self._emit()
 
@@ -106,6 +113,7 @@ class BrowserSimulator(_Base):
             step=self.step_count, overlay=self._overlay())
         host.post("frame", frame)
         self._last_emit = now
+        self._last_frame_running = running
         self._dirty = False
 
     def _realtime(self, now, running):
@@ -264,6 +272,72 @@ def _show_log_plot(multi_log, title=None):
         print("[PlotWindow] No data to plot.")
         return
     host.post("log_data", serialize.build_log_data(_current, True, multi_log))
+
+
+# ------------------------------------------------------------- editor ----
+def ensure_editor(config_path=None):
+    """Create (once) the simulator the UI edits while no script is running."""
+    global _editor
+    if _editor is None:
+        _editor = _make_editor(config_path)
+    return _editor
+
+
+def editor():
+    return _editor
+
+
+def reset_editor():
+    """Forget the idle editor (a new interpreter/boot starts from scratch)."""
+    global _editor, _current
+    _editor = None
+    _current = None
+
+
+def _make_editor(config_path=None):
+    global autostart
+    saved = autostart
+    autostart = False
+    try:
+        sim = BrowserSimulator(config=_editor_config(config_path))
+    finally:
+        autostart = saved
+    sim.running = False
+    sim.running_simulation = False
+    sim._autostart_pending = False
+    return sim
+
+
+def _editor_config(config_path=None):
+    from hivebr.engine import load_config
+
+    path = config_path or DEFAULT_EDITOR_CONFIG
+    if os.path.exists(path):
+        cfg = load_config(path)
+    else:
+        cfg = copy.deepcopy(sim_mod.DEFAULT_CONFIG)
+    cfg["running_simulation"] = False
+    return cfg
+
+
+def enter_edit_mode():
+    """Adopt the last run simulator (or a fresh one) as the idle editor."""
+    global _editor
+    sim = _current
+    if sim is None:
+        sim = ensure_editor()
+    _editor = sim
+    sim.running = False
+    sim.running_simulation = False
+    sim._autostart_pending = False
+    # The final frame already reports "stopped" after a normal run. Only send
+    # updates that are actually missing (interrupted run, changed statics).
+    if serialize.static_signature(sim) != sim._sig:
+        sim._post_scene()
+    if sim._last_frame_running:
+        sim._dirty = True
+        sim._emit()
+    return sim
 
 
 def install():

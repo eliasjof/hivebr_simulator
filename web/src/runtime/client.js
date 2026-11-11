@@ -170,6 +170,13 @@ export class SimClient {
     return this.writer.push(JSON.stringify(cmd))
   }
 
+  /** Applies a UI command while no script is running. Returns false if not delivered. */
+  edit(cmd) {
+    if (!this.worker || this.state !== 'ready') return false
+    this.worker.postMessage({ type: 'edit', cmd })
+    return true
+  }
+
   /**
    * Stops the run with three escalation levels: `stop` command, KeyboardInterrupt
    * through the interrupt buffer, and finally terminating the worker and rebooting.

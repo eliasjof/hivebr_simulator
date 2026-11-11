@@ -25,7 +25,7 @@ import ReportsPanel from './components/ReportsPanel.vue'
 import {
   store, scene, canvasRef, startClient, send, ask, selectRobot, setCursor, runCode, stopCode, toggleSim, stepOnce, resetSim,
   saveNow, toggleTheme, toggleWindow, windows, clampWindow, setNarrow, openPanel, togglePanel, focusEditor, runDemo, pickFile, toast,
-  toggleRightMaximized, toggleReportsPanel, toggleReportsMaximized,
+  toggleRightMaximized, toggleReportsPanel, toggleReportsMaximized, editable,
   addCapture,
 } from './state/store.js'
 import { t, fmtNum, fmtInt } from './i18n/index.js'
@@ -93,7 +93,7 @@ function onKeyDown(e) {
     return
   }
   const k = e.key
-  if (k === 'R' && e.shiftKey) return resetSim()
+  if (k === 'R' && e.shiftKey) { if (store.run.state !== 'idle') resetSim(); return }
   if (/^[1-9]$/.test(k)) { const n = Number(k) - 1; if (n < (scene.value?.robots?.length || 0)) selectRobot(n); return }
   const tools = { v: 'select', w: 'waypoint', o: 'obstacle', r: 'recharge', m: 'move', d: 'draw' }
   const lk = k.toLowerCase()
@@ -102,7 +102,7 @@ function onKeyDown(e) {
     case 'f': cv.value?.fit(); break
     case '+': case '=': cv.value?.zoomIn(); break
     case '-': case '_': cv.value?.zoomOut(); break
-    case '.': stepOnce(); break
+    case '.': if (store.run.state !== 'idle') stepOnce(); break
     case 'e': e.preventDefault(); focusEditor(); break
     case 'c': openPanel('bottom', 'console'); break
     case 'b': openPanel('bottom', 'telemetry'); break
@@ -117,7 +117,7 @@ function onKeyDown(e) {
 function onKeyUp(e) {
   if (e.code === 'Space' && spaceHeld) {
     spaceHeld = false
-    if (!spaceUsed && !isTyping(e.target) && !document.querySelector('[aria-modal="true"]')) toggleSim()
+    if (!spaceUsed && store.run.state !== 'idle' && !isTyping(e.target) && !document.querySelector('[aria-modal="true"]')) toggleSim()
   }
 }
 function onPointerDownAny() { if (spaceHeld) spaceUsed = true }
@@ -187,7 +187,7 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
             <button class="btn ghost icon sm" :aria-label="t('view.fit')" :data-tip="viewFitTip" data-tip-pos="end" @click="cv?.fit()"><Icon name="fit" :size="14" /></button>
           </header>
           <div class="cv">
-            <SimCanvas ref="cv" :scene="scene" :tool="store.tool" :options="store.options" :interactive="store.interactive" :lineWidth="store.lineWidth"
+            <SimCanvas ref="cv" :scene="scene" :tool="store.tool" :options="store.options" :interactive="editable" :lineWidth="store.lineWidth"
               @add-waypoint="onAddWaypoint" @waypoint-drag-orientation="onWaypointOrient" @add-obstacle="onAddObstacle"
               @add-recharge="(p) => send({ cmd: 'add_recharge', x: p.x, y: p.y })" @context="onContext" @select-robot="(p) => selectRobot(p.index)"
               @move-robot="onMove" @cursor="onCursor" />

@@ -39,7 +39,7 @@ web/
   scripts/bundle-python.mjs   → gera public/hivebr-py.zip     (runtime)
   python/                                                     (python)
     pygame/__init__.py  pygame_gui/__init__.py  tkinter/__init__.py
-    hivebr_web/__init__.py  host.py  simulator.py  serialize.py  commands.py  runner.py
+    hivebr_web/__init__.py  host.py  simulator.py  serialize.py  commands.py  edits.py  runner.py
     tests/
   templates/*.py   exemplos pensados para o navegador         (catalog)
   src/
@@ -154,9 +154,38 @@ O worker também emite (fora do Python):
 `export_log {format:"csv"|"pkl"}` → `file` · `get_log {open}` → `log_data` · `reset_logger`
 `refresh` → força `scene` + `frame` completos
 
+## Editor persistente (edição sem execução)
+
+Enquanto nenhum script roda, a UI edita um `BrowserSimulator` persistente no
+worker (`simulator.ensure_editor()`), criado no boot a partir de
+`config/default.yaml`. O canvas já aceita as ferramentas (waypoints, obstáculos,
+recharge, mapa, pista, parâmetros) antes do primeiro Run.
+
+- `store.send()` escolhe o caminho: durante a execução, o ring SAB
+  (`client.send`); fora dela, `postMessage({type:"edit", cmd})`
+  (`client.edit` → `runner.dispatch_edit` →
+  `commands.dispatch(sim, raw, editing=True)`). `editing=True` ignora
+  `start/pause/toggle/stop/step_once`; ao final, o worker emite `scene`/`frame`
+  como numa execução normal.
+- `edits.py` guarda o estado como deltas cumulativos: `added`/`removed` para
+  coleções (obstáculos, recharge, waypoints) e valores explícitos para mapa,
+  pista, poses e parâmetros. `commands.dispatch` compara antes/depois de cada
+  comando de coleção e registra a diferença; `track_apply` também registra as
+  poses resultantes.
+- Todo `BrowserSimulator` novo aplica `edits.apply()` depois de
+  `load_scene_from_config()`: coleções são mescladas (waypoints do script
+  primeiro, depois os do usuário); mapa, pista, poses e parâmetros do usuário
+  substituem os do script.
+- Ao terminar uma execução, `runner.run_user_code()` chama
+  `simulator.enter_edit_mode()`, que adota o simulador da execução como editor —
+  a cena que ficou na tela continua editável.
+- A persistência é só da sessão: recarregar a página recria o editor e o estado
+  de deltas. `reset_config` zera os parâmetros registrados.
+
 ## Mensagens UI → worker (fora de execução, `postMessage`)
 
 `init { zipUrl, sab: {ring, control, interrupt}|null, pyodideUrl }` · `run { code, autostart }` ·
+`edit { cmd }` (aplica um comando ao editor ocioso) ·
 `read_file { id, path }` → `file_content { id, b64 }`.
 
 ## Parada em três níveis (`client.stop()`)
