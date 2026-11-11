@@ -5,7 +5,7 @@ import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
 import Icon from './Icon.vue'
 import ReportActionsModal from './ReportActionsModal.vue'
-import { store, toggleReportsPanel, toggleReportsMaximized, toggleReportTemplateModal, addCapture, captures, getCapture, openReport, deleteReport as deleteReportStore, toast } from '../state/store.js'
+import { store, toggleReportsPanel, toggleReportsMaximized, toggleReportTemplateModal, addCapture, captures, getCapture, openReport, deleteReport as deleteReportStore, download, toast } from '../state/store.js'
 import { t } from '../i18n/index.js'
 
 const localContent = ref('')
@@ -359,11 +359,14 @@ function printHtml(html, onError) {
   const frame = document.createElement('iframe')
   frame.setAttribute('aria-hidden', 'true')
   frame.setAttribute('data-hivebr-print', '')
-  frame.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;'
+  // Off-screen but with a real viewport: a 1px iframe can produce a blank or
+  // clipped print layout in some browsers.
+  frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:1024px;height:768px;border:0;pointer-events:none;'
   document.body.appendChild(frame)
+
   const win = frame.contentWindow
   if (!win) {
-    document.body.removeChild(frame)
+    frame.remove()
     if (onError) onError(new Error('iframe contentWindow unavailable'))
     return
   }
@@ -378,38 +381,51 @@ function printHtml(html, onError) {
     cleanup()
     if (onError) onError(err)
   }
+
   doc.open()
   doc.write(html)
   doc.close()
   win.addEventListener('afterprint', cleanup, { once: true })
-  const print = () => {
-    try {
-      win.focus()
-      win.print()
-    } catch (err) {
-      fail(err)
-      return
-    }
-    setTimeout(cleanup, 60000)
+
+  // Two animation frames + a short delay guarantee the document is laid out
+  // before the print dialog snapshots it.
+  const nextFrame = () => new Promise((resolve) => {
+    const raf = win.requestAnimationFrame ? win.requestAnimationFrame.bind(win) : (cb) => setTimeout(cb, 16)
+    raf(() => raf(() => setTimeout(resolve, 80)))
+  })
+  const fontsReady = () => {
+    try { return doc.fonts?.ready ? doc.fonts.ready.catch(() => {}) : Promise.resolve() } catch { return Promise.resolve() }
   }
-  const waitForImages = () => {
+  const imagesReady = () => new Promise((resolve) => {
     let pending
-    try { pending = [...doc.images].filter((img) => !img.complete) } catch (err) { fail(err); return }
-    if (!pending.length) { setTimeout(print, 30); return }
+    try { pending = [...doc.images].filter((img) => !img.complete) } catch { resolve(); return }
+    if (!pending.length) { resolve(); return }
     let left = pending.length
-    const done = () => { if (--left <= 0) setTimeout(print, 30) }
+    const done = () => { if (--left <= 0) resolve() }
     pending.forEach((img) => {
       img.addEventListener('load', done, { once: true })
       img.addEventListener('error', done, { once: true })
     })
-    setTimeout(() => { if (left > 0) { left = 0; setTimeout(print, 30) } }, 3000)
-  }
-  // Ensure the document is ready before waiting for images
-  if (doc.readyState === 'complete') {
-    setTimeout(waitForImages, 0)
-  } else {
-    win.addEventListener('load', () => setTimeout(waitForImages, 0), { once: true })
-  }
+    // Never block the print dialog on a broken image.
+    setTimeout(resolve, 3000)
+  })
+
+  fontsReady()
+    .then(nextFrame)
+    .then(imagesReady)
+    .then(() => new Promise((resolve) => setTimeout(resolve, 60)))
+    .then(() => {
+      try {
+        win.focus()
+        win.print()
+      } catch (err) {
+        fail(err)
+        return
+      }
+      // Some browsers return from print() before the dialog closes.
+      setTimeout(cleanup, 60000)
+    })
+    .catch(fail)
 }
 
 function buildPrintDocument(report, bodyHtml) {
@@ -523,30 +539,17 @@ function exportHTML(report = activeReport.value) {
 </body>
 </html>`
   const blob = new Blob([fullHTML], { type: 'text/html' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = baseName.replace('.md', '.html')
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+  const fileName = /\.html?$/i.test(baseName) ? baseName : `${baseName.replace(/\.md$/i, '')}.html`
+  download(fileName, blob)
 }
 
 function exportMD(report = activeReport.value) {
   if (report instanceof Event) report = activeReport.value
   if (!report) return
   const content = typeof report.content === 'string' ? report.content : ''
-  const blob = new Blob([content], { type: 'text/markdown' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
   const baseName = typeof report.name === 'string' && report.name.length > 0 ? report.name : 'relatorio'
-  a.download = baseName.endsWith('.md') ? baseName : `${baseName}.md`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+  const blob = new Blob([content], { type: 'text/markdown' })
+  download(baseName.endsWith('.md') ? baseName : `${baseName}.md`, blob)
 }
 
 function neighbourOf(id, ids) {

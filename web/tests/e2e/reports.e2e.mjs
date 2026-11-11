@@ -105,6 +105,16 @@ await test('template report exports with tables and sections', async () => {
   check(html.length > 2000, `template export looks truncated (${html.length} bytes)`)
 })
 
+await test('export works while the reports panel is maximized', async () => {
+  await page.locator('.reports-panel button[aria-label="Maximizar painel"]').click()
+  await sleep(300)
+  check(await page.locator('.reports-panel').isVisible(), 'reports panel is not visible after maximizing')
+  const html = await downloadText(page.locator('button[data-tip="Export HTML"]'))
+  check(html.includes('1. Robôs'), `maximized export is missing the report body (${html.length} bytes)`)
+  await page.locator('.reports-panel button[aria-label="Restaurar painel"]').click()
+  await sleep(300)
+})
+
 const failed = results.filter((r) => !r.ok)
 if (pageErrors.length) console.log('\nPage errors:\n' + pageErrors.join('\n'))
 console.log(`\n${results.length - failed.length} passed, ${failed.length} failed` + (pageErrors.length ? `, ${pageErrors.length} page error(s)` : ''))
