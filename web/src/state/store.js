@@ -747,6 +747,40 @@ export function toggleRun() { store.run.state === 'idle' ? runCode() : stopCode(
 export function toggleSim() { send({ cmd: 'toggle' }) }
 export function stepOnce() { send({ cmd: 'step_once' }) }
 export function resetSim() { send({ cmd: 'reset' }) }
+
+/**
+ * Discards the edits made to the idle scene and reruns the active script, so
+ * the scene goes back to the one defined by the user's run file.
+ */
+export async function restartScene() {
+  if (!store.boot.ready || store.run.state !== 'idle') return false
+  const tab = activeTab()
+  const rerun = !!tab && isPythonFile(scriptName(tab))
+  const ok = await ask({
+    title: t('sim.restart_scene_title'),
+    message: t(rerun ? 'sim.restart_scene_msg' : 'sim.restart_scene_msg_no_run'),
+    confirmText: t('sim.restart_scene'),
+    danger: true,
+  })
+  if (!ok) return false
+  if (!client.resetEdits()) { toast(t('toast.wait_python'), 'warn'); return false }
+  toast(t(rerun ? 'toast.scene_reset' : 'toast.scene_reset_no_run'))
+  // The worker handles reset_edits and the run message in order, so the run
+  // already starts without the discarded edits.
+  if (rerun) runCode()
+  return true
+}
+
+/** Reloads the page after confirmation; scripts/reports/captures persist in the browser. */
+export async function restartPage() {
+  const ok = await ask({
+    title: t('sim.restart_page_title'),
+    message: t('sim.restart_page_msg'),
+    confirmText: t('sim.restart_page'),
+    danger: true,
+  })
+  if (ok) window.location.reload()
+}
 export function setSpeed(f) { store.speed = f; send({ cmd: 'set_speed', factor: f === Infinity ? 0 : f }) }
 export function selectRobot(i) { store.selected = i; send({ cmd: 'select_robot', index: i }) }
 export function robotCount() { return scene.value?.robots?.length ?? 0 }

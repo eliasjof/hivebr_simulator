@@ -207,6 +207,17 @@ function edit({ cmd }) {
   }
 }
 
+// Forget the edits made while idle and rebuild the editor from the config, so
+// the next run starts from the scene defined by the user's script alone.
+function resetEdits() {
+  if (!runner || running) return
+  try {
+    runner.reset_edits()
+  } catch (e) {
+    send('notice', { level: 'warn', code: 'edit_reset_failed', params: { error: String((e && e.message) || e) }, text: `Could not reset the scene (${(e && e.message) || e})` })
+  }
+}
+
 function readFile({ id, path }) {
   try {
     const bytes = pyodide.FS.readFile(path)
@@ -256,6 +267,7 @@ self.onmessage = (ev) => {
     case 'init': init(m); break
     case 'run': run(m); break
     case 'edit': edit(m); break
+    case 'reset_edits': resetEdits(); break
     case 'read_file': readFile(m); break
     case 'write_config': writeConfig(m); break
   }

@@ -177,6 +177,13 @@ export class SimClient {
     return true
   }
 
+  /** Drops idle-editor edits and rebuilds its scene. Returns false if not delivered. */
+  resetEdits() {
+    if (!this.worker || this.state !== 'ready') return false
+    this.worker.postMessage({ type: 'reset_edits' })
+    return true
+  }
+
   /**
    * Stops the run with three escalation levels: `stop` command, KeyboardInterrupt
    * through the interrupt buffer, and finally terminating the worker and rebooting.

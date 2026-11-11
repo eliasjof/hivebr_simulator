@@ -50,6 +50,20 @@ def dispatch_edit(raw):
     return None
 
 
+def reset_edits():
+    """Discard every UI edit and rebuild the idle editor from the client config.
+
+    The next run then starts from the scene defined by the user's script
+    (the run file), without re-applying obstacles, waypoints, maps or poses
+    added through the canvas.
+    """
+    from . import edits, simulator
+    edits.reset()
+    simulator.reset_editor()
+    ensure_editor()
+    return None
+
+
 def script_path(filename: str | None = None) -> str:
     """Entry script path. With ``filename`` the script lives beside its modules."""
     if not filename:

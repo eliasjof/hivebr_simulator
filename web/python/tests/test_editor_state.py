@@ -147,3 +147,54 @@ def test_reset_config_forgets_recorded_parameters():
         check(make_sim(e).robots[0].max_speed == 1.25)
         edit(e, cmd="reset_config")
         check(make_sim(e).robots[0].max_speed != 1.25)
+
+
+def test_reset_edits_discards_every_user_edit_and_rebuilds_the_editor():
+    with env() as e:
+        edit(e, cmd="add_obstacle", x=4, y=5, r=0.7)
+        edit(e, cmd="add_recharge", x=7, y=8)
+        edit(e, cmd="add_waypoint", robot=0, x=3, y=4, theta=1.5)
+        edit(e, cmd="set_pose", robot=0, x=9, y=8, theta=0.5)
+        edit(e, cmd="set_param", name="max_speed", value=1.25)
+        old = editor(e)
+
+        e.runner.reset_edits()
+
+        sim = editor(e)
+        check(sim is not old, "reset must rebuild the idle editor")
+        check([4.0, 5.0, 0.7] not in [list(o) for o in sim.world.obstacles])
+        check([7.0, 8.0] not in [list(p)[:2] for p in sim.world.recharge_places])
+        check([3.0, 4.0, 1.5] not in [list(w) for w in sim.waypoint_managers[0].waypoints])
+        check(sim.robots[0].max_speed != 1.25)
+        check((sim.robots[0].x, sim.robots[0].y, sim.robots[0].theta) != (9.0, 8.0, 0.5))
+
+        fresh = make_sim(e)
+        check([4.0, 5.0, 0.7] not in [list(o) for o in fresh.world.obstacles])
+        check([7.0, 8.0] not in [list(p)[:2] for p in fresh.world.recharge_places])
+        check([3.0, 4.0, 1.5] not in [list(w) for w in fresh.waypoint_managers[0].waypoints])
+        check(fresh.robots[0].max_speed != 1.25)
+        check(not e.host.notices("warn"), e.host.notices())
+
+
+def test_reset_edits_returns_to_the_scene_from_the_run_file():
+    code = '''
+from hivebr.engine import Simulator, load_config
+cfg = load_config("config/default.yaml")
+cfg["lidar"]["enabled"] = False
+cfg["obstacles"] = [{"x": 6.0, "y": 5.0, "radius": 0.4}]
+sim = Simulator(config=cfg)
+'''
+    with env() as e:
+        r = e.run(code)
+        check(r["ok"], r)
+        edit(e, cmd="add_obstacle", x=2, y=2, r=0.3)
+        check([2.0, 2.0, 0.3] in [list(o) for o in editor(e).world.obstacles])
+
+        e.runner.reset_edits()
+        r = e.run(code)
+        check(r["ok"], r)
+        from hivebr_web import simulator
+        sim = simulator.editor()
+        check([list(o) for o in sim.world.obstacles] == [[6.0, 5.0, 0.4]],
+              f"the run file scene was not restored: {[list(o) for o in sim.world.obstacles]}")
+        check(not e.host.notices("warn"), e.host.notices())

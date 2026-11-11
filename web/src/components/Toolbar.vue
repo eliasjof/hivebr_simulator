@@ -2,7 +2,7 @@
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import Icon from './Icon.vue'
 import {
-  store, toggleRun, toggleSim, stepOnce, resetSim, setSpeed, newFile, pickFile, downloadScript, runDemo,
+  store, toggleRun, toggleSim, stepOnce, resetSim, restartScene, setSpeed, newFile, pickFile, downloadScript, runDemo,
 } from '../state/store.js'
 import { t } from '../i18n/index.js'
 
@@ -70,6 +70,7 @@ const ed = () => store.editorApi
         <Icon :name="store.stats.running ? 'pause' : 'play'" :size="14" /><span class="lbl">{{ store.stats.running ? t('sim.pause') : t('sim.start_short') }}</span></button>
       <button class="btn ghost act stop" :disabled="!stoppable" :aria-label="t('sim.stop')" :data-tip="t('sim.stop_tip')" @click="toggleRun"><Icon name="stop" :size="14" /><span class="lbl">{{ t('sim.stop') }}</span></button>
       <button class="btn ghost icon" :disabled="!live" :aria-label="t('sim.reset')" :data-tip="t('sim.reset_tip')" @click="resetSim"><Icon name="reset" /></button>
+      <button class="btn ghost icon" :disabled="!store.boot.ready || !idle" :aria-label="t('sim.restart_scene')" :data-tip="t('sim.restart_scene_tip')" @click="restartScene"><Icon name="refresh" /></button>
       <button class="btn ghost icon" :disabled="!live" :aria-label="t('sim.step')" :data-tip="t('sim.step_tip')" @click="stepOnce"><Icon name="step" /></button>
       <select class="input mono speed" :value="store.speed" :aria-label="t('speed.aria')" @change="setSpeed(Number($event.target.value))">
         <option v-for="s in speeds" :key="s" :value="s">{{ speedLabel(s) }}</option>

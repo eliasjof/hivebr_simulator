@@ -3,6 +3,7 @@ import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import Logo from './Logo.vue'
 import {
   store, scene, catalog, newFile, pickFile, downloadScript, saveNow, runCode, stopCode, toggleSim, stepOnce, resetSim,
+  restartScene, restartPage,
   toggleTheme, togglePanel, openPanel, toggleWindow, resetLayout, runDemo, loadExample, canvasRef, consoleBus, toast,
   toggleReportTemplateModal, toggleReportsPanel,
 } from '../state/store.js'
@@ -58,6 +59,9 @@ const menus = computed(() => [
     { label: store.stats.running ? t('sim.pause_sim') : t('sim.start'), key: t('key.space'), run: toggleSim, disabled: !live.value },
     { label: t('sim.step_menu'), key: '.', run: stepOnce, disabled: !live.value },
     { label: t('sim.reset'), key: 'Shift+R', run: resetSim, disabled: !live.value },
+    { sep: true },
+    { label: t('sim.restart_scene'), run: restartScene, disabled: !store.boot.ready || !idle.value },
+    { label: t('sim.restart_page'), run: restartPage },
     { sep: true },
     { label: t('toolbar.demo'), run: runDemo },
   ] },
