@@ -410,10 +410,11 @@ function printHtml(html, onError) {
 }
 
 function buildPrintDocument(report, bodyHtml) {
+  const baseName = typeof report?.name === 'string' && report.name.length > 0 ? report.name : 'relatorio'
   return `<!DOCTYPE html>
     <html>
     <head>
-      <title>${escapeHtml(report.name)}</title>
+      <title>${escapeHtml(baseName)}</title>
       <meta charset="utf-8">
       <style>
         @page { margin: 2cm; }
@@ -468,13 +469,14 @@ function exportPDF(report = activeReport.value) {
 function exportHTML(report = activeReport.value) {
   if (!report) return
   const content = typeof report.content === 'string' ? report.content : ''
+  const baseName = typeof report.name === 'string' && report.name.length > 0 ? report.name : 'relatorio'
   const html = marked.parse(content)
   const resolvedHtml = resolveCaptureUrls(html)
   const fullHTML = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>${report.name}</title>
+  <title>${baseName}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.7; max-width: 900px; margin: 0 auto; padding: 40px 20px; color: #1e293b; background: #f8fafc; }
@@ -519,7 +521,7 @@ function exportHTML(report = activeReport.value) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = report.name.replace('.md', '.html')
+  a.download = baseName.replace('.md', '.html')
   document.body.appendChild(a)
   a.click()
   a.remove()
@@ -533,7 +535,8 @@ function exportMD(report = activeReport.value) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = report.name.endsWith('.md') ? report.name : `${report.name}.md`
+  const baseName = typeof report.name === 'string' && report.name.length > 0 ? report.name : 'relatorio'
+  a.download = baseName.endsWith('.md') ? baseName : `${baseName}.md`
   document.body.appendChild(a)
   a.click()
   a.remove()
