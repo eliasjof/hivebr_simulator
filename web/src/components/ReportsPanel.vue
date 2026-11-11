@@ -48,18 +48,19 @@ const activeReport = computed(() => {
 try {
   const renderer = new marked.Renderer()
   const originalImage = renderer.image.bind(renderer)
-  // marked 18.x: image(href, title, text) — not a token object
-  // Arguments can be null/undefined, so guard them
-  renderer.image = (href, title, text) => {
-    const safeHref = typeof href === 'string' ? href : ''
-    if (safeHref.startsWith('capture:')) {
-      const id = safeHref.slice('capture:'.length)
-      const capture = getCapture(id)
-      if (capture) {
-        return originalImage(capture.dataUrl, title ?? '', text ?? '')
-      }
+  // marked 18.x calls renderer.image(token) with the image token
+  // ({ href, title, text, tokens }), not positional (href, title, text).
+  // Accept both shapes so capture: URLs are always resolved.
+  renderer.image = (tokenOrHref, title, text) => {
+    const token = tokenOrHref && typeof tokenOrHref === 'object'
+      ? { ...tokenOrHref }
+      : { href: tokenOrHref, title, text }
+    const href = typeof token.href === 'string' ? token.href : ''
+    if (href.startsWith('capture:')) {
+      const capture = getCapture(href.slice('capture:'.length))
+      if (capture?.dataUrl) token.href = capture.dataUrl
     }
-    return originalImage(safeHref, title ?? '', text ?? '')
+    return originalImage(token)
   }
   marked.setOptions({
     breaks: true,

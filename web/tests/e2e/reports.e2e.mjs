@@ -115,6 +115,38 @@ await test('export works while the reports panel is maximized', async () => {
   await sleep(300)
 })
 
+await test('capture images render in the preview and in both exports', async () => {
+  await page.locator('button[aria-label="Capturar tela"]').first().click()
+  await sleep(400)
+  await page.locator('button[aria-label="Inserir captura de tela"]').click()
+  await sleep(300)
+  const item = page.locator('.capture-item').first()
+  await item.waitFor({ timeout: 5000 })
+  await item.click()
+  await sleep(400)
+
+  const img = page.locator('.md-preview img').last()
+  await img.waitFor({ timeout: 5000 })
+  const src = await img.getAttribute('src')
+  check(src?.startsWith('data:image/png'), `preview image src is not a capture data URL: ${String(src).slice(0, 40)}`)
+
+  const html = await downloadText(page.locator('button[data-tip="Export HTML"]'))
+  check(html.includes('data:image/png;base64,'), 'exported HTML has no capture image')
+  check(!html.includes('src="capture:'), 'exported HTML still has unresolved capture: URLs')
+
+  await page.locator('button[data-tip="Export PDF"]').click()
+  await sleep(1500)
+  const info = await page.evaluate(() => {
+    const frame = document.querySelector('iframe[data-hivebr-print]')
+    const doc = frame?.contentDocument
+    return {
+      images: doc?.querySelectorAll('img').length || 0,
+      captures: doc?.querySelectorAll('img[src^="data:image/png"]').length || 0,
+    }
+  })
+  check(info.captures > 0, `print document has no capture image (${info.images} images)`)
+})
+
 const failed = results.filter((r) => !r.ok)
 if (pageErrors.length) console.log('\nPage errors:\n' + pageErrors.join('\n'))
 console.log(`\n${results.length - failed.length} passed, ${failed.length} failed` + (pageErrors.length ? `, ${pageErrors.length} page error(s)` : ''))
