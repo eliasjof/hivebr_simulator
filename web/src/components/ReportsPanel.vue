@@ -354,8 +354,11 @@ function escapeHtml(text) {
 
 /** Prints `html` from an off-screen iframe (no popup blocker, no onload race). */
 function printHtml(html, onError) {
+  // Remove leftovers from a previous print that never fired `afterprint`.
+  document.querySelectorAll('iframe[data-hivebr-print]').forEach((el) => el.remove())
   const frame = document.createElement('iframe')
   frame.setAttribute('aria-hidden', 'true')
+  frame.setAttribute('data-hivebr-print', '')
   frame.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;'
   document.body.appendChild(frame)
   const win = frame.contentWindow
@@ -455,6 +458,7 @@ function buildPrintDocument(report, bodyHtml) {
 }
 
 function exportPDF(report = activeReport.value) {
+  if (report instanceof Event) report = activeReport.value
   if (!report) return
   const fail = (err) => toast(t('report.export_failed', { error: String(err?.message || err) }), 'error')
   try {
@@ -467,6 +471,7 @@ function exportPDF(report = activeReport.value) {
 }
 
 function exportHTML(report = activeReport.value) {
+  if (report instanceof Event) report = activeReport.value
   if (!report) return
   const content = typeof report.content === 'string' ? report.content : ''
   const baseName = typeof report.name === 'string' && report.name.length > 0 ? report.name : 'relatorio'
@@ -510,7 +515,7 @@ function exportHTML(report = activeReport.value) {
 </head>
 <body>
   <div class="container">
-    ${html}
+    ${resolvedHtml}
     <div class="footer">
       Gerado no hiveBr Web · ${new Date().toLocaleDateString('pt-BR')}
     </div>
@@ -529,6 +534,7 @@ function exportHTML(report = activeReport.value) {
 }
 
 function exportMD(report = activeReport.value) {
+  if (report instanceof Event) report = activeReport.value
   if (!report) return
   const content = typeof report.content === 'string' ? report.content : ''
   const blob = new Blob([content], { type: 'text/markdown' })
@@ -695,9 +701,9 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
             <button class="btn ghost icon sm" @click="toggleEdit" :data-tip="isEditing ? 'Preview' : 'Edit'" :aria-label="isEditing ? 'Switch to preview' : 'Switch to edit'">
               <Icon :name="isEditing ? 'eye' : 'edit'" :size="14" />
             </button>
-            <button class="btn ghost icon sm" @click="exportMD" data-tip="Export .md"><Icon name="download" :size="14" /></button>
-            <button class="btn ghost icon sm" @click="exportHTML" data-tip="Export HTML"><Icon name="code" :size="14" /></button>
-            <button class="btn ghost icon sm" @click="exportPDF" data-tip="Export PDF"><Icon name="file" :size="14" /></button>
+            <button class="btn ghost icon sm" @click="exportMD()" data-tip="Export .md"><Icon name="download" :size="14" /></button>
+            <button class="btn ghost icon sm" @click="exportHTML()" data-tip="Export HTML"><Icon name="code" :size="14" /></button>
+            <button class="btn ghost icon sm" @click="exportPDF()" data-tip="Export PDF"><Icon name="file" :size="14" /></button>
             <button class="btn ghost icon sm" @click="openReportActions(activeReport)" :data-tip="t('report.actions')" :aria-label="t('report.actions')"><Icon name="dots" :size="14" /></button>
             <button class="btn ghost icon sm" @click="openCapturesModal" data-tip="Inserir captura" aria-label="Inserir captura de tela"><Icon name="image" :size="14" /></button>
             <button class="btn ghost icon sm danger" @click="deleteReport(activeReport.id)" data-tip="Excluir relatório" aria-label="Excluir relatório"><Icon name="trash" :size="14" /></button>
