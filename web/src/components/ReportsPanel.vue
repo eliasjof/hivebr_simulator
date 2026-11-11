@@ -5,6 +5,9 @@ import hljs from 'highlight.js'
 import 'highlight.js/styles/github.css'
 import Icon from './Icon.vue'
 import ReportActionsModal from './ReportActionsModal.vue'
+// Inlined at build time so the logo also shows in exported HTML/PDF files,
+// which are opened outside the app and cannot resolve app asset paths.
+import ifmgLogo from '../assets/ifmg-simples.png?inline'
 import { store, toggleReportsPanel, toggleReportsMaximized, toggleReportTemplateModal, addCapture, captures, getCapture, openReport, deleteReport as deleteReportStore, download, toast } from '../state/store.js'
 import { t } from '../i18n/index.js'
 
@@ -251,6 +254,52 @@ ${meta.content || 'Escreva sua nota aqui...'}
 
 *hiveBr*
 `
+  },
+  ifmg: {
+    label: 'Relatório IFMG',
+    icon: 'book',
+    description: 'Cabeçalho institucional com logo, dados da disciplina e estrutura acadêmica',
+    content: (meta) => `<div style="display:flex;align-items:center;gap:20px;padding:18px 22px;border-radius:10px;background:linear-gradient(135deg,#14351f,#1f4d2e 60%,#3f6b3a);border-bottom:6px solid #7d9b3a;color:#fff;">
+  <div style="flex:none;background:#fff;border-radius:8px;padding:8px 12px;line-height:0;">
+    <img src="${ifmgLogo}" alt="Logo do IFMG" style="display:block;margin:0;height:54px;width:auto;" />
+  </div>
+  <div style="min-width:0;line-height:1.35;">
+    <div style="font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#cfe0c3;">INSTITUTO FEDERAL DE MINAS GERAIS</div>
+    <div style="font-size:19px;font-weight:700;margin-top:3px;">Relatório de Atividade Acadêmica</div>
+  </div>
+</div>
+
+<table>
+  <tr><td style="width:26%;color:#1e4d2e;font-weight:600;">Data</td><td>${meta.date}</td></tr>
+  <tr><td style="color:#1e4d2e;font-weight:600;">Professor(a)</td><td>—</td></tr>
+  <tr><td style="color:#1e4d2e;font-weight:600;">Matéria</td><td>—</td></tr>
+  <tr><td style="color:#1e4d2e;font-weight:600;">Turma</td><td>—</td></tr>
+  <tr><td style="color:#1e4d2e;font-weight:600;">Estudante(s)</td><td>—</td></tr>
+</table>
+
+# Título principal do relatório
+
+## 1) Introdução
+
+*Descreva o contexto, os objetivos e a motivação do trabalho.*
+
+## 2) Desenvolvimento
+
+*Apresente o referencial teórico, a metodologia e a configuração do experimento (robôs, sensores, mapa, obstáculos e waypoints).*
+
+## 3) Resultados e Discussão
+
+*Insira as capturas de tela, tabelas e gráficos da simulação e discuta os resultados obtidos.*
+
+## 4) Conclusão
+
+*Resuma as principais conclusões e proponha trabalhos futuros.*
+
+## 5) Referências
+
+1. SOBRENOME, Nome. **Título da obra**. Cidade: Editora, ano.
+2. SOBRENOME, Nome. *Título do artigo*. Revista, v. 1, n. 1, p. 1-10, ano.
+`
   }
 }
 
@@ -347,6 +396,24 @@ function resolveCaptureUrls(html) {
   })
 }
 
+// IFMG template: moss-green institutional accents while the body stays black.
+// Appended after the default CSS so it wins without !important.
+const IFMG_DOC_CSS = `
+  body { color: #111; }
+  h1, h2, h3, h4 { color: #111; }
+  h1 { border-bottom-color: #2f6b3f; }
+  h2 { border-bottom-color: #b9cfae; }
+  h4 { color: #1e4d2e; }
+  code { background: #eef4ea; }
+  blockquote { border-left-color: #2f6b3f; color: #333; }
+  th, td { border-color: #cfdcc6; }
+  th { background: #eef4ea; color: #1e4d2e; }
+  a { color: #2f6b3f; }
+  hr { border-top-color: #cfdcc6; }
+  h1:first-of-type { border-top: none; padding-top: 0; margin-top: 1.2em; }
+  h1:first-of-type::before { content: none; }
+`
+
 function escapeHtml(text) {
   return String(text ?? '').replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
@@ -435,6 +502,7 @@ function printHtml(html, onError) {
 
 function buildPrintDocument(report, bodyHtml) {
   const baseName = typeof report?.name === 'string' && report.name.length > 0 ? report.name : 'relatorio'
+  const ifmg = report?.template === 'ifmg'
   return `<!DOCTYPE html>
     <html>
     <head>
@@ -472,6 +540,7 @@ function buildPrintDocument(report, bodyHtml) {
           body { padding: 0; }
           .no-print { display: none; }
         }
+        ${ifmg ? IFMG_DOC_CSS : ''}
       </style>
     </head>
     <body>${bodyHtml}</body>
@@ -498,6 +567,7 @@ function exportHTML(report = activeReport.value) {
   const baseName = typeof report.name === 'string' && report.name.length > 0 ? report.name : 'relatorio'
   const html = marked.parse(content)
   const resolvedHtml = resolveCaptureUrls(html)
+  const ifmg = report?.template === 'ifmg'
   const fullHTML = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -532,6 +602,7 @@ function exportHTML(report = activeReport.value) {
     hr:last-of-type { margin-top: 3em; border-top: 2px solid #c7d2fe; }
     hr:last-of-type + p { text-align: center; color: #94a3b8; font-size: 0.85em; font-style: italic; }
     .footer { margin-top: 3em; padding-top: 1.5em; border-top: 1px solid #e2e8f0; text-align: center; color: #94a3b8; font-size: 0.85em; }
+    ${ifmg ? IFMG_DOC_CSS : ''}
   </style>
 </head>
 <body>
@@ -612,7 +683,7 @@ function createReportFromTemplate() {
   const template = templates[selectedTemplate.value]
   const content = template.content(meta)
   const name = `${template.label.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.md`
-  const r = { id, name, content, created: Date.now(), modified: Date.now() }
+  const r = { id, name, content, template: selectedTemplate.value, created: Date.now(), modified: Date.now() }
   store.reports.push(r)
   openReport(id)
   showTemplateModal.value = false
@@ -730,7 +801,7 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
           <Icon name="dots" :size="16" />
         </div>
         <div class="pane preview-pane" :style="{ width: (100 - splitRatio) + '%' }">
-          <div class="md-preview" v-html="previewHTML" />
+          <div class="md-preview" :class="activeReport?.template ? `tpl-${activeReport.template}` : null" v-html="previewHTML" />
         </div>
       </div>
     </div>
@@ -939,6 +1010,19 @@ const previewHTML = computed(() => marked.parse(localContent.value || ''))
   font-size: 0.85em;
   font-style: italic;
 }
+
+/* IFMG template: the green header is inline; the body uses black headings and
+   moss-green rules instead of the hiveBr accent. */
+.md-preview.tpl-ifmg :deep(h1:first-of-type) {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 1.2em;
+}
+.md-preview.tpl-ifmg :deep(h1:first-of-type)::before { content: none; }
+.md-preview.tpl-ifmg :deep(h1) { border-bottom: 2px solid #2f6b3f; padding-bottom: 0.2em; }
+.md-preview.tpl-ifmg :deep(h2) { border-bottom: 1px solid #b9cfae; padding-bottom: 0.15em; }
+.md-preview.tpl-ifmg :deep(table) { border-collapse: collapse; width: 100%; }
+.md-preview.tpl-ifmg :deep(th), .md-preview.tpl-ifmg :deep(td) { border: 1px solid #cfdcc6; padding: 6px 10px; }
 .split-handle {
   width: 8px; background: var(--border);
   display: flex; align-items: center; justify-content: center;

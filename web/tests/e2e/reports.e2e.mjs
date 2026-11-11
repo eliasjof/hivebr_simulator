@@ -115,6 +115,53 @@ await test('export works while the reports panel is maximized', async () => {
   await sleep(300)
 })
 
+await test('IFMG template renders the institutional header and exports themed', async () => {
+  await page.locator('.reports-panel button[aria-label="Novo relatório"]').click()
+  const modal = page.locator('[role="dialog"]:has-text("Novo Relatório")')
+  await modal.waitFor({ timeout: 5000 })
+  await modal.locator('.template-card:has-text("Relatório IFMG")').click()
+  await modal.locator('button:has-text("Criar")').click()
+  await sleep(700)
+
+  check(await page.locator('.md-preview.tpl-ifmg').count() === 1, 'preview is missing the IFMG template class')
+  const preview = page.locator('.md-preview.tpl-ifmg').first()
+  const text = await preview.innerText()
+  for (const s of ['INSTITUTO FEDERAL DE MINAS GERAIS', 'Data', 'Professor(a)', 'Matéria', 'Turma',
+    'Estudante(s)', '1) Introdução', '2) Desenvolvimento', '3) Resultados e Discussão', '4) Conclusão', '5) Referências']) {
+    check(text.includes(s), `IFMG preview is missing "${s}"`)
+  }
+  const logo = preview.locator('img[alt="Logo do IFMG"]')
+  await logo.waitFor({ timeout: 5000 })
+  check(await logo.evaluate((img) => img.complete && img.naturalWidth > 0), 'IFMG logo did not load in the preview')
+  const pseudo = await preview.locator('h1').first().evaluate((h) => getComputedStyle(h, '::before').content)
+  check(!/hiveBr/.test(pseudo), `IFMG heading still shows hiveBr branding: ${pseudo}`)
+
+  const html = await downloadText(page.locator('button[data-tip="Export HTML"]'))
+  check(html.includes('data:image/png;base64,'), 'IFMG export has no embedded logo')
+  check(html.includes('INSTITUTO FEDERAL DE MINAS GERAIS'), 'IFMG export is missing the institutional header')
+  check(html.includes('border-bottom-color: #2f6b3f'), 'IFMG export has no green theme CSS')
+  check(html.includes('5) Referências'), 'IFMG export is missing the references section')
+  check(html.includes('Gerado no hiveBr Web'), 'IFMG export is missing the footer')
+
+  await page.locator('button[data-tip="Export PDF"]').click()
+  await sleep(1500)
+  const info = await page.evaluate(() => {
+    const frame = document.querySelector('iframe[data-hivebr-print]')
+    const doc = frame?.contentDocument
+    const h1 = doc?.querySelector('h1')
+    return {
+      text: doc?.body?.innerText || '',
+      logo: !!doc?.querySelector('img[alt="Logo do IFMG"]'),
+      headingColor: h1 ? getComputedStyle(h1).color : '',
+      accent: h1 ? getComputedStyle(h1, '::before').content : '',
+    }
+  })
+  check(info.text.includes('INSTITUTO FEDERAL DE MINAS GERAIS'), 'IFMG print document is missing the header')
+  check(info.logo, 'IFMG print document is missing the logo')
+  check(info.headingColor === 'rgb(17, 17, 17)', `IFMG headings are not black in print: ${info.headingColor}`)
+  check(!/hiveBr/.test(info.accent), `IFMG print still shows hiveBr branding: ${info.accent}`)
+})
+
 await test('capture images render in the preview and in both exports', async () => {
   await page.locator('button[aria-label="Capturar tela"]').first().click()
   await sleep(400)
