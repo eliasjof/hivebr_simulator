@@ -277,15 +277,15 @@ ${meta.content || 'Escreva sua nota aqui...'}
 
 ## 2) Desenvolvimento
 
-*Apresente o referencial teórico, a metodologia e a configuração do experimento (robôs, sensores, mapa, obstáculos e waypoints).*
+*Apresente o referencial teórico, os materiais e métodos, relate a configuração do experimento, ou seja, o que foi feito na atividade.*
 
 ## 3) Resultados e Discussão
 
-*Insira as capturas de tela, tabelas e gráficos da simulação e discuta os resultados obtidos.*
+*Insira as capturas de tela, tabelas e gráficos da simulação e discuta os resultados obtidos ou responda às perguntas solicitadas.*
 
 ## 4) Conclusão
 
-*Resuma as principais conclusões e proponha trabalhos futuros.*
+*Resuma as principais conclusões e proponha trabalhos futuros ou melhorias.*
 
 ## 5) Referências
 
