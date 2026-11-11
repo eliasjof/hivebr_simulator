@@ -124,6 +124,10 @@ await test('IFMG template renders the institutional header and exports themed', 
   await sleep(700)
 
   check(await page.locator('.md-preview.tpl-ifmg').count() === 1, 'preview is missing the IFMG template class')
+  const source = await page.locator('.md-editor').inputValue()
+  check(source.startsWith('<!-- ifmg-header -->'), `IFMG source does not start with the header marker: ${source.slice(0, 40)}`)
+  check(!source.includes('data:image/png;base64'), 'IFMG source still embeds the logo data URI')
+  check(source.length < 3000, `IFMG source is unexpectedly large (${source.length} bytes)`)
   const preview = page.locator('.md-preview.tpl-ifmg').first()
   const text = await preview.innerText()
   for (const s of ['INSTITUTO FEDERAL DE MINAS GERAIS', 'Data', 'Professor(a)', 'Matéria', 'Turma',
@@ -142,6 +146,10 @@ await test('IFMG template renders the institutional header and exports themed', 
   check(html.includes('border-bottom-color: #2f6b3f'), 'IFMG export has no green theme CSS')
   check(html.includes('5) Referências'), 'IFMG export is missing the references section')
   check(html.includes('Gerado no hiveBr Web'), 'IFMG export is missing the footer')
+
+  const md = await downloadText(page.locator('button[data-tip="Export .md"]'))
+  check(md.startsWith('<!-- ifmg-header -->'), 'exported IFMG Markdown is missing the header marker')
+  check(!md.includes('data:image/png;base64'), 'exported IFMG Markdown should not embed the logo')
 
   await page.locator('button[data-tip="Export PDF"]').click()
   await sleep(1500)

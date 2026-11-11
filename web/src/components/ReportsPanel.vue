@@ -259,15 +259,7 @@ ${meta.content || 'Escreva sua nota aqui...'}
     label: 'Relatório IFMG',
     icon: 'book',
     description: 'Cabeçalho institucional com logo, dados da disciplina e estrutura acadêmica',
-    content: (meta) => `<div style="display:flex;align-items:center;gap:20px;padding:18px 22px;border-radius:10px;background:linear-gradient(135deg,#14351f,#1f4d2e 60%,#3f6b3a);border-bottom:6px solid #7d9b3a;color:#fff;">
-  <div style="flex:none;background:#fff;border-radius:8px;padding:8px 12px;line-height:0;">
-    <img src="${ifmgLogo}" alt="Logo do IFMG" style="display:block;margin:0;height:54px;width:auto;" />
-  </div>
-  <div style="min-width:0;line-height:1.35;">
-    <div style="font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#cfe0c3;">INSTITUTO FEDERAL DE MINAS GERAIS</div>
-    <div style="font-size:19px;font-weight:700;margin-top:3px;">Relatório de Atividade Acadêmica</div>
-  </div>
-</div>
+    content: (meta) => `${IFMG_HEADER}
 
 <table>
   <tr><td style="width:26%;color:#1e4d2e;font-weight:600;">Data</td><td>${meta.date}</td></tr>
@@ -301,6 +293,33 @@ ${meta.content || 'Escreva sua nota aqui...'}
 2. SOBRENOME, Nome. *Título do artigo*. Revista, v. 1, n. 1, p. 1-10, ano.
 `
   }
+}
+
+// IFMG template: the decorative banner lives behind this marker, so the
+// Markdown source stays readable and does not store the logo data URI.
+// It is expanded only for the preview and for HTML/PDF exports.
+const IFMG_HEADER = '<!-- ifmg-header -->'
+
+function ifmgHeaderHtml() {
+  return `<div style="display:flex;align-items:center;gap:20px;padding:18px 22px;border-radius:10px;background:linear-gradient(135deg,#14351f,#1f4d2e 60%,#3f6b3a);border-bottom:6px solid #7d9b3a;color:#fff;">
+  <div style="flex:none;background:#fff;border-radius:8px;padding:8px 12px;line-height:0;">
+    <img src="${ifmgLogo}" alt="Logo do IFMG" style="display:block;margin:0;height:54px;width:auto;" />
+  </div>
+  <div style="min-width:0;line-height:1.35;">
+    <div style="font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#cfe0c3;">INSTITUTO FEDERAL DE MINAS GERAIS</div>
+    <div style="font-size:19px;font-weight:700;margin-top:3px;">Relatório de Atividade Acadêmica</div>
+  </div>
+</div>`
+}
+
+/** Replaces short template markers by their rendered HTML before Markdown parsing. */
+function expandTemplateMarkers(md) {
+  if (typeof md !== 'string' || !md.includes(IFMG_HEADER)) return md
+  return md.split(IFMG_HEADER).join(ifmgHeaderHtml())
+}
+
+function renderMarkdown(md) {
+  return marked.parse(expandTemplateMarkers(md))
 }
 
 function getMeta() {
@@ -553,7 +572,7 @@ function exportPDF(report = activeReport.value) {
   const fail = (err) => toast(t('report.export_failed', { error: String(err?.message || err) }), 'error')
   try {
     const content = typeof report.content === 'string' ? report.content : ''
-    const html = marked.parse(content)
+    const html = renderMarkdown(content)
     printHtml(buildPrintDocument(report, resolveCaptureUrls(html)), fail)
   } catch (err) {
     fail(err)
@@ -565,7 +584,7 @@ function exportHTML(report = activeReport.value) {
   if (!report) return
   const content = typeof report.content === 'string' ? report.content : ''
   const baseName = typeof report.name === 'string' && report.name.length > 0 ? report.name : 'relatorio'
-  const html = marked.parse(content)
+  const html = renderMarkdown(content)
   const resolvedHtml = resolveCaptureUrls(html)
   const ifmg = report?.template === 'ifmg'
   const fullHTML = `<!DOCTYPE html>
@@ -705,7 +724,22 @@ function stopDrag() { dragging.value = false }
 
 function onDocClick() { showReportList.value = false }
 
+// One-time cleanup for IFMG reports created by the first version, which kept
+// the whole banner (and the logo data URI) inside the Markdown source.
+function normalizeIfmgReports() {
+  for (const r of store.reports) {
+    if (r.template !== 'ifmg' || typeof r.content !== 'string') continue
+    if (r.content.includes(IFMG_HEADER)) continue
+    if (!r.content.startsWith('<div style="display:flex;align-items:center;gap:20px;')) continue
+    const tableAt = r.content.indexOf('<table>')
+    if (tableAt < 0) continue
+    r.content = IFMG_HEADER + '\n\n' + r.content.slice(tableAt)
+    r.modified = Date.now()
+  }
+}
+
 onMounted(() => {
+  normalizeIfmgReports()
   if (activeReport.value) localContent.value = activeReport.value.content
   window.addEventListener('mousemove', onSplitDrag)
   window.addEventListener('mouseup', stopDrag)
@@ -721,7 +755,7 @@ watch(() => activeReport.value?.content, (v) => { if (v !== undefined) localCont
 watch(() => store.activeReportId, () => { if (activeReport.value) localContent.value = activeReport.value.content })
 watch(localContent, (v) => { if (activeReport.value) updateContent(v) })
 
-const previewHTML = computed(() => marked.parse(localContent.value || ''))
+const previewHTML = computed(() => renderMarkdown(localContent.value || ''))
 </script>
 
 <template>
