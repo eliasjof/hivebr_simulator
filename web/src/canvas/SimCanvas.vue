@@ -315,7 +315,7 @@ function endPointer(e, cancelled) {
         if (!wasDrag) emit(props.tool === 'recharge' ? 'add-recharge' : 'add-obstacle', { x: g.wx, y: g.wy });
         break;
       case 'draw':
-        emit('track-strokes', { strokes: strokes.map((s) => s.slice()) });
+        emit('track-strokes', { strokes: getStrokes() });
         break;
       case 'move':
         emit('move-robot', { index: g.index, x: g.x, y: g.y, theta: g.theta });

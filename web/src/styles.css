@@ -189,7 +189,6 @@ button { cursor: pointer; }
 .btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
 .btn.run-go { background: var(--ok); color: var(--on-solid); border-color: transparent; }
 .btn.run-pause { background: var(--warn); color: var(--on-solid); border-color: transparent; }
-.btn.run-stop { background: var(--danger); color: var(--on-solid); border-color: transparent; }
 
 /* tooltips */
 [data-tip] { position: relative; }

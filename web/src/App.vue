@@ -22,6 +22,7 @@ import ToastHost from './components/ToastHost.vue'
 import BootOverlay from './components/BootOverlay.vue'
 import SimCanvas from './canvas/SimCanvas.vue'
 import ReportsPanel from './components/ReportsPanel.vue'
+import FigureViewer from './components/FigureViewer.vue'
 import {
   store, scene, canvasRef, startClient, send, ask, selectRobot, setCursor, runCode, stopCode, toggleSim, stepOnce, resetSim,
   saveNow, toggleTheme, toggleWindow, windows, clampWindow, setNarrow, openPanel, togglePanel, focusEditor, runDemo, pickFile, toast,
@@ -69,8 +70,20 @@ function captureSimulation() {
 }
 
 function downloadFigure(f, i) {
-  download(`${(f.title || 'figure' + i).replace(/[^\w-]+/g, '_')}.png`, b64ToBlob(f.png_b64, 'image/png'))
+  download(`${(f.name || 'figure' + i).replace(/[^\w-]+/g, '_')}.png`, b64ToBlob(f.png_b64, 'image/png'))
 }
+
+// ---- visualizador de figuras ----
+const openFigIndex = ref(null)
+const activeFigure = computed(() => {
+  const i = openFigIndex.value
+  return i == null ? null : (store.figures[i] || null)
+})
+function openFigure(i) { openFigIndex.value = i }
+function closeFigure() { openFigIndex.value = null }
+watch(() => store.figures.length, (n) => {
+  if (openFigIndex.value != null && openFigIndex.value >= n) openFigIndex.value = null
+})
 
 // ---- teclado ----
 function isTyping(el) {
@@ -206,7 +219,7 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
               @add-waypoint="onAddWaypoint" @waypoint-drag-orientation="onWaypointOrient" @add-obstacle="onAddObstacle"
               @add-recharge="(p) => send({ cmd: 'add_recharge', x: p.x, y: p.y })" @context="onContext" @select-robot="(p) => selectRobot(p.index)"
               @move-robot="onMove" @cursor="onCursor" />
-            <div v-if="!store.hasRun" class="hint">
+            <div v-if="!store.hasRun && store.tool === 'select'" class="hint">
               <p>{{ t('hint.press') }}<b>{{ t('run.run') }}</b> (<kbd>Ctrl</kbd>+<kbd>Enter</kbd>){{ t('hint.to_create') }}</p>
               <p class="muted small">{{ t('hint.sub') }}</p>
               <button class="btn sm" @click="runDemo"><Icon name="demo" :size="14" />{{ t('hint.see_demo') }}</button>
@@ -220,10 +233,16 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
             </div>
             <div v-else class="figs">
               <figure v-for="(f, i) in store.figures" :key="i" class="fig">
-                <img :src="'data:image/png;base64,' + f.png_b64" :alt="f.title || t('plots.fig_n', { n: i + 1 })" />
+                <button class="fig-thumb" type="button" :aria-label="t('figures.open') + ': ' + (f.name || t('plots.fig_n', { n: i + 1 }))" :data-tip="t('figures.open')" @click="openFigure(i)">
+                  <img :src="'data:image/png;base64,' + f.png_b64" :alt="f.name || t('plots.fig_n', { n: i + 1 })" />
+                  <span class="fig-open"><Icon name="max" :size="16" /></span>
+                </button>
                 <figcaption>
-                  <span>{{ f.title || t('plots.fig_n', { n: i + 1 }) }}</span>
-                  <button class="btn sm" @click="downloadFigure(f, i)"><Icon name="download" :size="12" />{{ t('plots.download_png') }}</button>
+                  <span class="fig-name">{{ f.name || t('plots.fig_n', { n: i + 1 }) }}</span>
+                  <span class="fig-actions">
+                    <button class="btn ghost icon sm" type="button" :aria-label="t('figures.open')" :data-tip="t('figures.open')" @click="openFigure(i)"><Icon name="max" :size="13" /></button>
+                    <button class="btn sm" type="button" @click.stop="downloadFigure(f, i)"><Icon name="download" :size="12" />{{ t('plots.download_png') }}</button>
+                  </span>
                 </figcaption>
               </figure>
             </div>
@@ -254,6 +273,7 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
     <AboutModal v-if="store.modals.about" />
     <PromptModal v-if="store.prompt" />
     <FatalModal v-if="store.fatal" />
+    <FigureViewer v-if="activeFigure" :figure="activeFigure" :index="openFigIndex" @close="closeFigure" />
   </div>
 </template>
 
@@ -294,7 +314,8 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
 .zoom { min-width: 44px; text-align: center; font-size: var(--fs-label); color: var(--text-muted); }
 .cv { position: relative; flex: 1; min-height: 0; }
 .cv > :deep(*:first-child) { position: absolute; inset: 0; }
-.hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); text-align: center; padding: 18px var(--sp-7); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); max-width: 90%; }
+.hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); text-align: center; padding: 18px var(--sp-7); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); max-width: 90%; pointer-events: none; }
+.hint .btn { pointer-events: auto; }
 .hint p { margin: 0; color: var(--text-muted); } .hint p.small { font-size: var(--fs-sm); margin-bottom: var(--sp-3); }
 .figs-pane { flex: 1; min-height: 0; overflow: auto; padding: 14px var(--sp-5); }
 .fig-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-3); height: 100%; text-align: center; color: var(--text-muted); }
@@ -303,7 +324,13 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
 .fig-empty p { max-width: 420px; margin: 0; line-height: 1.5; }
 .figs { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--sp-5); }
 .fig { margin: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
-.fig img { width: 100%; display: block; }
+.fig-thumb { position: relative; display: block; width: 100%; padding: 0; border: none; background: var(--surface-2); cursor: zoom-in; }
+.fig-thumb img { width: 100%; display: block; }
+.fig-thumb:hover img, .fig-thumb:focus-visible img { opacity: .92; }
+.fig-open { position: absolute; right: 8px; bottom: 8px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: rgba(0, 0, 0, .55); color: #fff; opacity: 0; transition: opacity var(--dur) var(--ease); pointer-events: none; }
+.fig-thumb:hover .fig-open, .fig-thumb:focus-visible .fig-open { opacity: 1; }
 .fig figcaption { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); background: var(--surface-2); color: var(--text); }
+.fig-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fig-actions { display: flex; align-items: center; gap: var(--sp-2); flex: none; }
 .bottom { flex: none; min-height: 0; margin-top: 9px; }
 </style>

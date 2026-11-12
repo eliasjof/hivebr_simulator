@@ -178,14 +178,16 @@ await test('the demo (read-only) tab is not changed by Tab', async () => {
   check((await editorText()).split('\n')[0] === before, 'the read-only demo changed')
 })
 
-await test('Run button cycles run → pause → stop', async () => {
+await test('Run button toggles run ↔ pause (stop lives in the toolbar)', async () => {
   // the demo test above left a run active
   const pauseBtn = page.locator('.efoot .run-pause')
   await pauseBtn.waitFor({ timeout: 15000 })
   await pauseBtn.click()
-  const stopBtn = page.locator('.efoot .run-stop')
-  await stopBtn.waitFor({ timeout: 15000 })
-  await stopBtn.click()
+  const resumeBtn = page.locator('.efoot .run-go')
+  await resumeBtn.waitFor({ timeout: 15000 })
+  await resumeBtn.click()
+  await page.locator('.efoot .run-pause').waitFor({ timeout: 15000 })
+  await page.locator('.tb .act.stop').click()
   await page.locator('.efoot .run-go').waitFor({ timeout: 15000 })
 })
 
@@ -200,9 +202,10 @@ await test('Clear works at idle after the run stops', async () => {
   await win.getByRole('button', { name: 'Aplicar', exact: true }).first().click()
   await page.waitForFunction(() => /Ocupação/.test(document.querySelector('.nav')?.textContent || ''), null, { timeout: 15000 })
 
-  // run → pause → stop, then clear the map that the stopped run left on screen
+  // run → pause → resume → stop, then clear the map the stopped run left on screen
   await page.locator('.efoot .run-pause').click()
-  await page.locator('.efoot .run-stop').click()
+  await page.locator('.efoot .run-go').click()
+  await page.locator('.tb .act.stop').click()
   await page.locator('.efoot .run-go').waitFor({ timeout: 15000 })
   const remove = win.getByRole('button', { name: 'Remover mapa' })
   check(await remove.isEnabled(), 'remove map should stay enabled at idle')

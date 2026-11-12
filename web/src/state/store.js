@@ -672,6 +672,18 @@ export function getCaptureDataUrl(id) {
 export function getCapture(id) {
   return captures.find(c => c.id === id)
 }
+// Insere uma captura no relatório ativo (ou cria um relatório se não houver
+// nenhum aberto). O painel de relatórios resolve o esquema `capture:<id>`.
+export function insertCaptureIntoReport(capture, alt = null) {
+  if (!capture) return null
+  let report = reports.find((r) => r.id === store.activeReportId)
+  if (!report) report = createReport()
+  const label = String(alt || capture.name || '').replace(/[[\]]/g, '').trim() || capture.name
+  report.content = `${report.content || ''}\n\n![${label}](capture:${capture.id})\n`
+  report.modified = Date.now()
+  openReport(report.id)
+  return report
+}
 export function focusEditor() { openPanel('right'); setTimeout(() => store.editorApi?.focus(), 30) }
 export function gotoLine(n) { openPanel('right'); store.jumpLine = { line: n, n: Date.now() } }
 
@@ -866,7 +878,18 @@ function wire() {
     toast(t('toast.file_downloaded', { name: p.name }))
   })
   on('figure', (p) => {
-    store.figures.push(markRaw(p))
+    // Metadados editáveis no visualizador. O título original do matplotlib já
+    // está desenhado no PNG, então o campo de título começa vazio.
+    store.figures.push({
+      png_b64: p.png_b64,
+      name: String(p.title || '').trim() || t('plots.fig_n', { n: store.figures.length + 1 }),
+      title: '',
+      caption: '',
+      xLabel: '',
+      yLabel: '',
+      font: 'sans-serif',
+      fontSize: 16,
+    })
     toast(t('toast.figure_captured', { title: p.title || t('plots.untitled') }))
   })
   on('notice', (p) => {

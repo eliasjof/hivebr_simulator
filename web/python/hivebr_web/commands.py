@@ -381,6 +381,10 @@ def _track_apply(sim, msg):
         default_width=line_width,
     )
     sim.apply_track()  # same as the desktop "Apply Track" button
+    # apply_track clears each robot's path; bump the epoch so the browser also
+    # drops the trail it has already drawn instead of joining old and new poses.
+    if getattr(sim, "frames", None) is not None:
+        sim.frames.bump_path()
     path = sim.config.get("world", {}).get("drawn_line_map_image", "config/line_drawn.png")
     sim._track_gray.save(path)
     return {"strokes": strokes, "line_width": line_width, "path": path}

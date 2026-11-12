@@ -271,12 +271,20 @@ def test_track_apply_replaces_and_respects_width():
         lm = sim.world.line_map
         check(lm.sample(5.0, 3.0) > 0.5, "thick stroke not rasterized")
         check(lm.sample(5.0, 3.1) > 0.5, "stroke width was not applied")
+        # A trail drawn before applying must be dropped, and the browser must
+        # see a new path epoch so it forgets the strokes it already painted.
+        r = sim.robots[0]
+        frame(e, sim)
+        epoch = sim.frames.epoch.get(0, 0)
+        r.path.append(r.position.copy())
+        r.path.append(r.position.copy())
         # Applying a new drawing replaces the previous track.
         cmd(sim, cmd="track_apply", strokes=[{"points": [[3.0, 6.0], [3.0, 2.0]], "width": 0.05}])
+        check(not r.path, "old trail survived the track apply")
+        check(sim.frames.epoch.get(0, 0) > epoch, "browser trail epoch was not bumped")
         lm = sim.world.line_map
         check(lm.sample(3.0, 4.0) > 0.5, "new stroke missing")
         check(lm.sample(7.0, 3.0) < 0.1, "old track was not replaced")
-        r = sim.robots[0]
         check(abs(r.x - 3.0) < 1e-6 and abs(r.y - 6.0) < 1e-6, "robot not placed on the first stroke")
         cmd(sim, cmd="track_clear")
         check(sim.world.line_map is None and sim.config["world"]["line_map_image"] == "")

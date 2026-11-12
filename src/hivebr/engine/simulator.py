@@ -499,6 +499,16 @@ class Simulator:
             for robot in self.robots:
                 if hasattr(robot, "set_initial_pose"):
                     robot.set_initial_pose(x, y, theta)
+                # Start at rest on the line instead of carrying the previous
+                # speed into the new track.
+                if hasattr(robot, "reset"):
+                    robot.reset()
+
+        # Applying a track starts a new run from the line: discard the old trail
+        # so the robot does not draw a line from its previous position.
+        for robot in self.robots:
+            if hasattr(robot, "clear_path"):
+                robot.clear_path()
 
         print(
             f"[TrackEditor] Pista aplicada ({line_map.width_m:.2f}x"

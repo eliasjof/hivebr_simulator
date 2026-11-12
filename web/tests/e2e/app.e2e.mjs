@@ -142,6 +142,28 @@ await flow('a. carregamento, estado vazio, overlay fecha', async () => {
   originalCode = await editorText()
   check(originalCode.includes('HiveBrAgent'), 'default script loaded')
   await shot('a-ready')
+
+  // Drawing before the first run: the empty-state hint must not swallow the
+  // gesture, and the stroke must reach the track (regression: "Desenhe ao
+  // menos um traço na tela" after drawing over the centered hint).
+  await focusNeutral()
+  await page.keyboard.press('k')
+  const mapWin = page.locator('section[aria-label="Mapa"]')
+  await mapWin.waitFor()
+  await mapWin.getByRole('button', { name: /Desenhar/ }).click()
+  await page.waitForFunction(() => !document.querySelector('.hint'), null, { timeout: 5000 })
+  check(await page.locator('.hint').count() === 0, 'hint must hide while the draw tool is active')
+  const cb = await canvasBox()
+  await page.mouse.move(cb.x + cb.width * 0.5, cb.y + cb.height * 0.5)
+  await page.mouse.down()
+  await page.mouse.move(cb.x + cb.width * 0.6, cb.y + cb.height * 0.55, { steps: 8 })
+  await page.mouse.up()
+  await mapWin.getByRole('button', { name: 'Aplicar', exact: true }).last().click()
+  await page.waitForFunction(() => /Pista \d/.test(document.querySelector('.nav')?.textContent || ''), null, { timeout: 15000 })
+  await mapWin.getByRole('button', { name: 'Limpar', exact: true }).click()
+  await page.waitForFunction(() => /Mapa\s*Nenhum/.test(document.querySelector('.nav')?.textContent || ''), null, { timeout: 15000 })
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('k')
 })
 
 await flow('b. demonstração', async () => {

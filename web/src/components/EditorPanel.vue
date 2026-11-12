@@ -12,7 +12,7 @@ import ScriptActionsModal from './ScriptActionsModal.vue'
 import { t, locale } from '../i18n/index.js'
 import { CM_PHRASES_PT } from '../i18n/cm-phrases.js'
 import {
-  store, setCode, runCode, stopCode, toggleSim, newFile, pickFile, downloadScript,
+  store, setCode, runCode, toggleSim, newFile, pickFile, downloadScript,
   switchTab, closeTab, openTab, duplicateDemo, openPanel, togglePanel, toggleRightMaximized, isPythonFile,
 } from '../state/store.js'
 
@@ -147,15 +147,14 @@ watch(() => store.jumpLine, (j) => j && scrollToLine(j.line))
 const tabName = (tab) => (tab.readonly ? t('tab.demo') : tab.id === store.activeId ? store.fileName : tab.name)
 const running = computed(() => store.run.state !== 'idle')
 const paused = computed(() => store.run.state === 'running' && !store.stats.running)
-// One button, three states: stopped -> run, running -> pause, paused -> stop.
-const runMode = computed(() => (!running.value ? 'run' : paused.value ? 'stop' : 'pause'))
-const runLabel = computed(() => t({ run: 'run.run', pause: 'sim.pause', stop: 'sim.stop' }[runMode.value]))
-const runTip = computed(() => t({ run: 'run.run', pause: 'sim.pause_sim', stop: 'sim.stop_tip' }[runMode.value]))
+// One button, two states: idle/paused -> run (or resume), running -> pause.
+const runMode = computed(() => (running.value && !paused.value ? 'pause' : 'run'))
+const runLabel = computed(() => t(!running.value ? 'run.run' : paused.value ? 'run.resume' : 'sim.pause'))
+const runTip = computed(() => t(!running.value ? 'run.run' : paused.value ? 'run.resume' : 'sim.pause_sim'))
 const runDisabled = computed(() => (!store.boot.ready && !running.value) || store.run.state === 'starting' || store.run.state === 'stopping')
 function onRunClick() {
-  if (runMode.value === 'run') runCode()
-  else if (runMode.value === 'pause') toggleSim()
-  else stopCode()
+  if (!running.value) runCode()
+  else toggleSim()
 }
 </script>
 
@@ -217,7 +216,7 @@ function onRunClick() {
     <div v-show="activeTab" ref="host" class="cm-host" />
     <footer v-if="activeTab" class="efoot">
       <button class="btn sm" :class="'run-' + runMode" :disabled="runDisabled" :data-tip="runTip" @click="onRunClick">
-        <Icon :name="{ run: 'play', pause: 'pause', stop: 'stop' }[runMode]" :size="12" />{{ runLabel }}</button>
+        <Icon :name="{ run: 'play', pause: 'pause' }[runMode]" :size="12" />{{ runLabel }}</button>
       <label class="switch" :data-tip="t('editor.autostart_tip')" data-tip-pos="up">
         <input v-model="store.autostart" type="checkbox" /> {{ t('editor.autostart') }}</label>
       <span class="state mono" :class="{ pending: store.saveState === 'pending' }" :data-tip="t('editor.save_tip')" data-tip-pos="end">
