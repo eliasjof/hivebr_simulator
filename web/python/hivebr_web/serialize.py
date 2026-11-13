@@ -107,12 +107,22 @@ def line_map_info(world):
 
 def robot_info(index, robot):
     cfg = _cfg_robot(robot)
+    rtype = robot_type(robot)
+    # A plain hexagonal robot has no rectangular body. Its config may still
+    # carry unrelated length/width keys (e.g. default.yaml); those must not
+    # resize the hexagon, which uses radius as its circumradius.
+    length = getattr(robot, "length", getattr(robot, "body_length", None))
+    width = getattr(robot, "width", getattr(robot, "body_width", None))
+    if length is None and not rtype.startswith("hexagonal"):
+        length = cfg.get("length")
+    if width is None and not rtype.startswith("hexagonal"):
+        width = cfg.get("width")
     return {
         "id": index,
-        "type": robot_type(robot),
+        "type": rtype,
         "radius": f4(getattr(robot, "radius", 0.1)),
-        "length": f4(getattr(robot, "length", getattr(robot, "body_length", cfg.get("length")))),
-        "width": f4(getattr(robot, "width", getattr(robot, "body_width", cfg.get("width")))),
+        "length": f4(length),
+        "width": f4(width),
         "wheel_base": f4(getattr(robot, "wheel_base", cfg.get("wheel_base"))),
         "color": robot_color(robot),
         "max_speed": f4(getattr(robot, "max_speed", None)),
@@ -128,6 +138,7 @@ def build_scene(sim, version, autostart):
     wm = sim.waypoint_managers[0]
     return {
         "version": version,
+        "instance": getattr(sim, "instance", None),
         "title": str(cfg.get("window", {}).get("title", "hiveBr")),
         "world": {"width": f4(world.width), "height": f4(world.height), "grid_size": f4(world.grid_size),
                   "show_origin": bool(world.show_origin), "show_axes": bool(world.show_axes)},

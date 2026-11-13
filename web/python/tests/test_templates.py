@@ -53,6 +53,11 @@ def test_en_templates_have_identical_logic():
 
 def _run_template(path, frames, expect_text):
     with env() as e:
+        # Exemplos com vários arquivos: as abas irmãs (módulos importados pelo
+        # script principal) são gravadas ao lado do arquivo de entrada.
+        for sibling in path.parent.glob("*.py"):
+            if sibling.name != path.name:
+                (e.root / "examples" / sibling.name).write_text(sibling.read_text(encoding="utf-8"), encoding="utf-8")
         r = run_for(e, path.read_text(encoding="utf-8"), frames)
         check(r["ok"] and r["error"] is None, (path.name, r))
         check(expect_text in e.stdout, (path.name, e.stdout[-300:]))
@@ -62,6 +67,7 @@ def _run_template(path, frames, expect_text):
 def test_templates_run_in_both_languages():
     expect = {
         "inicio_rapido.py": ("Rota com", "Route with"),
+        "importando_modulo.py": ("Importado de agent_lib.py", "Imported from agent_lib.py"),
         "holonomico.py": ("Robô holonômico", "Holonomic robot"),
         "lidar_desvio.py": ("obstáculos no caminho", "obstacles on the way"),
         "seguidor_de_linha.py": ("Sensores:", "Sensors:"),

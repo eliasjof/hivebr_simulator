@@ -116,6 +116,29 @@ def moved_any(e):
     return abs(f[-1]["robots"][0]["x"] - f[0]["robots"][0]["x"]) > 0.05
 
 
+def test_run_starts_trail_at_the_pose_set_before_run():
+    # The constructor emits a frame at the config pose, then the script may move
+    # the robot before run(). The browser must not join that setup pose to the
+    # actual starting pose with a stray trail segment.
+    code = '''
+from hivebr.engine import Simulator
+sim = Simulator(controller=lambda r, w, g, c, dt, l=None: {"v": 0.0, "omega": 0.0})
+sim.robot.set_initial_pose(9.0, 3.0, 0.5)
+sim.run()
+'''
+    with env() as e:
+        e.host.after_frames(6, cmd="stop")
+        r = e.run(code, autostart=True)
+        check(r["ok"], r)
+        frames = e.host.of("frame")
+        epochs = [f["robots"][0]["path_epoch"] for f in frames]
+        start = next(i for i, f in enumerate(frames)
+                     if (f["robots"][0]["x"], f["robots"][0]["y"]) == (9.0, 3.0))
+        check(start > 0, [(f["robots"][0]["x"], f["robots"][0]["y"]) for f in frames])
+        check(epochs[start] > epochs[start - 1], epochs)
+        check(all(n == epochs[start] for n in epochs[start:]), epochs)
+
+
 def test_pacing_factors():
     # real time: 40 steps of dt=0.03 s take ~1.2 s of host time and 40 frames
     for factor in (1.0, 2.0, 0.5, 4.0):
@@ -254,6 +277,7 @@ print("backend", plt.get_backend())
         check([f["title"] for f in figs] == ["my plot", "second"], figs and [f["title"] for f in figs])
         import base64
         check(base64.b64decode(figs[0]["png_b64"])[:4] == b"\x89PNG" and "agg" in e.stdout.lower(), e.stdout)
+        check(b"<svg" in base64.b64decode(figs[0]["svg_b64"]), "SVG da figura ausente")
         # second run in the same interpreter: matplotlib already imported, still patched
         e.host.posts.clear()
         r = e.run("import matplotlib.pyplot as plt\nplt.plot([1]); plt.show()")

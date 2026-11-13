@@ -172,14 +172,25 @@ def _patch_pyplot(plt):
     def show(*args, **kwargs):
         for num in plt.get_fignums():
             fig = plt.figure(num)
-            buf = io.BytesIO()
-            fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
+            png = _save_figure(fig, "png")
+            svg = _save_figure(fig, "svg")
             host.post("figure", {"title": _fig_title(fig, num),
-                                 "png_b64": base64.b64encode(buf.getvalue()).decode("ascii")})
+                                 "png_b64": png,
+                                 "svg_b64": svg})
         plt.close("all")
 
     plt.show = show
     plt._hivebr_patched = True
+
+
+def _save_figure(fig, fmt):
+    """Serializa a figura no formato pedido (SVG permite reestilizar na janela)."""
+    try:
+        buf = io.BytesIO()
+        fig.savefig(buf, format=fmt, dpi=100, bbox_inches="tight")
+        return base64.b64encode(buf.getvalue()).decode("ascii")
+    except Exception:
+        return None
 
 
 def _fig_title(fig, num):

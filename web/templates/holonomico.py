@@ -1,7 +1,10 @@
-"""Robô holonômico: um B-bot que anda em qualquer direção sem precisar girar.
+"""Robô holonômico hexagonal: um B-bot que anda em qualquer direção sem girar.
 
-O modelo 'holonomic' tem rodas omnidirecionais, por isso o comando não é
-(v, omega), e sim a velocidade nos eixos do mundo: {"vx": ..., "vy": ...}.
+O modelo 'hexagonal_holonomic' tem três rodas omnidirecionais a 120° e usa as
+equações de cinemática do simulador original: o comando {"vx", "vy"} é
+convertido nas velocidades das três rodas pela cinemática inversa, respeitando
+o limite de velocidade das rodas.
+
 Ele pode andar de lado ou para trás sem virar primeiro.
 
 Aqui o controlador é uma força em direção ao waypoint atual, limitada em
@@ -44,9 +47,13 @@ def controlador_holonomico(robot, world, goal, cfg, dt, lidar_readings=None):
 
 if __name__ == "__main__":
     config = load_config("config/default.yaml")
-    config["robot"]["type"] = "holonomic"        # troca o modelo do robô
-    config["robot"]["initial_pose"] = [4.0, 3.0, 0.0]
-    config["robot"]["radius"] = 0.3
+    config["robot"].update({
+        "type": "hexagonal_holonomic",   # 3 rodas omnidirecionais a 120°
+        "initial_pose": [4.0, 3.0, 0.0],
+        "radius": 0.3,                   # L: distância do centro até a roda
+        "wheel_radius": 0.05,            # r: raio da roda
+        "max_wheel_speed": 20.0,         # rad/s
+    })
 
     sim = Simulator(config=config, controller=controlador_holonomico)
 
@@ -54,6 +61,6 @@ if __name__ == "__main__":
     # final a alcançar, por isso theta é nan (não desenha a seta).
     sim.set_robot_waypoints(0, [(x, y, math.nan) for x, y in ROTA])
 
-    print("Robô holonômico.")
+    print("Robô holonômico (hexagonal).")
     sim.run()
     print("Simulação encerrada.")

@@ -3,17 +3,15 @@ import { ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import Modal from './Modal.vue'
 import {
-  store, renameReport, deleteReport, openReport, download, toast,
+  renameReport, deleteReport, openReport, download, toast,
 } from '../state/store.js'
-import { t, locale } from '../i18n/index.js'
-import { translateText } from '../services/translate.js'
+import { t } from '../i18n/index.js'
 
 const props = defineProps({ report: { type: Object, required: true } })
 const emit = defineEmits(['close'])
 
 const draftName = ref(props.report.name)
 const confirmDelete = ref(false)
-const translating = ref(false)
 
 watch(() => props.report, (report) => {
   draftName.value = report?.name || ''
@@ -46,29 +44,6 @@ function openIt() {
   openReport(props.report.id)
   emit('close')
 }
-
-async function translateReport() {
-  if (translating.value) return
-  translating.value = true
-  try {
-    const targetLang = locale.value === 'pt-BR' ? 'en' : 'pt-BR'
-    const translated = await translateText(props.report.content, locale.value, targetLang)
-    if (translated !== props.report.content) {
-      // Update the report's content
-      const report = store.reports.find(r => r.id === props.report.id)
-      if (report) {
-        report.content = translated
-        report.modified = Date.now()
-      }
-      const langLabel = targetLang === 'pt-BR' ? t('lang.pt') : t('lang.en')
-      toast(t('toast.translated', { lang: langLabel }))
-    } else {
-      toast(t('toast.translation_failed'), 'warn')
-    }
-  } finally {
-    translating.value = false
-  }
-}
 </script>
 
 <template>
@@ -85,7 +60,6 @@ async function translateReport() {
     <template #footer>
       <button class="btn sm" @click="openIt"><Icon name="open" :size="12" />{{ t('report.open') }}</button>
       <button class="btn sm" @click="saveFile"><Icon name="download" :size="12" />{{ t('report.download') }}</button>
-      <button class="btn sm" :disabled="translating" @click="translateReport"><Icon name="translate" :size="12" />{{ translating ? t('report.translating') : t('report.translate') }}</button>
       <span class="foot-sp" />
       <button v-if="!confirmDelete" class="btn sm danger" @click="confirmDelete = true"><Icon name="trash" :size="12" />{{ t('report.delete') }}</button>
       <template v-else>

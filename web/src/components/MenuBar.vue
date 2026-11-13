@@ -3,7 +3,7 @@ import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import Logo from './Logo.vue'
 import {
   store, scene, catalog, newFile, pickFile, downloadScript, saveNow, runCode, stopCode, toggleSim, stepOnce, resetSim,
-  restartScene, restartPage,
+  restartScene, restartPage, clearSiteData,
   toggleTheme, togglePanel, openPanel, toggleWindow, resetLayout, runDemo, loadExample, canvasRef, consoleBus, toast,
   toggleReportTemplateModal, toggleReportsPanel,
 } from '../state/store.js'
@@ -24,6 +24,8 @@ const menus = computed(() => [
     { label: t('file.open'), key: 'Ctrl+O', run: pickFile },
     { label: t('file.save_browser'), key: 'Ctrl+S', run: () => { saveNow(); toast(t('toast.saved')) } },
     { label: t('file.download'), run: downloadScript },
+    { sep: true },
+    { label: t('file.clear_cache'), run: clearSiteData },
     { sep: true },
     { label: t('lang.menu'), submenu: [
       { label: t('lang.auto'), radio: choice.value === 'auto', run: () => setChoice('auto') },

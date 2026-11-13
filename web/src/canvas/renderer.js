@@ -89,6 +89,7 @@ export class Renderer {
     this.options = { ...DEFAULT_OPTIONS };
     this.scene = null;
     this.sceneVersion = -1;
+    this.sceneInstance = undefined;
     this.pal = buildPalette(null, 'dark');
     this.theme = 'dark';
     this.frame = null;
@@ -109,12 +110,14 @@ export class Renderer {
     this.lastCollision = [];
     this.preview = null;
     this.bitmaps = { map: null, line: null };
+    this.sprites = { explosion: null };
     this._mapKey = { map: null, line: null };
     this.selected = -1;
     this.dirty = true;
     this._raf = 0;
     this._destroyed = false;
     this._loop = this._loop.bind(this);
+    this._loadSprites();
     this._raf = requestAnimationFrame(this._loop);
     this.resize();
   }
@@ -124,10 +127,17 @@ export class Renderer {
   setScene(scene) {
     const prevCount = this.scene ? (this.scene.robots || []).length : -1;
     const prevVersion = this.sceneVersion;
+    const prevInstance = this.sceneInstance;
     this.scene = scene || null;
     this.sceneVersion = scene ? scene.version : -1;
+    this.sceneInstance = scene ? (scene.instance ?? null) : null;
     const n = scene && scene.robots ? scene.robots.length : 0;
-    if (n !== prevCount) {
+    // A new simulator (a new script run, the idle editor, a worker restart)
+    // must not reuse the poses/trail of the previous one. Its scene counter
+    // restarts at 1, so a version that does not advance also means a new run.
+    const restarted = (prevInstance !== undefined && this.sceneInstance !== prevInstance)
+      || (prevVersion >= 0 && this.sceneVersion <= prevVersion);
+    if (n !== prevCount || restarted) {
       this.waypoints = [];
       this.cur = [];
       this.prev = [];
@@ -135,7 +145,7 @@ export class Renderer {
       this.effects = [];
       this.lastCollision = [];
     }
-    if (prevVersion !== this.sceneVersion || n !== prevCount) this._resetTrails();
+    if (prevVersion !== this.sceneVersion || restarted || n !== prevCount) this._resetTrails();
     this._updateTheme();
     this._loadBitmaps(scene);
     this.dirty = true;
@@ -337,6 +347,17 @@ export class Renderer {
     };
     load('map', scene && scene.map ? scene.map : null);
     load('line', scene && scene.lineMap ? scene.lineMap : null);
+  }
+
+  _loadSprites() {
+    // The engine's collision sprite (assets/explosion.png), copied to the web
+    // public folder. Absent in Node (unit tests), so guard the DOM image.
+    if (typeof Image === 'undefined' || this.sprites.explosion) return;
+    const base = (import.meta.env && import.meta.env.BASE_URL) || './';
+    const img = new Image();
+    img.onload = () => { this.dirty = true; };
+    img.src = base + 'explosion.png';
+    this.sprites.explosion = img;
   }
 
   _pose(i, now) {
@@ -762,6 +783,7 @@ export class Renderer {
       const [sx, sy] = cam.worldToScreen(pose.x, pose.y);
       const rpx = Math.max(g.extent * cam.scale, 9);
       if (st.collision) {
+        this._drawExplosion(ctx, sx, sy, g.radius);
         ctx.strokeStyle = '#f85149';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -783,6 +805,17 @@ export class Renderer {
         this._text(ctx, label, sx, sy - rpx - (i === this.selected ? 12 : 7), this.pal.text, FONT_UI, 'center');
       }
     }
+  }
+
+  _drawExplosion(ctx, x, y, radius) {
+    const img = this.sprites.explosion;
+    if (!img || !img.complete || !img.naturalWidth) return;
+    // Same placement as the desktop engine: 3x the collision radius, alpha 180.
+    const size = Math.max(12, 3 * radius * this.camera.scale);
+    ctx.save();
+    ctx.globalAlpha = 180 / 255;
+    ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+    ctx.restore();
   }
 
   _drawOverlay(ctx) {

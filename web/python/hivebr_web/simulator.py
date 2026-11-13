@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import os
 import traceback
+import uuid
 from collections import deque
 
 import pygame
@@ -67,6 +68,7 @@ class BrowserSimulator(_Base):
         _current = self
         self.camera.__class__ = _FloatCamera
         self.speed = 1.0
+        self.instance = uuid.uuid4().hex
         self.frames = serialize.FrameBuilder()
         self.step_count = 0
         self.scene_version = 0
@@ -169,6 +171,12 @@ class BrowserSimulator(_Base):
     # ------------------------------------------------------------ loop ----
     def run(self):
         self._dirty = True
+        # The script may position the robots after building the simulator
+        # (config poses, set_initial_pose, reset). The first run frame is the
+        # real starting pose, so give it a fresh trail epoch instead of joining
+        # it to the pose captured when the simulator was constructed.
+        for i in range(len(self.robots)):
+            self.frames.bump_path(i)
         self._emit()
         while self.running:
             self.step()

@@ -1,7 +1,10 @@
-"""Holonomic robot: a B-bot that moves in any direction without having to turn.
+"""Hexagonal holonomic robot: a B-bot that moves in any direction without turning.
 
-The 'holonomic' model has omnidirectional wheels, so the command is not
-(v, omega) but the velocity along the world axes: {"vx": ..., "vy": ...}.
+The 'hexagonal_holonomic' model has three omnidirectional wheels at 120° and
+uses the original simulator kinematics: the {"vx", "vy"} command is converted
+into the three wheel speeds through inverse kinematics, respecting the wheel
+speed limit.
+
 It can move sideways or backwards without turning first.
 
 Here the controller is a force towards the current waypoint, limited in
@@ -44,9 +47,13 @@ def controlador_holonomico(robot, world, goal, cfg, dt, lidar_readings=None):
 
 if __name__ == "__main__":
     config = load_config("config/default.yaml")
-    config["robot"]["type"] = "holonomic"        # switch the robot model
-    config["robot"]["initial_pose"] = [4.0, 3.0, 0.0]
-    config["robot"]["radius"] = 0.3
+    config["robot"].update({
+        "type": "hexagonal_holonomic",   # 3 omnidirectional wheels at 120°
+        "initial_pose": [4.0, 3.0, 0.0],
+        "radius": 0.3,                   # L: distance from the centre to a wheel
+        "wheel_radius": 0.05,            # r: wheel radius
+        "max_wheel_speed": 20.0,         # rad/s
+    })
 
     sim = Simulator(config=config, controller=controlador_holonomico)
 
@@ -54,6 +61,6 @@ if __name__ == "__main__":
     # orientation to reach, so theta is nan (no arrow is drawn).
     sim.set_robot_waypoints(0, [(x, y, math.nan) for x, y in ROTA])
 
-    print("Holonomic robot.")
+    print("Holonomic robot (hexagonal).")
     sim.run()
     print("Simulation finished.")

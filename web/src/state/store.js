@@ -3,6 +3,7 @@ import { SimClient } from '../runtime/client.js'
 import { getCatalog, DEFAULT_EXAMPLE_ID, DEMO_EXAMPLE_ID } from '../examples/catalog.js'
 import { t, tOr, locale, fmtNum } from '../i18n/index.js'
 import { fileExtension, isPythonFile, normalizeFileName } from '../utils/fileNames.js'
+import { defaultFigureStyle } from '../utils/figureStyle.js'
 
 export { fileExtension, isPythonFile, normalizeFileName }
 
@@ -19,7 +20,11 @@ const LS = {
 function lsGet(key, fallback) {
   try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback } catch { return fallback }
 }
+// Depois de limpar os dados do site nada pode ser gravado de volta (layout,
+// abas, traduções…) antes do recarregamento.
+let siteDataClearing = false
 function lsSet(key, value) {
+  if (siteDataClearing) return
   try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* cota cheia */ }
 }
 
@@ -456,10 +461,29 @@ export async function confirmDiscard(what) {
 export async function loadExample(ex) {
   if (!(await confirmDiscard(t('discard.what_example', { title: ex.title })))) return false
   replaceCode(ex.source, { fileName: ex.filename || `${ex.id}.py` })
+  loadExampleFiles(ex.files)
   store.modals.examples = false
   openPanel('right')
   toast(t('toast.example_loaded', { title: ex.title }))
   return true
+}
+
+// Exemplos com vários arquivos: cada módulo extra vira uma aba (sem ativá-la),
+// para que o import no script principal funcione como em um projeto Python.
+function loadExampleFiles(files) {
+  for (const f of files || []) {
+    if (!f?.name || typeof f.source !== 'string') continue
+    const existing = store.tabs.find((tab) => tab.name === f.name)
+    if (existing) {
+      existing.code = f.source
+      existing.baseline = f.source
+      existing.readonly = false
+      existing.open = true
+    } else {
+      addTab(f.name, f.source, { activate: false })
+    }
+  }
+  saveNow()
 }
 export function newFile() {
   addTab(`script_${tabSeq + 1}.py`, t('script.new_template'))
@@ -793,6 +817,50 @@ export async function restartPage() {
   })
   if (ok) window.location.reload()
 }
+
+/**
+ * Clears everything this site stored in the browser (scripts, reports,
+ * captures, configs, preferences, Cache Storage and IndexedDB) and reloads
+ * the page. The COI service worker is kept: Pyodide needs cross-origin
+ * isolation, and JavaScript cannot clear the HTTP cache.
+ */
+export async function clearSiteData() {
+  const ok = await ask({
+    title: t('cache.clear_title'),
+    message: t('cache.clear_msg'),
+    confirmText: t('cache.clear_confirm'),
+    danger: true,
+  })
+  if (!ok) return false
+  siteDataClearing = true
+  clearTimeout(saveTimer)
+  clearTimeout(winTimer)
+  const wipeStorage = () => {
+    try {
+      localStorage.clear()
+      sessionStorage.clear()
+    } catch { /* armazenamento indisponível */ }
+  }
+  wipeStorage()
+  try {
+    const keys = await caches.keys()
+    await Promise.allSettled(keys.map((key) => caches.delete(key)))
+  } catch { /* Cache Storage indisponível */ }
+  try {
+    if (indexedDB.databases) {
+      const dbs = await indexedDB.databases()
+      await Promise.allSettled(dbs.map((db) => new Promise((resolve) => {
+        if (!db.name) { resolve(); return }
+        const req = indexedDB.deleteDatabase(db.name)
+        req.onsuccess = req.onerror = req.onblocked = () => resolve()
+      })))
+    }
+  } catch { /* IndexedDB indisponível */ }
+  // Limpa de novo: alguma gravação pode ter terminado durante as esperas acima.
+  wipeStorage()
+  window.location.reload()
+  return true
+}
 export function setSpeed(f) { store.speed = f; send({ cmd: 'set_speed', factor: f === Infinity ? 0 : f }) }
 export function selectRobot(i) { store.selected = i; send({ cmd: 'select_robot', index: i }) }
 export function robotCount() { return scene.value?.robots?.length ?? 0 }
@@ -882,6 +950,7 @@ function wire() {
     // está desenhado no PNG, então o campo de título começa vazio.
     store.figures.push({
       png_b64: p.png_b64,
+      svg_b64: p.svg_b64 || '',
       name: String(p.title || '').trim() || t('plots.fig_n', { n: store.figures.length + 1 }),
       title: '',
       caption: '',
@@ -889,6 +958,7 @@ function wire() {
       yLabel: '',
       font: 'sans-serif',
       fontSize: 16,
+      style: defaultFigureStyle(),
     })
     toast(t('toast.figure_captured', { title: p.title || t('plots.untitled') }))
   })

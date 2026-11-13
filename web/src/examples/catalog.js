@@ -43,6 +43,11 @@ const ENTRIES = [
     en: { filename: 'quick_start.py', title: 'Quick start', description: 'A differential B-bot driving a waypoint route with a HiveBrAgent that goes to the goal.', tags: ['beginner', 'waypoints', 'HiveBrAgent'], robots: '1 differential B-bot' },
   },
   {
+    id: 'importando_modulo', file: 'importando_modulo.py', group: 'tutorial', files: ['agent_lib.py'],
+    pt: { title: 'Importando outro script', description: 'O script principal importa uma classe e uma função definidas em agent_lib.py, outra aba carregada no editor. As duas abas são enviadas juntas para o Python, como módulos de um mesmo projeto.', tags: ['import', 'módulo', 'classe', 'função'], robots: '1 B-bot diferencial', notes: 'A aba agent_lib.py é a biblioteca importada; execute a aba importando_modulo.py.' },
+    en: { filename: 'importing_module.py', title: 'Importing another script', description: 'The main script imports a class and a function defined in agent_lib.py, another tab loaded in the editor. Both tabs are sent together to Python, like modules in the same project.', tags: ['import', 'module', 'class', 'function'], robots: '1 differential B-bot', notes: 'The agent_lib.py tab is the imported library; run the importing_module.py tab.' },
+  },
+  {
     id: 'swarm_descentralizado', file: 'swarm_descentralizado.py', group: 'tutorial',
     pt: { title: 'Enxame descentralizado', description: 'Quatro agentes HiveBrAgent, cada um com sua rota, separação entre vizinhos, comm_radius de 3 m e ligações entre os robôs visíveis.', tags: ['enxame', 'descentralizado', 'comm_radius', 'separação'], robots: '4 B-bots diferenciais' },
     en: { filename: 'decentralized_swarm_basic.py', title: 'Decentralized swarm', description: 'Four HiveBrAgent agents, each with its own route, neighbour separation, a 3 m comm_radius and visible links between robots.', tags: ['swarm', 'decentralized', 'comm_radius', 'separation'], robots: '4 differential B-bots' },
@@ -59,8 +64,8 @@ const ENTRIES = [
   },
   {
     id: 'holonomico', file: 'holonomico.py', group: 'tutorial',
-    pt: { title: 'Robô holonômico', description: 'Um robô omnidirecional que anda em qualquer direção. O controlador devolve {"vx", "vy"} e percorre um retângulo na arena.', tags: ['holonômico', 'Simulator', 'controlador'], robots: '1 B-bot holonômico' },
-    en: { filename: 'holonomic_robot.py', title: 'Holonomic robot', description: 'An omnidirectional robot that moves in any direction. The controller returns {"vx", "vy"} and drives a rectangle around the arena.', tags: ['holonomic', 'Simulator', 'controller'], robots: '1 holonomic B-bot' },
+    pt: { title: 'Robô holonômico', description: 'Um robô omnidirecional hexagonal, com três rodas a 120°. O controlador devolve {"vx", "vy"}; a cinemática inversa original converte o comando em velocidades das rodas e o robô percorre um retângulo na arena.', tags: ['holonômico', 'hexagonal', 'Simulator', 'controlador'], robots: '1 robô hexagonal holonômico' },
+    en: { filename: 'holonomic_robot.py', title: 'Holonomic robot', description: 'A hexagonal omnidirectional robot with three wheels at 120°. The controller returns {"vx", "vy"}; the original inverse kinematics turns the command into wheel speeds and the robot drives a rectangle around the arena.', tags: ['holonomic', 'hexagonal', 'Simulator', 'controller'], robots: '1 hexagonal holonomic robot' },
   },
   {
     id: 'lidar_desvio', file: 'lidar_desvio.py', group: 'tutorial',
@@ -117,12 +122,15 @@ const ENTRIES = [
 /** Catálogo no idioma pedido ('pt-BR' | 'en'): título, descrição, etiquetas, notas e código-fonte. */
 export function getCatalog(locale) {
   const lang = locale === 'pt-BR' ? 'pt' : 'en'
+  const folder = lang === 'en' ? TEMPLATE_EN : TEMPLATE
   return ENTRIES.map((e) => {
     const txt = e[lang]
-    const source = fonte(`${lang === 'en' ? TEMPLATE_EN : TEMPLATE}${e.file}`)
+    const source = fonte(`${folder}${e.file}`)
     const notes = txt.notes ? txt.notes : ''
     const filename = txt.filename || e.file
-    return { id: e.id, group: e.group, readonly: !!e.readonly, filename, title: txt.title, description: txt.description, tags: txt.tags, robots: txt.robots, notes, source }
+    // Abas extras do exemplo (módulos importados pelo script principal).
+    const files = (e.files || []).map((name) => ({ name, source: fonte(`${folder}${name}`) }))
+    return { id: e.id, group: e.group, readonly: !!e.readonly, filename, title: txt.title, description: txt.description, tags: txt.tags, robots: txt.robots, notes, source, files }
   })
 }
 

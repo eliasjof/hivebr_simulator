@@ -14,12 +14,18 @@ const catalog = read(path.join(SRC, 'examples', 'catalog.js'))
 
 const files = [...catalog.matchAll(/file:\s*'([^']+\.py)'/g)].map((m) => m[1])
 const filenames = [...catalog.matchAll(/filename:\s*'([^']+\.py)'/g)].map((m) => m[1])
+const extraFiles = [...catalog.matchAll(/files:\s*\[([^\]]*)\]/g)]
+  .flatMap((m) => [...m[1].matchAll(/'([^']+\.py)'/g)].map((x) => x[1]))
 
 test('o catálogo usa apenas web/templates (PT) e web/templates/en (EN)', () => {
   assert.doesNotMatch(catalog, /\.\.\/\.\.\/examples\//, 'catalog.js ainda lê de examples/')
   assert.match(catalog, /import\.meta\.glob\([\s\S]*templates\/\*\.py[\s\S]*templates\/en\/\*\.py/)
   assert.ok(files.length >= 7, 'poucos exemplos no catálogo')
   for (const name of files) {
+    assert.ok(fs.existsSync(path.join(WEB, 'templates', name)), `falta templates/${name}`)
+    assert.ok(fs.existsSync(path.join(WEB, 'templates', 'en', name)), `falta templates/en/${name}`)
+  }
+  for (const name of extraFiles) {
     assert.ok(fs.existsSync(path.join(WEB, 'templates', name)), `falta templates/${name}`)
     assert.ok(fs.existsSync(path.join(WEB, 'templates', 'en', name)), `falta templates/en/${name}`)
   }

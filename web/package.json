@@ -18,6 +18,7 @@
     "test:i18n": "node --test tests/i18n/i18n.test.mjs",
     "test:examples": "node --test tests/examples/examples.test.mjs",
     "test:utils": "node --test tests/utils/findReplace.test.mjs tests/utils/fileNames.test.mjs",
+    "test:canvas": "node --test tests/canvas/renderer.test.mjs",
     "test:tokens": "node --test tests/tokens/contrast.test.mjs"
   },
   "dependencies": {
