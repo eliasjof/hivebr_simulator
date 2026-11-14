@@ -4,6 +4,9 @@ import { getCatalog, DEFAULT_EXAMPLE_ID, DEMO_EXAMPLE_ID } from '../examples/cat
 import { t, tOr, locale, fmtNum } from '../i18n/index.js'
 import { fileExtension, isPythonFile, normalizeFileName } from '../utils/fileNames.js'
 import { defaultFigureStyle } from '../utils/figureStyle.js'
+import { learning, completeActivity } from '../learning/progress.js'
+import { activityById } from '../learning/curriculum.js'
+import { evaluateActivity, starsFor } from '../learning/validate.js'
 
 export { fileExtension, isPythonFile, normalizeFileName }
 
@@ -209,7 +212,7 @@ export const store = reactive({
   // UI
   toasts: [],
   ctx: null,
-  modals: { examples: false, help: false, about: false },
+  modals: { examples: false, help: false, about: false, learning: false },
   prompt: null,
   figures: [],
   consoleUnread: 0,
@@ -865,6 +868,80 @@ export function setSpeed(f) { store.speed = f; send({ cmd: 'set_speed', factor: 
 export function selectRobot(i) { store.selected = i; send({ cmd: 'select_robot', index: i }) }
 export function robotCount() { return scene.value?.robots?.length ?? 0 }
 
+// ---- learning evidence ------------------------------------------------------
+// Accumulated from frames so an activity can be validated even when the script
+// loops until the student presses Stop (the demo and most templates do).
+const runEvidence = reactive({
+  t: 0,
+  robots: 0,
+  collisions: 0,
+  maxLineError: 0,
+  lineSamples: 0,
+  laps: 0,
+  bestLap: null,
+  finished: false,
+  finishTime: null,
+})
+let lastFinished = null
+
+function resetRunEvidence() {
+  runEvidence.t = 0
+  runEvidence.robots = 0
+  runEvidence.collisions = 0
+  runEvidence.maxLineError = 0
+  runEvidence.lineSamples = 0
+  runEvidence.laps = 0
+  runEvidence.bestLap = null
+  runEvidence.finished = false
+  runEvidence.finishTime = null
+  lastFinished = null
+}
+
+function trackEvidence(frame) {
+  if (!frame) return
+  if (typeof frame.t === 'number') runEvidence.t = frame.t
+  if (typeof frame.collisions_total === 'number') runEvidence.collisions = frame.collisions_total
+  if (Array.isArray(frame.robots)) runEvidence.robots = frame.robots.length
+  for (const robot of frame.robots || []) {
+    const extra = robot.extra || {}
+    if (typeof extra.line_error === 'number') {
+      runEvidence.lineSamples += 1
+      const error = Math.abs(extra.line_error)
+      if (error > runEvidence.maxLineError) runEvidence.maxLineError = error
+    }
+    if (typeof extra.lap_count === 'number' && extra.lap_count > runEvidence.laps) runEvidence.laps = extra.lap_count
+    if (typeof extra.best_lap === 'number' && (runEvidence.bestLap == null || extra.best_lap < runEvidence.bestLap)) {
+      runEvidence.bestLap = extra.best_lap
+    }
+    if (extra.finished) runEvidence.finished = true
+    if (typeof extra.finish_time === 'number') runEvidence.finishTime = extra.finish_time
+  }
+}
+
+function learningContext() {
+  return {
+    finished: lastFinished,
+    evidence: { ...runEvidence },
+    figures: store.figures,
+    reports,
+    captures,
+    console: consoleBus.lines,
+  }
+}
+
+function checkActiveActivity() {
+  const activity = activityById(learning.activeId)
+  if (!activity || learning.activities[activity.id]?.done) return
+  const ctx = learningContext()
+  if (!evaluateActivity(activity, ctx).ok) return
+  const stars = starsFor(activity, ctx)
+  const info = completeActivity(activity, { stars, evidence: ctx.evidence }, stars)
+  if (!info.first) return
+  toast(t('learn.completed_toast', { title: t(activity.titleKey), xp: info.xp }))
+  if (info.badge) toast(t('learn.badge_toast', { name: t(activity.badgeKey) }))
+  if (info.leveledUp) toast(t('learn.level_up', { level: info.level }))
+}
+
 // ---- frames ----
 let latest = null
 let fpsCount = 0
@@ -877,6 +954,7 @@ function onFrame(f) {
   latest = f
   seq++
   fpsCount++
+  trackEvidence(f)
   // Keep the pause/resume controls honest between the 5 Hz stats updates.
   if (typeof f.running === 'boolean') store.stats.running = f.running
   canvasRef.value?.pushFrame(f)
@@ -901,6 +979,7 @@ setInterval(() => {
     }
   }
   store.stats.fps = fps
+  checkActiveActivity()
 }, 200)
 
 // ---- cursor (rAF) ----
@@ -931,7 +1010,7 @@ function wire() {
   })
   on('stdout', (p) => consoleBus.push('out', p.text))
   on('stderr', (p) => consoleBus.push('err', p.text))
-  on('run_started', () => { store.run.state = 'running'; store.hasRun = true })
+  on('run_started', () => { store.run.state = 'running'; store.hasRun = true; resetRunEvidence() })
   on('scene', (p) => {
     scene.value = markRaw(p)
     
@@ -980,6 +1059,8 @@ function wire() {
     store.run.state = 'idle'
     store.stats.running = false
     files.value = p.files || []
+    lastFinished = p
+    checkActiveActivity()
     if (p.error) {
       store.error = p.error
       openPanel('right')

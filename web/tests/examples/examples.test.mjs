@@ -46,3 +46,18 @@ test('menu e galeria de exemplos usam o mesmo catálogo', () => {
   assert.match(gallery, /catalog\.value\.filter/)
   assert.doesNotMatch(menu, /examples\.value.*\.slice\(/, 'o menu não pode truncar a lista de exemplos')
 })
+
+test('todo exemplo tem categoria, nível e ordem válidos', () => {
+  const ids = [...catalog.matchAll(/\bid:\s*(?:'([^']+)'|[A-Z_]+)/g)].map((m) => m[1] || '(constante)')
+  const categories = [...catalog.matchAll(/\bcategory:\s*'([^']+)'/g)].map((m) => m[1])
+  const levels = [...catalog.matchAll(/\blevel:\s*(\d+)/g)].map((m) => Number(m[1]))
+  const orders = [...catalog.matchAll(/\border:\s*(\d+)/g)].map((m) => Number(m[1]))
+  assert.equal(categories.length, ids.length, 'cada exemplo precisa de category')
+  assert.equal(levels.length, ids.length, 'cada exemplo precisa de level')
+  assert.equal(orders.length, ids.length, 'cada exemplo precisa de order')
+
+  const allowed = new Set(['fundamentos', 'percepcao', 'linha', 'locomocao', 'controle', 'multirobo'])
+  for (const c of categories) assert.ok(allowed.has(c), `categoria inválida: ${c}`)
+  for (const l of levels) assert.ok(l >= 1 && l <= 4, `nível inválido: ${l}`)
+  for (const o of orders) assert.ok(o > 0, `ordem inválida: ${o}`)
+})

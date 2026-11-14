@@ -749,6 +749,25 @@ await flow('o. figuras como aba da simulação: galeria, canvas montado e downlo
   check(await page.locator('.cv canvas').isVisible(), 'the canvas did not come back on the Simulation tab')
 })
 
+await flow('p. categorias e trilha de aprendizagem', async () => {
+  await page.locator('.tb').getByRole('button', { name: /^Exemplos/ }).click()
+  const modal = page.locator('[role="dialog"]')
+  await modal.waitFor()
+  check(await modal.locator('.group-h').count() === 6, 'six category groups')
+  await modal.locator('.filters').nth(0).getByRole('button', { name: 'Fundamentos', exact: true }).click()
+  check(await modal.locator('.group-h').count() === 1, 'category filter keeps one group')
+  check(await modal.locator('.card').count() === 3, 'three fundamentals examples')
+  await page.keyboard.press('Escape')
+
+  await page.locator('.tb').getByRole('button', { name: /^Aprender/ }).click()
+  await modal.waitFor()
+  check(await modal.locator('.lvl').count() === 4, 'four learning levels')
+  check(await modal.locator('.act').count() >= 3, 'sample activities are listed')
+  check(/XP/.test(await modal.locator('.xp').innerText()), 'XP is shown')
+  await page.keyboard.press('Escape')
+  await shot('p-learning')
+})
+
 // ------------------------------------------------------------------ summary
 const failed = results.filter((r) => !r.ok)
 const errsAll = pageErrors

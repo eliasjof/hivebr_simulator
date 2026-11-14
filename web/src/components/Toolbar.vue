@@ -60,6 +60,7 @@ const ed = () => store.editorApi
     </div>
     <span class="sep" />
     <div class="grp">
+      <button class="btn ghost" @click="store.modals.learning = true"><Icon name="graduation" />{{ t('toolbar.learn') }}</button>
       <button class="btn ghost" @click="store.modals.examples = true"><Icon name="book" />{{ t('toolbar.examples') }}</button>
       <button class="btn ghost" :data-tip="t('toolbar.demo_tip')" @click="runDemo"><Icon name="demo" />{{ t('toolbar.demo') }}</button>
     </div>
