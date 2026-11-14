@@ -6,10 +6,12 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
-  ACTIVITIES, LEVELS, TRACKS, LEVEL_IDS,
+  ACTIVITIES, ACHIEVEMENTS, LEVELS, TRACKS, LEVEL_IDS,
   activitiesForLevel, activityById, trackById,
 } from '../../src/learning/curriculum.js'
-import { GOAL_CHECKS, checkGoal, evaluateActivity, starsFor } from '../../src/learning/validate.js'
+import {
+  GOAL_CHECKS, checkGoal, evaluateActivity, starsFor, trailLength, trailMinDistance,
+} from '../../src/learning/validate.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const WEB = path.resolve(HERE, '..', '..')
@@ -107,4 +109,97 @@ test('activity evaluation and stars', () => {
   assert.equal(starsFor(stars, ctx), 2)
   assert.equal(starsFor({ starGoals: [] }, ctx), 1)
   assert.equal(starsFor({ starGoals: [{ kind: 'lap_time_max', value: 20 }, { kind: 'lap_time_max', value: 19 }] }, ctx), 3)
+})
+
+// ---------------------------------------------------------------------------
+// Phase 3: geometric, performance and deliverable goals.
+// ---------------------------------------------------------------------------
+const trail = [
+  { x: 2, y: 2, theta: 0, t: 0 },
+  { x: 6, y: 4, theta: 0.2, t: 1 },
+  { x: 12, y: 8, theta: Math.PI / 2, t: 2 },
+]
+const geom = {
+  finished: { ok: true, stopped: true, error: null, files: [] },
+  evidence: {
+    t: 2, trail, trails: [trail], pathLength: 12.4, pathLengthAtGoal: 11.8,
+    reachTime: 2, waypointCount: 12, wpTotal: 12, robots: 3, collisions: 0,
+  },
+  figures: [], reports: [], captures: [], console: [], source: 'vx = GANHO * dx',
+}
+
+test('trail helpers measure length and closest approach', () => {
+  assert.ok(Math.abs(trailLength(trail) - (Math.hypot(4, 2) + Math.hypot(6, 4))) < 1e-9)
+  assert.equal(trailLength([]), 0)
+  assert.ok(Math.abs(trailMinDistance(trail, 12, 8)) < 1e-9)
+  assert.ok(trailMinDistance(trail, 0, 0) > 2.5)
+  assert.equal(trailMinDistance([], 0, 0), Infinity)
+})
+
+test('geometric goals use the recorded trail, not just the source code', () => {
+  assert.equal(checkGoal({ kind: 'reach_goal', x: 12, y: 8, tolerance: 0.4 }, geom), true)
+  assert.equal(checkGoal({ kind: 'reach_goal', x: 17, y: 9, tolerance: 0.4 }, geom), false)
+  assert.equal(checkGoal({ kind: 'reach_goal', x: 12, y: 8, tolerance: 0.4 }, { ...geom, evidence: { ...geom.evidence, trail: [], trails: [] } }), false)
+
+  assert.equal(checkGoal({ kind: 'orientation_error_max', x: 12, y: 8, theta: Math.PI / 2, tolerance: 0.4, value: 0.05 }, geom), true)
+  assert.equal(checkGoal({ kind: 'orientation_error_max', x: 12, y: 8, theta: 0, tolerance: 0.4, value: 0.05 }, geom), false)
+  // A heading far from the target point must not count.
+  assert.equal(checkGoal({ kind: 'orientation_error_max', x: 17, y: 9, theta: Math.PI / 2, tolerance: 0.4, value: 0.05 }, geom), false)
+})
+
+test('performance, waypoint and robot-count goals', () => {
+  assert.equal(checkGoal({ kind: 'time_max', value: 3 }, geom), true)
+  assert.equal(checkGoal({ kind: 'time_max', value: 1 }, geom), false)
+  assert.equal(checkGoal({ kind: 'time_max', value: 3 }, { ...geom, evidence: {} }), false)
+
+  assert.equal(checkGoal({ kind: 'path_length_max', value: 13 }, geom), true)
+  assert.equal(checkGoal({ kind: 'path_length_max', value: 11 }, geom), false)
+  assert.equal(checkGoal({ kind: 'path_length_max', value: 13 }, { ...geom, evidence: { ...geom.evidence, pathLengthAtGoal: null } }), true)
+
+  assert.equal(checkGoal({ kind: 'min_travel', value: 12 }, geom), true)
+  assert.equal(checkGoal({ kind: 'min_travel', value: 13 }, geom), false)
+
+  assert.equal(checkGoal({ kind: 'waypoint_count_min', n: 12 }, geom), true)
+  assert.equal(checkGoal({ kind: 'waypoint_count_min', n: 13 }, geom), false)
+
+  assert.equal(checkGoal({ kind: 'robot_count', n: 3 }, geom), true)
+  assert.equal(checkGoal({ kind: 'robot_count', n: 4 }, geom), false)
+})
+
+test('code_uses is a secondary check over the run source', () => {
+  assert.equal(checkGoal({ kind: 'code_uses', text: 'GANHO * dx' }, geom), true)
+  assert.equal(checkGoal({ kind: 'code_uses', text: 'not there' }, geom), false)
+  assert.equal(checkGoal({ kind: 'code_uses', text: '' }, geom), false)
+})
+
+test('phase 3 activities cover the classroom sequence and real examples', () => {
+  const expected = [
+    'python-tipos', 'python-numpy', 'python-plot',
+    'holonomico-vxvy', 'diferencial-vomega',
+    'chegar-alvo', 'chegar-alvo-orientacao', 'apf-lidar',
+    'linha-bangbang', 'linha-proporcional',
+    'grid-bfs', 'grid-astar', 'rrt', 'rrt-star', 'curvas-parametricas',
+  ]
+  for (const id of expected) assert.ok(activityById(id), `missing activity: ${id}`)
+  for (const id of ['python', 'cinematica', 'navegacao', 'planejamento']) {
+    assert.ok(trackById(id), `missing track: ${id}`)
+  }
+  // Every activity still references a catalog example.
+  for (const activity of ACTIVITIES) assert.ok(exampleIds.has(activity.exampleId), activity.id)
+})
+
+test('achievements require the expected activities', () => {
+  const byId = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]))
+  assert.deepEqual(
+    byId.planejador.requires,
+    ['grid-bfs', 'grid-astar', 'rrt', 'rrt-star', 'curvas-parametricas'],
+  )
+  assert.deepEqual(
+    byId.mestre.requires,
+    ACTIVITIES.filter((a) => !a.optional).map((a) => a.id),
+  )
+  for (const achievement of ACHIEVEMENTS) {
+    assert.ok(achievement.labelKey, `${achievement.id} sem labelKey`)
+    for (const id of achievement.requires) assert.ok(activityById(id), `${achievement.id}: ${id}`)
+  }
 })

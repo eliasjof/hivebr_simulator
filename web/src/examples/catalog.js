@@ -21,7 +21,7 @@ export const DEFAULT_EXAMPLE_ID = 'inicio_rapido'
 export const DEMO_EXAMPLE_ID = 'demonstracao'
 
 /** Ordem de exibição das categorias na galeria. */
-export const CATEGORY_IDS = ['fundamentos', 'percepcao', 'linha', 'locomocao', 'controle', 'multirobo']
+export const CATEGORY_IDS = ['fundamentos', 'python', 'percepcao', 'linha', 'locomocao', 'controle', 'planejamento', 'multirobo']
 
 /** Níveis pedagógicos: 1 = técnico, 4 = graduação avançada. */
 export const LEVEL_IDS = [1, 2, 3, 4]
@@ -123,6 +123,81 @@ const ENTRIES = [
     id: 'run_holonomic', file: 'run_holonomic.py', group: 'advanced', category: 'controle', level: 3, order: 20,
     pt: { title: 'Robô holonômico (campo potencial)', description: 'Robô holonômico com controlador de campo potencial e visualização de forças atrativas/repulsivas.', tags: ['holonômico', 'campo potencial', 'visualização'], robots: '1 B-bot holonômico' },
     en: { filename: 'holonomic_potential_field.py', title: 'Holonomic robot (potential field)', description: 'Holonomic robot with potential field controller and attractive/repulsive force visualization.', tags: ['holonomic', 'potential field', 'visualization'], robots: '1 holonomic B-bot' },
+  },
+  {
+    id: 'python_tipos', file: 'python_tipos.py', group: 'tutorial', category: 'python', level: 1, order: 10,
+    pt: { title: 'Tipos e operações em Python', description: 'Atividade: complete três funções (distância total, velocidade média e conversão para km/h) e veja os testes imprimirem TUDO CERTO.', tags: ['Python', 'funções', 'atividade'], robots: 'Nenhum robô — só Python' },
+    en: { filename: 'python_types.py', title: 'Python types and operations', description: 'Activity: complete three functions (total distance, average speed and km/h conversion) and watch the tests print TUDO CERTO.', tags: ['Python', 'functions', 'activity'], robots: 'No robot — Python only' },
+  },
+  {
+    id: 'python_numpy', file: 'python_numpy.py', group: 'tutorial', category: 'python', level: 1, order: 20,
+    pt: { title: 'NumPy e matrizes de rotação', description: 'Atividade: monte a matriz de rotação 2D, aplique-a a um vetor e plote antes/depois.', tags: ['NumPy', 'matriz', 'rotação', 'atividade'], robots: 'Nenhum robô — só Python' },
+    en: { filename: 'python_numpy.py', title: 'NumPy and rotation matrices', description: 'Activity: build the 2D rotation matrix, apply it to a vector and plot before/after.', tags: ['NumPy', 'matrix', 'rotation', 'activity'], robots: 'No robot — Python only' },
+  },
+  {
+    id: 'python_plot', file: 'python_plot.py', group: 'tutorial', category: 'python', level: 1, order: 30,
+    pt: { title: 'Plotando uma trajetória', description: 'Atividade: implemente uma lemniscata, plote com rótulos e salve trajetoria.png.', tags: ['matplotlib', 'gráfico', 'trajetória', 'atividade'], robots: 'Nenhum robô — só Python', notes: 'Grava trajetoria.png na pasta de trabalho a cada execução.' },
+    en: { filename: 'python_plot.py', title: 'Plotting a trajectory', description: 'Activity: implement a lemniscate, plot it with labels and save trajetoria.png.', tags: ['matplotlib', 'plot', 'trajectory', 'activity'], robots: 'No robot — Python only', notes: 'Writes trajetoria.png to the working folder on every run.' },
+  },
+  {
+    id: 'cinematica_holonomica', file: 'cinematica_holonomica.py', group: 'tutorial', category: 'locomocao', level: 2, order: 30,
+    pt: { title: 'Holonômico: vx e vy', description: 'Atividade: complete o controlador proporcional vx = K·dx e vy = K·dy do robô hexagonal e leve-o até (12, 8).', tags: ['holonômico', 'vx', 'vy', 'atividade'], robots: '1 robô hexagonal holonômico' },
+    en: { filename: 'holonomic_kinematics.py', title: 'Holonomic: vx and vy', description: 'Activity: complete the proportional controller vx = K*dx and vy = K*dy of the hexagonal robot and drive it to (12, 8).', tags: ['holonomic', 'vx', 'vy', 'activity'], robots: '1 hexagonal holonomic robot' },
+  },
+  {
+    id: 'cinematica_diferencial', file: 'cinematica_diferencial.py', group: 'tutorial', category: 'locomocao', level: 2, order: 40,
+    pt: { title: 'Diferencial: v e ω', description: 'Atividade: complete o modelo uniciclo com v e omega e leve o robô de (2, 2) a (14, 6).', tags: ['diferencial', 'v', 'omega', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'differential_kinematics.py', title: 'Differential: v and omega', description: 'Activity: complete the unicycle model with v and omega and drive the robot from (2, 2) to (14, 6).', tags: ['differential', 'v', 'omega', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'ir_para_alvo', file: 'ir_para_alvo.py', group: 'tutorial', category: 'controle', level: 2, order: 30,
+    pt: { title: 'Ir para o alvo (go-to-goal)', description: 'Atividade: implemente distância, ângulo e ganhos proporcionais para chegar a (12, 9) sem colidir.', tags: ['go-to-goal', 'controle', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'go_to_goal.py', title: 'Go to goal', description: 'Activity: implement distance, heading and proportional gains to reach (12, 9) without colliding.', tags: ['go-to-goal', 'control', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'ir_para_pose', file: 'ir_para_pose.py', group: 'tutorial', category: 'controle', level: 3, order: 40,
+    pt: { title: 'Ir para pose (x, y, θ)', description: 'Atividade: chegue a (12, 8) e termine apontando para π/2, primeiro aproximando e depois girando no lugar.', tags: ['pose', 'orientação', 'controle', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'go_to_pose.py', title: 'Go to pose (x, y, theta)', description: 'Activity: reach (12, 8) and finish facing pi/2, first approaching and then rotating in place.', tags: ['pose', 'orientation', 'control', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'apf_lidar', file: 'apf_lidar.py', group: 'advanced', category: 'percepcao', level: 3, order: 30,
+    pt: { title: 'Campo potencial com LiDAR', description: 'Atividade: complete a repulsão dos raios do LiDAR e atravesse o corredor até (17, 6) sem colidir.', tags: ['APF', 'LiDAR', 'campo potencial', 'atividade'], robots: '1 B-bot diferencial com LiDAR' },
+    en: { filename: 'apf_lidar.py', title: 'Potential field with LiDAR', description: 'Activity: complete the LiDAR ray repulsion and cross the corridor to (17, 6) without colliding.', tags: ['APF', 'LiDAR', 'potential field', 'activity'], robots: '1 differential B-bot with LiDAR' },
+  },
+  {
+    id: 'linha_bangbang', file: 'linha_bangbang.py', group: 'tutorial', category: 'linha', level: 2, order: 40,
+    pt: { title: 'Seguidor de linha bang-bang', description: 'Atividade: complete o controle liga-desliga (if/elif/else com LIMIAR) e faça o robô completar uma volta.', tags: ['linha', 'bang-bang', 'atividade'], robots: '1 seguidor de linha' },
+    en: { filename: 'line_bangbang.py', title: 'Bang-bang line follower', description: 'Activity: complete the on-off control (if/elif/else with LIMIAR) and make the robot finish one lap.', tags: ['line', 'bang-bang', 'activity'], robots: '1 line follower' },
+  },
+  {
+    id: 'linha_proporcional', file: 'linha_proporcional.py', group: 'tutorial', category: 'linha', level: 2, order: 50,
+    pt: { title: 'Seguidor de linha proporcional', description: 'Atividade: implemente omega = KP·erro e complete uma volta com erro pequeno.', tags: ['linha', 'proporcional', 'atividade'], robots: '1 seguidor de linha' },
+    en: { filename: 'line_proportional.py', title: 'Proportional line follower', description: 'Activity: implement omega = KP*error and finish a lap with a small error.', tags: ['line', 'proportional', 'activity'], robots: '1 line follower' },
+  },
+  {
+    id: 'grid_bfs', file: 'grid_bfs.py', group: 'advanced', category: 'planejamento', level: 4, order: 10,
+    pt: { title: 'Planejamento com BFS', description: 'Atividade: complete a busca em largura, reconstrua o caminho e publique os waypoints até (17, 9).', tags: ['BFS', 'planejamento', 'grade', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'grid_bfs.py', title: 'BFS path planning', description: 'Activity: complete the breadth-first search, rebuild the path and publish the waypoints to (17, 9).', tags: ['BFS', 'planning', 'grid', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'grid_astar', file: 'grid_astar.py', group: 'advanced', category: 'planejamento', level: 4, order: 20,
+    pt: { title: 'Planejamento com A*', description: 'Atividade: implemente a heurística e a fila de prioridade do A* e compare o número de células expandidas com o BFS.', tags: ['A*', 'planejamento', 'grade', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'grid_astar.py', title: 'A* path planning', description: 'Activity: implement the A* heuristic and priority queue and compare the number of expanded cells with BFS.', tags: ['A*', 'planning', 'grid', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'rrt', file: 'rrt.py', group: 'advanced', category: 'planejamento', level: 4, order: 30,
+    pt: { title: 'Planejamento com RRT', description: 'Atividade: implemente amostragem, steer e checagem de colisão da árvore RRT; a figura mostra a árvore e o caminho.', tags: ['RRT', 'amostragem', 'planejamento', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'rrt.py', title: 'RRT path planning', description: 'Activity: implement sampling, steer and collision checking for the RRT tree; the figure shows the tree and the path.', tags: ['RRT', 'sampling', 'planning', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'rrt_star', file: 'rrt_star.py', group: 'advanced', category: 'planejamento', level: 4, order: 40,
+    pt: { title: 'Planejamento com RRT*', description: 'Atividade: adicione choose_parent e rewire para otimizar o caminho do RRT*.', tags: ['RRT*', 'otimização', 'planejamento', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'rrt_star.py', title: 'RRT* path planning', description: 'Activity: add choose_parent and rewire to optimize the RRT* path.', tags: ['RRT*', 'optimization', 'planning', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'curvas_parametricas', file: 'curvas_parametricas.py', group: 'advanced', category: 'planejamento', level: 4, order: 50,
+    pt: { title: 'Curvas paramétricas (Bézier)', description: 'Atividade: implemente a curva de Bézier e o custo (comprimento + obstáculos + curvatura) e otimize os pontos de controle.', tags: ['Bézier', 'curvas', 'otimização', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'parametric_curves.py', title: 'Parametric curves (Bezier)', description: 'Activity: implement the Bezier curve and the cost (length + obstacles + curvature) and optimize the control points.', tags: ['Bezier', 'curves', 'optimization', 'activity'], robots: '1 differential B-bot' },
   },
 ]
 

@@ -772,6 +772,11 @@ export function runCode() {
   // Every editor tab is a file; the active one is the entry script. This lets
   // the main script import modules kept in the other tabs.
   const userFiles = store.tabs.map((tab) => ({ name: scriptName(tab), code: tab.code }))
+  // Snapshot what the learning layer needs: the source of the run and the
+  // geometric goal of the active activity (used to measure reach time/path).
+  runSource = store.code
+  const activeActivity = activityById(learning.activeId)
+  runGoal = activeActivity?.goals?.find((goal) => goal.kind === 'reach_goal') || null
   client.run(store.code, { autostart: store.autostart, files: userFiles, mainName: scriptName(active) }).catch((e) => {
     store.run.state = 'idle'
     toast(t('toast.run_failed', { error: String(e?.message || e) }), 'error')
@@ -871,6 +876,9 @@ export function robotCount() { return scene.value?.robots?.length ?? 0 }
 // ---- learning evidence ------------------------------------------------------
 // Accumulated from frames so an activity can be validated even when the script
 // loops until the student presses Stop (the demo and most templates do).
+const TRAIL_MAX = 4000
+const TRAIL_DT = 0.1
+
 const runEvidence = reactive({
   t: 0,
   robots: 0,
@@ -881,8 +889,20 @@ const runEvidence = reactive({
   bestLap: null,
   finished: false,
   finishTime: null,
+  // geometric evidence (phase 3)
+  trail: [],
+  trails: [],
+  pathLength: 0,
+  pathLengthAtGoal: null,
+  reachTime: null,
+  waypointCount: 0,
+  wpTotal: 0,
 })
 let lastFinished = null
+let runGoal = null
+let runSource = ''
+let lastSample = []
+let lastPos = []
 
 function resetRunEvidence() {
   runEvidence.t = 0
@@ -894,7 +914,16 @@ function resetRunEvidence() {
   runEvidence.bestLap = null
   runEvidence.finished = false
   runEvidence.finishTime = null
+  runEvidence.trail = []
+  runEvidence.trails = []
+  runEvidence.pathLength = 0
+  runEvidence.pathLengthAtGoal = null
+  runEvidence.reachTime = null
+  runEvidence.waypointCount = 0
+  runEvidence.wpTotal = 0
   lastFinished = null
+  lastSample = []
+  lastPos = []
 }
 
 function trackEvidence(frame) {
@@ -902,7 +931,15 @@ function trackEvidence(frame) {
   if (typeof frame.t === 'number') runEvidence.t = frame.t
   if (typeof frame.collisions_total === 'number') runEvidence.collisions = frame.collisions_total
   if (Array.isArray(frame.robots)) runEvidence.robots = frame.robots.length
-  for (const robot of frame.robots || []) {
+  if (Array.isArray(frame.waypoints)) {
+    const total = frame.waypoints.reduce((acc, list) => acc + (list?.length || 0), 0)
+    if (total > runEvidence.waypointCount) runEvidence.waypointCount = total
+    if ((frame.waypoints[0]?.length || 0) > runEvidence.wpTotal) runEvidence.wpTotal = frame.waypoints[0].length
+  }
+
+  const robots = frame.robots || []
+  for (let i = 0; i < robots.length; i += 1) {
+    const robot = robots[i]
     const extra = robot.extra || {}
     if (typeof extra.line_error === 'number') {
       runEvidence.lineSamples += 1
@@ -915,7 +952,42 @@ function trackEvidence(frame) {
     }
     if (extra.finished) runEvidence.finished = true
     if (typeof extra.finish_time === 'number') runEvidence.finishTime = extra.finish_time
+
+    const x = Number(robot.x)
+    const y = Number(robot.y)
+    const theta = Number(robot.theta)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+
+    // Path length and the first moment the robot reaches the active goal.
+    const previous = lastPos[i]
+    if (previous) {
+      const step = Math.hypot(x - previous.x, y - previous.y)
+      // Ignore teleports caused by a reset or a scene change.
+      if (step < 5) {
+        runEvidence.pathLength += step
+        if (i === 0 && runGoal && runEvidence.reachTime == null) {
+          const goalDistance = Math.hypot(x - runGoal.x, y - runGoal.y)
+          if (goalDistance <= (runGoal.tolerance ?? 0.4)) {
+            runEvidence.reachTime = frame.t
+            runEvidence.pathLengthAtGoal = runEvidence.pathLength
+          }
+        }
+      }
+    }
+    lastPos[i] = { x, y }
+
+    // Downsampled trail: ~10 samples per simulated second.
+    if (!runEvidence.trails[i]) runEvidence.trails[i] = []
+    const sampledAt = lastSample[i]
+    if (sampledAt == null || (frame.t - sampledAt) >= TRAIL_DT) {
+      runEvidence.trails[i].push({ x, y, theta, t: frame.t })
+      lastSample[i] = frame.t
+      if (runEvidence.trails[i].length > TRAIL_MAX) {
+        runEvidence.trails[i] = runEvidence.trails[i].filter((_, index) => index % 2 === 0)
+      }
+    }
   }
+  runEvidence.trail = runEvidence.trails[0] || []
 }
 
 function learningContext() {
@@ -926,7 +998,12 @@ function learningContext() {
     reports,
     captures,
     console: consoleBus.lines,
+    source: runSource,
   }
+}
+
+export function learningSnapshot() {
+  return learningContext()
 }
 
 function checkActiveActivity() {
@@ -939,6 +1016,9 @@ function checkActiveActivity() {
   if (!info.first) return
   toast(t('learn.completed_toast', { title: t(activity.titleKey), xp: info.xp }))
   if (info.badge) toast(t('learn.badge_toast', { name: t(activity.badgeKey) }))
+  for (const achievement of info.achievements || []) {
+    toast(t('learn.achievement_toast', { name: t(achievement.labelKey) }))
+  }
   if (info.leveledUp) toast(t('learn.level_up', { level: info.level }))
 }
 

@@ -1,14 +1,15 @@
-// Learning progress: XP, stars, badges and the active activity.
+// Learning progress: XP, stars, badges, achievements and the active activity.
 //
 // Persisted in localStorage under a versioned key, following the same pattern
 // as hivebr.web.prefs.v1. Progress is local to the browser; export/import JSON
 // is the bridge for classroom use until a backend exists.
 
 import { reactive, watch } from 'vue'
+import { ACHIEVEMENTS } from './curriculum.js'
 
 export const LS_KEY = 'hivebr.web.learning.v1'
 
-export const XP_THRESHOLDS = [0, 100, 250, 450]
+export const XP_THRESHOLDS = [0, 200, 500, 900]
 
 function empty() {
   return {
@@ -17,6 +18,7 @@ function empty() {
     activeId: null,
     activities: {},
     badges: [],
+    achievements: [],
     updatedAt: 0,
   }
 }
@@ -49,6 +51,7 @@ function load() {
     activeId: typeof data.activeId === 'string' ? data.activeId : null,
     activities: data.activities && typeof data.activities === 'object' ? data.activities : {},
     badges: Array.isArray(data.badges) ? data.badges.filter((b) => typeof b === 'string') : [],
+    achievements: Array.isArray(data.achievements) ? data.achievements.filter((b) => typeof b === 'string') : [],
     updatedAt: Number(data.updatedAt) || 0,
   }
 }
@@ -60,6 +63,7 @@ function save() {
     activeId: learning.activeId,
     activities: learning.activities,
     badges: learning.badges,
+    achievements: learning.achievements,
     updatedAt: learning.updatedAt,
   })
 }
@@ -91,13 +95,38 @@ export function hasBadge(id) {
   return learning.badges.includes(id)
 }
 
+export function hasAchievement(id) {
+  return learning.achievements.includes(id)
+}
+
 export function setActiveActivity(id) {
   learning.activeId = id || null
   learning.updatedAt = Date.now()
 }
 
+/** Adds every achievement whose required activities are all done. */
+export function syncAchievements() {
+  const done = new Set(
+    Object.entries(learning.activities)
+      .filter(([, value]) => value?.done)
+      .map(([id]) => id),
+  )
+  const newly = []
+  for (const achievement of ACHIEVEMENTS) {
+    if (learning.achievements.includes(achievement.id)) continue
+    if (achievement.requires.every((id) => done.has(id))) {
+      learning.achievements.push(achievement.id)
+      newly.push(achievement)
+    }
+  }
+  if (newly.length) learning.updatedAt = Date.now()
+  return newly
+}
+
 export function completeActivity(activity, snapshot = {}, stars = 1) {
-  if (!activity?.id) return { first: false, xp: 0, badge: null, level: levelForXp(learning.xp), leveledUp: false }
+  if (!activity?.id) {
+    return { first: false, xp: 0, badge: null, level: levelForXp(learning.xp), leveledUp: false, achievements: [] }
+  }
   const previous = learning.activities[activity.id]
   const first = !previous?.done
   const beforeLevel = levelForXp(learning.xp)
@@ -113,11 +142,13 @@ export function completeActivity(activity, snapshot = {}, stars = 1) {
   if (activity.badge && !learning.badges.includes(activity.badge)) learning.badges.push(activity.badge)
   learning.updatedAt = Date.now()
 
+  const achievements = syncAchievements()
   const level = levelForXp(learning.xp)
   return {
     first,
     xp: first ? Number(activity.xp) || 0 : 0,
     badge: first ? activity.badge : null,
+    achievements,
     level,
     leveledUp: level > beforeLevel,
   }
@@ -135,6 +166,7 @@ export function exportProgress() {
     activeId: learning.activeId,
     activities: learning.activities,
     badges: learning.badges,
+    achievements: learning.achievements,
     updatedAt: learning.updatedAt,
   }, null, 2)
 }
@@ -147,6 +179,7 @@ export function importProgress(json) {
     learning.activeId = typeof data.activeId === 'string' ? data.activeId : null
     learning.activities = data.activities && typeof data.activities === 'object' ? data.activities : {}
     learning.badges = Array.isArray(data.badges) ? data.badges.filter((b) => typeof b === 'string') : []
+    learning.achievements = Array.isArray(data.achievements) ? data.achievements.filter((b) => typeof b === 'string') : []
     learning.updatedAt = Date.now()
     return true
   } catch {

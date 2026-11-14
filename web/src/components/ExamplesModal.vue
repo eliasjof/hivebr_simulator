@@ -14,10 +14,12 @@ watch(locale, () => { tag.value = null })
 
 const CATEGORY_KEY = {
   fundamentos: 'examples.category.fundamentos',
+  python: 'examples.category.python',
   percepcao: 'examples.category.percepcao',
   linha: 'examples.category.linha',
   locomocao: 'examples.category.locomocao',
   controle: 'examples.category.controle',
+  planejamento: 'examples.category.planejamento',
   multirobo: 'examples.category.multirobo',
 }
 function categoryLabel(id) {

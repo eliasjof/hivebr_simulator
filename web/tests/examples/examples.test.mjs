@@ -56,7 +56,7 @@ test('todo exemplo tem categoria, nível e ordem válidos', () => {
   assert.equal(levels.length, ids.length, 'cada exemplo precisa de level')
   assert.equal(orders.length, ids.length, 'cada exemplo precisa de order')
 
-  const allowed = new Set(['fundamentos', 'percepcao', 'linha', 'locomocao', 'controle', 'multirobo'])
+  const allowed = new Set(['fundamentos', 'python', 'percepcao', 'linha', 'locomocao', 'controle', 'planejamento', 'multirobo'])
   for (const c of categories) assert.ok(allowed.has(c), `categoria inválida: ${c}`)
   for (const l of levels) assert.ok(l >= 1 && l <= 4, `nível inválido: ${l}`)
   for (const o of orders) assert.ok(o > 0, `ordem inválida: ${o}`)
