@@ -5,8 +5,9 @@ import { t, tOr, locale, fmtNum } from '../i18n/index.js'
 import { fileExtension, isPythonFile, normalizeFileName } from '../utils/fileNames.js'
 import { defaultFigureStyle } from '../utils/figureStyle.js'
 import { learning, completeActivity } from '../learning/progress.js'
-import { activityById } from '../learning/curriculum.js'
+import { activityById, trackById, ACTIVITIES } from '../learning/curriculum.js'
 import { evaluateActivity, starsFor } from '../learning/validate.js'
+import { buildLearningReport } from '../learning/report.js'
 
 export { fileExtension, isPythonFile, normalizeFileName }
 
@@ -1006,20 +1007,89 @@ export function learningSnapshot() {
   return learningContext()
 }
 
-function checkActiveActivity() {
-  const activity = activityById(learning.activeId)
-  if (!activity || learning.activities[activity.id]?.done) return
-  const ctx = learningContext()
-  if (!evaluateActivity(activity, ctx).ok) return
+function awardActivity(activity, ctx) {
   const stars = starsFor(activity, ctx)
   const info = completeActivity(activity, { stars, evidence: ctx.evidence }, stars)
-  if (!info.first) return
+  if (!info.first) return info
   toast(t('learn.completed_toast', { title: t(activity.titleKey), xp: info.xp }))
   if (info.badge) toast(t('learn.badge_toast', { name: t(activity.badgeKey) }))
   for (const achievement of info.achievements || []) {
     toast(t('learn.achievement_toast', { name: t(achievement.labelKey) }))
   }
   if (info.leveledUp) toast(t('learn.level_up', { level: info.level }))
+  return info
+}
+
+function checkActiveActivity() {
+  const activity = activityById(learning.activeId)
+  if (!activity || learning.activities[activity.id]?.done) return
+  const ctx = learningContext()
+  if (!evaluateActivity(activity, ctx).ok) return
+  awardActivity(activity, ctx)
+}
+
+// ---- final learning report ---------------------------------------------------
+export function findLearningReport() {
+  return reports.find((report) => report.learning) || null
+}
+
+/** Creates (or reopens) the final report skeleton and opens the reports panel. */
+export function createLearningReport() {
+  const existing = findLearningReport()
+  if (existing) {
+    openReport(existing.id)
+    return { report: existing, created: false }
+  }
+  const rows = ACTIVITIES
+    .filter((activity) => learning.activities[activity.id]?.done)
+    .map((activity) => ({
+      level: activity.level,
+      track: t(trackById(activity.track).titleKey),
+      title: t(activity.titleKey),
+      stars: learning.activities[activity.id]?.stars ?? 0,
+      xp: activity.xp,
+    }))
+  const labels = {
+    title: t('learn.report.title'),
+    identification: t('learn.report.identification'),
+    student: t('learn.report.student'),
+    group: t('learn.report.group'),
+    date: t('learn.report.date'),
+    summary: t('learn.report.summary'),
+    activities: t('learn.report.activities'),
+    results: t('learn.report.results'),
+    figures: t('learn.report.figures'),
+    difficulties: t('learn.report.difficulties'),
+    conclusion: t('learn.report.conclusion'),
+    todo: t('learn.report.todo'),
+    none: t('learn.report.none'),
+    level: t('learn.report.level'),
+    activity: t('learn.report.activity'),
+    stars: t('learn.report.stars'),
+    xp: t('learn.report.xp'),
+  }
+  const report = {
+    id: 'rpt_' + Date.now(),
+    name: t('learn.report.name'),
+    content: buildLearningReport({ labels, rows, captures: captures.slice(0, 3) }),
+    learning: true,
+    created: Date.now(),
+    modified: Date.now(),
+  }
+  reports.push(report)
+  openReport(report.id)
+  return { report, created: true }
+}
+
+/** Validates the saved report and completes the capstone activity. */
+export function submitLearningReport() {
+  const activity = activityById('relatorio-final')
+  if (!activity) return { ok: false, results: [] }
+  const ctx = learningContext()
+  const evaluation = evaluateActivity(activity, ctx)
+  if (!evaluation.ok) return { ok: false, results: evaluation.results }
+  const info = awardActivity(activity, ctx)
+  return { ok: true, info }
 }
 
 // ---- frames ----

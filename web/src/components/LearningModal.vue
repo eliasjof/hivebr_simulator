@@ -1,15 +1,20 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import Modal from './Modal.vue'
 import Icon from './Icon.vue'
-import { store, ask, catalog, loadExample, learningSnapshot } from '../state/store.js'
+import {
+  store, ask, catalog, loadExample, learningSnapshot, download, toast,
+  createLearningReport, submitLearningReport, findLearningReport,
+} from '../state/store.js'
 import { t } from '../i18n/index.js'
 import { LEVELS, ACTIVITIES, ACHIEVEMENTS, activitiesForLevel, activityById, trackById } from '../learning/curriculum.js'
 import {
   learning, levelForXp, xpForLevel, isActivityDone, activityStars,
   hasBadge, hasAchievement, setActiveActivity, resetProgress,
+  exportProgress, importProgress,
 } from '../learning/progress.js'
 import { evaluateActivity } from '../learning/validate.js'
+import { reportRubric } from '../learning/report.js'
 
 const level = computed(() => levelForXp(learning.xp))
 const nextLevelXp = computed(() => xpForLevel(level.value + 1))
@@ -31,6 +36,27 @@ const stats = computed(() => {
 })
 
 const activeActivity = computed(() => activityById(learning.activeId))
+
+// ---- final report ----
+const finalActivity = computed(() => activityById('relatorio-final'))
+const finalDone = computed(() => !!finalActivity.value && isActivityDone(finalActivity.value.id))
+const finalGoal = computed(() => finalActivity.value?.goals?.[0] || {})
+const learningReport = computed(() => findLearningReport())
+const finalRubric = computed(() => reportRubric(learningReport.value?.content || '', finalGoal.value))
+const importInput = ref(null)
+const CHECK_KEYS = {
+  marker: 'learn.report.check.marker',
+  sections: 'learn.report.check.sections',
+  words: 'learn.report.check.words',
+  no_todo: 'learn.report.check.no_todo',
+}
+function checkText(check) {
+  const key = CHECK_KEYS[check.id]
+  if (!key) return check.id
+  return t(key, {
+    n: check.id === 'sections' ? (finalGoal.value.sections ?? 7) : (finalGoal.value.minWords ?? 300),
+  })
+}
 
 const earnedBadges = computed(() => {
   const seen = new Set()
@@ -60,6 +86,7 @@ const GOAL_KEYS = {
   file_exists: 'learn.goal.file_exists',
   figure_min: 'learn.goal.figure_min',
   report_saved: 'learn.goal.report_saved',
+  report_rubric: 'learn.goal.report_rubric',
   capture_saved: 'learn.goal.capture_saved',
   console_has: 'learn.goal.console_has',
   reach_goal: 'learn.goal.reach_goal',
@@ -93,6 +120,12 @@ function trackLabel(activity) {
 }
 
 async function start(activity) {
+  if (activity.final) {
+    createLearningReport()
+    setActiveActivity(activity.id)
+    store.modals.learning = false
+    return
+  }
   const example = catalog.value.find((e) => e.id === activity.exampleId)
   if (example) {
     const ok = await loadExample(example)
@@ -111,6 +144,45 @@ async function reset() {
   })
   if (ok) resetProgress()
 }
+
+function generateReport() {
+  const { created } = createLearningReport()
+  toast(t(created ? 'learn.report.generated' : 'learn.report.exists'))
+  store.modals.learning = false
+}
+
+function submitReport() {
+  const result = submitLearningReport()
+  if (!result.ok) {
+    toast(t('learn.report.incomplete'), 'warn')
+    return
+  }
+  store.modals.learning = false
+}
+
+function exportProgressFile() {
+  download('hivebr-progress.json', new Blob([exportProgress()], { type: 'application/json' }))
+  toast(t('learn.export_done'))
+}
+
+function pickImport() {
+  importInput.value?.click()
+}
+
+async function onImportFile(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  const ok = await ask({
+    title: t('learn.import_confirm_title'),
+    message: t('learn.import_confirm_message'),
+    confirmText: t('learn.import_confirm'),
+  })
+  if (!ok) return
+  const text = await file.text()
+  if (importProgress(text)) toast(t('learn.import_done', { xp: learning.xp }))
+  else toast(t('learn.import_failed'), 'error')
+}
 </script>
 <template>
   <Modal :title="t('learn.title')" :width="900" @close="store.modals.learning = false">
@@ -121,7 +193,12 @@ async function reset() {
         <span class="sep">·</span>
         <span>{{ t('learn.level_label', { n: level }) }}</span>
       </div>
-      <button class="btn ghost sm" @click="reset"><Icon name="refresh" :size="13" />{{ t('learn.reset') }}</button>
+      <div class="tools">
+        <button class="btn ghost sm" @click="exportProgressFile"><Icon name="download" :size="13" />{{ t('learn.export') }}</button>
+        <button class="btn ghost sm" @click="pickImport"><Icon name="upload" :size="13" />{{ t('learn.import') }}</button>
+        <input ref="importInput" class="file-input" type="file" accept="application/json,.json" @change="onImportFile" />
+        <button class="btn ghost sm" @click="reset"><Icon name="refresh" :size="13" />{{ t('learn.reset') }}</button>
+      </div>
     </div>
     <div class="levelbar" :aria-label="t('learn.level_label', { n: level })">
       <i :style="{ width: levelPct + '%' }" />
@@ -146,7 +223,7 @@ async function reset() {
       <p class="muted small summary">{{ t(lv.summaryKey) }}</p>
       <div class="bar"><i :style="{ width: stats[lv.id].pct + '%' }" /></div>
       <div class="acts">
-        <article v-for="a in activitiesForLevel(lv.id)" :key="a.id" class="act" :data-activity-id="a.id">
+        <article v-for="a in activitiesForLevel(lv.id).filter((x) => !x.final)" :key="a.id" class="act" :data-activity-id="a.id">
           <div class="act-h">
             <b>{{ t(a.titleKey) }}</b>
             <span v-if="isActivityDone(a.id)" class="pill done"><Icon name="check" :size="12" />{{ t('learn.done') }}</span>
@@ -169,6 +246,33 @@ async function reset() {
       </div>
     </section>
 
+    <section v-if="finalActivity" class="final" :data-activity-id="finalActivity.id">
+      <header class="lvl-h">
+        <h3>{{ t('learn.final') }}</h3>
+        <span v-if="finalDone" class="pill done"><Icon name="check" :size="12" />{{ t('learn.done') }}</span>
+      </header>
+      <p class="muted small summary">{{ t(finalActivity.briefKey) }}</p>
+      <div class="final-body">
+        <div class="rubric">
+          <b>{{ t('learn.report.rubric') }}</b>
+          <ul>
+            <li v-for="check in finalRubric.checks" :key="check.id" :class="{ ok: check.ok }">
+              <Icon :name="check.ok ? 'check' : 'dots'" :size="12" />{{ checkText(check) }}
+            </li>
+          </ul>
+          <span class="muted small">{{ t('learn.report.words', { n: finalRubric.words }) }}</span>
+        </div>
+        <div class="final-actions">
+          <button class="btn ghost sm" @click="generateReport">
+            <Icon name="file" :size="13" />{{ t(learningReport ? 'learn.report.open' : 'learn.report.generate') }}
+          </button>
+          <button class="btn primary sm" :disabled="finalDone || !finalRubric.ok" @click="submitReport">
+            <Icon name="check" :size="13" />{{ t('learn.report.submit') }}
+          </button>
+        </div>
+      </div>
+    </section>
+
     <section class="badges">
       <h3>{{ t('learn.badges') }}</h3>
       <div v-if="earnedBadges.length" class="badge-list">
@@ -187,7 +291,9 @@ async function reset() {
   </Modal>
 </template>
 <style scoped>
-.head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); }
+.head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; }
+.tools { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.file-input { display: none; }
 .xp { display: flex; align-items: center; gap: var(--sp-2); color: var(--accent); font-size: var(--fs-md); }
 .xp .sep { color: var(--text-muted); }
 .levelbar { height: 6px; margin: var(--sp-3) 0 var(--sp-4); background: var(--surface-3); border-radius: var(--radius-pill); overflow: hidden; }
@@ -219,4 +325,11 @@ async function reset() {
 .badges h3 { margin: 0 0 var(--sp-3); font-size: var(--fs-md); }
 .badge-list { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .badge { display: inline-flex; align-items: center; gap: 6px; padding: var(--sp-2) 10px; border: 1px solid var(--accent); border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font-size: var(--fs-sm); }
+.final { margin: var(--sp-6) 0; padding: var(--sp-4) var(--sp-5); border: 1px dashed var(--accent); border-radius: var(--radius); background: var(--surface-2); }
+.final-body { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; }
+.rubric { display: flex; flex-direction: column; gap: var(--sp-2); font-size: var(--fs-sm); }
+.rubric ul { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; color: var(--text-muted); font-size: var(--fs-xs); }
+.rubric li { display: flex; align-items: center; gap: 6px; }
+.rubric li.ok { color: var(--accent); }
+.final-actions { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 </style>

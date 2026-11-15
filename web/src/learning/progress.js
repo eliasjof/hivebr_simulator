@@ -174,13 +174,29 @@ export function exportProgress() {
 export function importProgress(json) {
   try {
     const data = JSON.parse(json)
-    if (!data || typeof data !== 'object') return false
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return false
+    if (!Number.isFinite(Number(data.xp))) return false
+    if (!data.activities || typeof data.activities !== 'object' || Array.isArray(data.activities)) return false
+
+    const activities = {}
+    for (const [id, value] of Object.entries(data.activities)) {
+      if (!value || typeof value !== 'object') continue
+      activities[id] = {
+        done: value.done === true,
+        stars: Math.max(0, Math.min(3, Number(value.stars) || 0)),
+        at: Number(value.at) || 0,
+        evidence: value.evidence && typeof value.evidence === 'object' ? value.evidence : null,
+      }
+    }
+
     learning.xp = Math.max(0, Number(data.xp) || 0)
     learning.activeId = typeof data.activeId === 'string' ? data.activeId : null
-    learning.activities = data.activities && typeof data.activities === 'object' ? data.activities : {}
+    learning.activities = activities
     learning.badges = Array.isArray(data.badges) ? data.badges.filter((b) => typeof b === 'string') : []
     learning.achievements = Array.isArray(data.achievements) ? data.achievements.filter((b) => typeof b === 'string') : []
     learning.updatedAt = Date.now()
+    // The file may predate an activity that unlocks an aggregate achievement.
+    syncAchievements()
     return true
   } catch {
     return false

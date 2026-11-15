@@ -12,6 +12,9 @@ import {
 import {
   GOAL_CHECKS, checkGoal, evaluateActivity, starsFor, trailLength, trailMinDistance,
 } from '../../src/learning/validate.js'
+import {
+  REPORT_MARKER, buildLearningReport, proseWordCount, reportRubric,
+} from '../../src/learning/report.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const WEB = path.resolve(HERE, '..', '..')
@@ -29,7 +32,8 @@ test('curriculum references only real examples and known goal kinds', () => {
     ids.add(activity.id)
 
     assert.ok(LEVEL_IDS.includes(activity.level), `invalid level in ${activity.id}`)
-    assert.ok(exampleIds.has(activity.exampleId), `unknown example in ${activity.id}: ${activity.exampleId}`)
+    if (activity.final) assert.equal(activity.exampleId, null, `final activity with example: ${activity.id}`)
+    else assert.ok(exampleIds.has(activity.exampleId), `unknown example in ${activity.id}: ${activity.exampleId}`)
     assert.ok(trackById(activity.track), `unknown track in ${activity.id}: ${activity.track}`)
     assert.ok(activity.titleKey && activity.briefKey, `missing i18n keys in ${activity.id}`)
     assert.ok(Number(activity.xp) > 0, `missing xp in ${activity.id}`)
@@ -184,8 +188,10 @@ test('phase 3 activities cover the classroom sequence and real examples', () => 
   for (const id of ['python', 'cinematica', 'navegacao', 'planejamento']) {
     assert.ok(trackById(id), `missing track: ${id}`)
   }
-  // Every activity still references a catalog example.
-  for (const activity of ACTIVITIES) assert.ok(exampleIds.has(activity.exampleId), activity.id)
+  // Every activity still references a catalog example, except the capstone.
+  for (const activity of ACTIVITIES) {
+    if (!activity.final) assert.ok(exampleIds.has(activity.exampleId), activity.id)
+  }
 })
 
 test('achievements require the expected activities', () => {
@@ -202,4 +208,109 @@ test('achievements require the expected activities', () => {
     assert.ok(achievement.labelKey, `${achievement.id} sem labelKey`)
     for (const id of achievement.requires) assert.ok(activityById(id), `${achievement.id}: ${id}`)
   }
+})
+
+// ---------------------------------------------------------------------------
+// Phase 4: final report, rubric and progress export/import.
+// ---------------------------------------------------------------------------
+const LABELS = {
+  title: 'Report', identification: 'Identification', student: 'Student', group: 'Class',
+  date: 'Date', summary: 'Summary', activities: 'Activities', results: 'Results',
+  figures: 'Figures', difficulties: 'Difficulties', conclusion: 'Conclusion',
+  todo: 'TODO: write here.', none: 'None.', level: 'Level', activity: 'Activity',
+  stars: 'Stars', xp: 'XP',
+}
+const ROWS = [
+  { level: 1, track: 'Python', title: 'Types', stars: 3, xp: 40 },
+  { level: 2, track: 'Navigation', title: 'Goal', stars: 2, xp: 70 },
+]
+
+test('final report builder creates a complete skeleton with TODO prompts', () => {
+  const report = buildLearningReport({
+    labels: LABELS,
+    rows: ROWS,
+    captures: [{ id: 'cap_1', name: 'figure 1' }],
+    date: new Date('2026-11-14T12:00:00Z'),
+  })
+  assert.ok(report.startsWith(REPORT_MARKER), 'missing learning-report marker')
+  assert.equal((report.match(/^## /gm) || []).length, 7, 'expected seven sections')
+  for (const heading of ['Identification', 'Summary', 'Activities', 'Results', 'Figures', 'Difficulties', 'Conclusion']) {
+    assert.ok(report.includes(`## ${heading}`), `missing section ${heading}`)
+  }
+  assert.ok(report.includes('| 1 | Types | 3/3 | 40 XP |'), 'activity row missing')
+  assert.ok(report.includes('![figure 1](capture:cap_1)'), 'capture link missing')
+  assert.ok(report.includes(LABELS.todo), 'TODO prompts missing')
+  assert.equal(reportRubric(report).ok, false, 'skeleton must not pass the rubric')
+})
+
+test('report rubric requires marker, sections, prose and no TODO', () => {
+  const skeleton = buildLearningReport({ labels: LABELS, rows: ROWS })
+  const prose = Array.from({ length: 60 }, (_, i) => `palavra${i}`).join(' ')
+  const done = skeleton.replaceAll(LABELS.todo, prose)
+  const result = reportRubric(done, { minWords: 50, sections: 7 })
+  assert.equal(result.ok, true)
+  assert.ok(result.words >= 50)
+
+  assert.equal(reportRubric(done.replace(REPORT_MARKER, ''), { minWords: 50 }).ok, false)
+  assert.equal(reportRubric(done.replace(/^## .*$/gm, ''), { minWords: 50 }).ok, false)
+  assert.equal(reportRubric(done, { minWords: 10000 }).ok, false)
+  assert.equal(reportRubric(`${done}\nTODO: rest`, { minWords: 50 }).ok, false)
+})
+
+test('proseWordCount ignores headings, tables, images and comments', () => {
+  const text = `${REPORT_MARKER}\n# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n![x](capture:1)\n\numa duas três`
+  assert.equal(proseWordCount(text), 3)
+})
+
+test('the capstone activity validates the saved report', () => {
+  const final = activityById('relatorio-final')
+  assert.ok(final, 'missing capstone activity')
+  assert.equal(final.final, true)
+  assert.equal(final.exampleId, null)
+  assert.equal(final.level, 4)
+  assert.equal(final.goals[0].kind, 'report_rubric')
+  assert.ok(final.badgeKey)
+
+  const content = buildLearningReport({ labels: LABELS, rows: ROWS })
+    .replaceAll(LABELS.todo, Array.from({ length: 80 }, (_, i) => `texto${i}`).join(' '))
+  assert.equal(checkGoal({ kind: 'report_rubric', minWords: 100, sections: 7 }, { reports: [] }), false)
+  assert.equal(checkGoal({ kind: 'report_rubric', minWords: 100, sections: 7 }, { reports: [{ content }] }), true)
+  assert.equal(checkGoal({ kind: 'report_rubric', minWords: 100, sections: 7 }, { reports: [{ content: 'curto' }] }), false)
+})
+
+test('progress export/import round-trips and rejects malformed files', async () => {
+  const { learning, exportProgress, importProgress, resetProgress } = await import('../../src/learning/progress.js')
+  resetProgress()
+  learning.xp = 260
+  learning.activeId = 'grid-astar'
+  learning.activities = { 'grid-astar': { done: true, stars: 2, at: 1, evidence: null } }
+  learning.badges = ['astar']
+
+  const json = exportProgress()
+  const data = JSON.parse(json)
+  assert.equal(data.xp, 260)
+  assert.equal(data.activities['grid-astar'].stars, 2)
+
+  resetProgress()
+  assert.equal(importProgress(json), true)
+  assert.equal(learning.xp, 260)
+  assert.equal(learning.activeId, 'grid-astar')
+  assert.equal(learning.activities['grid-astar'].done, true)
+  assert.ok(learning.badges.includes('astar'))
+
+  assert.equal(importProgress('not json'), false)
+  assert.equal(importProgress('{}'), false)
+  assert.equal(importProgress('[]'), false)
+
+  // Unknown types are sanitized instead of stored as-is.
+  const dirty = JSON.stringify({
+    v: 1, xp: -5, activities: { a: { done: 1, stars: 99 } }, badges: [1, 'ok'],
+  })
+  assert.equal(importProgress(dirty), true)
+  assert.equal(learning.xp, 0)
+  assert.equal(learning.activities.a.done, false)
+  assert.equal(learning.activities.a.stars, 3)
+  assert.deepEqual(learning.badges, ['ok'])
+
+  resetProgress()
 })

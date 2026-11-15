@@ -595,13 +595,73 @@ idêntica. Nenhuma dessas falhas envolve os templates ou o currículo desta fase
 
 ## Fase 4 — Currículo completo e recursos de sala
 
-Status: pendente.
+Status: **parcialmente concluída**. Nesta rodada entraram o exportar/importar
+progresso e a estrutura do relatório final com botão de submissão e rubrica.
+Continuam pendentes o modo professor, o backend opcional e as atividades
+abertas/avançadas.
 
-- [ ] Atividades dos níveis 3 e 4 (Kanayama, holonômico, enxame, formação).
-- [ ] Atividades abertas com briefing, rubrica e entrega (relatório/figura/captura).
-- [ ] Exportar/importar progresso pela interface.
+- [x] Exportar/importar progresso pela interface (JSON versionado).
+- [x] Atividade de conclusão `relatorio-final` com esqueleto `.md`, rubrica e
+      botão “Submeter para avaliação”.
+- [ ] Atividades abertas com briefing e rubrica própria por etapa (Kanayama,
+      enxame, formação) — a estrutura da Fase 3 já serve de base.
 - [ ] Modo professor: código de turma, acompanhamento e exportação da turma.
 - [ ] Backend opcional para nota oficial.
+
+### Exportar/importar progresso
+
+- O botão **Exportar progresso** baixa `hivebr-progress.json` com `v`, `xp`,
+  `activeId`, `activities` (incluindo estrelas e evidências), `badges`,
+  `achievements` e `updatedAt`.
+- O botão **Importar progresso** abre um seletor de arquivo, pede confirmação
+  (o progresso atual é substituído) e valida o JSON: `xp` numérico,
+  `activities` como objeto, estrelas limitadas a 0–3, tipos desconhecidos
+  descartados. Depois da importação, `syncAchievements()` recalcula as
+  conquistas agregadas.
+- Arquivo inválido mostra o toast “Arquivo de progresso inválido.” e não altera
+  o progresso.
+
+### Relatório final (estrutura inicial)
+
+A atividade `relatorio-final` (nível 4, trilha `projeto`, 150 XP, medalha
+📝 Relatorista) não carrega exemplo: ela gera `relatorio_final.md` no painel de
+relatórios com sete seções e marcadores `TODO`:
+
+1. Identificação (aluno, turma, data);
+2. Resumo;
+3. Atividades concluídas (tabela automática com nível, atividade, estrelas e XP);
+4. Resultados por etapa (agrupados por trilha);
+5. Figuras e capturas (até três capturas recentes via `capture:<id>`);
+6. Dificuldades e soluções;
+7. Conclusão.
+
+O relatório começa com o marcador invisível `<!-- hivebr:learning-report -->`.
+A rubrica `report_rubric` exige: marcador presente, pelo menos 7 seções `##`,
+pelo menos 300 palavras de prosa (tabelas, títulos, imagens e comentários não
+contam) e nenhum `TODO` restante. Enquanto a rubrica não passa, o botão
+**Submeter para avaliação** fica desabilitado; ao passar, a atividade é
+concluída, o XP e a medalha são gravados e a conquista 🏆 Mestre HiveBr passa a
+considerar também o relatório.
+
+O conteúdo exato de cada seção será refinado nas próximas etapas, como
+combinado; por ora a estrutura, a rubrica e o fluxo de submissão já estão
+funcionais e testados.
+
+### Validação da Fase 4 (parcial)
+
+- `node --test` (learning, examples, i18n, utils, canvas, tokens): 39/39.
+  - novos testes: construtor do relatório, rubrica (marcador, seções, prosa,
+    TODO), atividade de conclusão e exportar/importar (round-trip, JSON
+    inválido e sanitização de tipos).
+- `npx vite build`: concluído.
+- `node tests/e2e/learning.e2e.mjs`: 8/8.
+  - 4 atividades (uma por nível) continuam concluindo e gravando XP/medalha;
+  - persistência e emojis após recarregar;
+  - exportação baixa `hivebr-progress.json` com o XP atual;
+  - o relatório final é gerado, falha a rubrica enquanto tem `TODO`, passa
+    depois que o aluno escreve o texto e conclui a atividade (+150 XP, 📝);
+  - importação de um arquivo válido preserva o progresso e um JSON inválido
+    mostra o aviso sem alterar os dados.
 
 ## Riscos e cuidados
 
@@ -647,15 +707,16 @@ Registro histórico da rodada anterior; a validação da Fase 3 está na seção
 
 ## Estado atual do repositório
 
-Fases 1, 2 e 3 concluídas e validadas. O trabalho está **sem commit** nesta
-rodada.
+Fases 1, 2 e 3 concluídas e validadas; Fase 4 parcialmente concluída
+(exportar/importar progresso e relatório final). O trabalho desta rodada está
+**sem commit**.
 
-Arquivos principais desta fase:
+Arquivos principais:
 
 - `OQUEFAZER.md` (este plano);
-- `web/src/learning/curriculum.js`, `progress.js` e `validate.js`;
+- `web/src/learning/curriculum.js`, `progress.js`, `validate.js` e `report.js`;
 - `web/src/components/LearningModal.vue`;
-- `web/src/state/store.js` (evidências de execução e conquistas);
+- `web/src/state/store.js` (evidências, conquistas e relatório final);
 - `web/tests/learning/learning.test.mjs`;
 - `web/tests/e2e/learning.e2e.mjs`;
 - 15 templates PT em `web/templates/` e 15 espelhos EN em `web/templates/en/`;
@@ -663,8 +724,8 @@ Arquivos principais desta fase:
 
 Pendências conhecidas:
 
-- o progresso ainda é local; exportar/importar pela interface e o modo
-  professor ficam para a Fase 4;
+- o modo professor, o backend opcional e as atividades abertas/avançadas
+  continuam para a próxima etapa da Fase 4;
 - seis testes Python antigos falham por diferenças de ambiente, sem relação com
   os templates ou o currículo desta fase;
 - a suíte e2e completa continua instável neste ambiente; o teste focado
@@ -672,14 +733,15 @@ Pendências conhecidas:
 
 Próximos passos:
 
-1. Revisar o diff e commitar a Fase 3.
-2. Implementar exportar/importar progresso na interface (Fase 4).
-3. Definir o conteúdo do relatório final e o botão de submissão (Fase 4).
+1. Revisar e commitar a Fase 4 parcial.
+2. Refinar o conteúdo de cada seção do relatório final com a turma.
+3. Implementar o modo professor e as atividades abertas restantes.
 
 ### Emojis de medalhas e conquistas
 
-Todas as 19 medalhas e as 2 conquistas agregadas já têm emoji no rótulo i18n
-(PT e EN), então o emoji aparece tanto no chip da medalha quanto no toast:
+Todas as 20 medalhas e as 2 conquistas agregadas já têm emoji no rótulo i18n
+(PT e EN), então o emoji aparece tanto no chip da medalha quanto no toast.
+A medalha do relatório final (📝 Relatorista) foi incluída na Fase 4:
 
 | Chave | Emoji | Chave | Emoji |
 |---|---|---|---|
@@ -692,5 +754,5 @@ Todas as 19 medalhas e as 2 conquistas agregadas já têm emoji no rótulo i18n
 | `campo_potencial` | 🧲 | `escape` | 🌀 |
 | `bfs` | 🗺️ | `astar` | ⭐ |
 | `rrt` | 🌳 | `rrt_star` | ✨ |
-| `curvas` | 〰️ | `planejador` | 🧠 |
-| `mestre` | 🏆 | | |
+| `curvas` | 〰️ | `relatorio` | 📝 |
+| `planejador` | 🧠 | `mestre` | 🏆 |

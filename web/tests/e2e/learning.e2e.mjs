@@ -66,9 +66,14 @@ async function boot() {
   await waitReady()
 }
 
-async function startActivity(id) {
+async function openLearning() {
+  if (await learningModal.isVisible().catch(() => false)) return
   await page.locator('.tb').getByRole('button', { name: /^Aprender/ }).click()
   await learningModal.waitFor()
+}
+
+async function startActivity(id) {
+  await openLearning()
   const act = learningModal.locator(`.act[data-activity-id="${id}"]`)
   await act.scrollIntoViewIfNeeded()
   await act.locator('button.btn.primary').click()
@@ -240,6 +245,75 @@ await test('progress and emoji badges survive a reload', async () => {
   check(/⭐/.test(badgeText), `A* badge without emoji: ${badgeText}`)
   check(await learningModal.locator('.badges h3').last().isVisible(), 'achievements section is present')
   await page.screenshot({ path: path.join(SHOTS, 'reload-learning.png') })
+})
+
+// ------------------------------------------------------------------ phase 4
+await test('progress export downloads a JSON file with the current progress', async () => {
+  await openLearning()
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    learningModal.getByRole('button', { name: 'Exportar progresso' }).click(),
+  ])
+  check(download.suggestedFilename() === 'hivebr-progress.json', `unexpected export name: ${download.suggestedFilename()}`)
+  const file = await download.path()
+  const data = JSON.parse(fs.readFileSync(file, 'utf8'))
+  const state = await progress()
+  check(data.xp === state.xp, `exported XP ${data.xp} differs from stored ${state.xp}`)
+  check(Object.keys(data.activities || {}).length === Object.keys(state.activities || {}).length, 'exported activities differ')
+})
+
+await test('final report fails the rubric, then passes after the student writes it', async () => {
+  await openLearning()
+  const final = learningModal.locator('.final')
+  check(await final.count() === 1, 'final project section is missing')
+  check(await final.getByRole('button', { name: 'Submeter para avaliação' }).isDisabled(), 'submit must be disabled before the report is written')
+
+  await final.getByRole('button', { name: /Gerar relatório/ }).click()
+  await learningModal.waitFor({ state: 'detached' })
+  const editor = page.locator('textarea.md-editor')
+  await editor.waitFor()
+  const skeleton = await editor.inputValue()
+  check(skeleton.includes('hivebr:learning-report'), 'generated report is missing its marker')
+  check(skeleton.includes('TODO'), 'generated report is missing the TODO prompts')
+
+  const prose = 'Este relatório descreve a atividade, os resultados obtidos e as dificuldades encontradas. '.repeat(40)
+  await editor.fill(skeleton.split('TODO: escreva aqui.').join(prose))
+  await sleep(300)
+
+  await openLearning()
+  const okChecks = learningModal.locator('.final .rubric li.ok')
+  check(await okChecks.count() === 4, `rubric not satisfied after writing: ${await okChecks.count()}/4`)
+  const before = await progress()
+  await learningModal.locator('.final').getByRole('button', { name: 'Submeter para avaliação' }).click()
+  await learningModal.waitFor({ state: 'detached' })
+  await sleep(300)
+  const after = await progress()
+  check(after.activities?.['relatorio-final']?.done === true, 'capstone activity was not completed')
+  check(after.badges?.includes('relatorio'), 'report badge was not awarded')
+  check(after.xp === before.xp + 150, `capstone XP missing: ${before.xp} -> ${after.xp}`)
+  await page.screenshot({ path: path.join(SHOTS, 'final-report.png') })
+})
+
+await test('progress import round-trips a file and rejects malformed JSON', async () => {
+  const state = await progress()
+  const good = path.join(SHOTS, 'progress-good.json')
+  fs.writeFileSync(good, JSON.stringify(state))
+  await openLearning()
+  await page.locator('input.file-input').setInputFiles(good)
+  await page.getByRole('button', { name: 'Importar', exact: true }).click()
+  await sleep(400)
+  const imported = await progress()
+  check(imported.xp === state.xp, `imported XP changed: ${state.xp} -> ${imported.xp}`)
+  check(imported.activities?.['relatorio-final']?.done === true, 'import lost the capstone activity')
+
+  const bad = path.join(SHOTS, 'progress-bad.json')
+  fs.writeFileSync(bad, '{ not json')
+  await page.locator('input.file-input').setInputFiles(bad)
+  await page.getByRole('button', { name: 'Importar', exact: true }).click()
+  await sleep(400)
+  check(await page.locator('.toast').filter({ hasText: 'inválido' }).count() >= 1, 'malformed import did not warn the user')
+  const still = await progress()
+  check(still.xp === state.xp, 'malformed import changed the progress')
 })
 
 // ------------------------------------------------------------------ summary

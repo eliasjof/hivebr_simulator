@@ -12,6 +12,8 @@
 //   }
 // Behaviour is checked first; source-code checks are deliberately secondary.
 
+import { reportRubric } from './report.js'
+
 function wrapAngle(angle) {
   return Math.atan2(Math.sin(angle), Math.cos(angle))
 }
@@ -110,6 +112,9 @@ export const GOAL_CHECKS = {
   figure_min: (goal, ctx) => (ctx.figures?.length ?? 0) >= (goal.min ?? 1),
 
   report_saved: (goal, ctx) => (ctx.reports?.length ?? 0) >= (goal.min ?? 1),
+
+  // The final report must have every section, enough prose and no TODO left.
+  report_rubric: (goal, ctx) => (ctx.reports || []).some((report) => reportRubric(report?.content || '', goal).ok),
 
   capture_saved: (goal, ctx) => (ctx.captures?.length ?? 0) >= (goal.min ?? 1),
 
