@@ -110,6 +110,11 @@ Status: estrutura concluída nesta rodada; conteúdo completo fica para a Fase 3
 | `report_saved` | `store.reports` |
 | `capture_saved` | `store.captures` |
 | `console_has` | linhas do console |
+| `visit_points` | trilha passa pelos pontos na ordem |
+| `points_covered` | trilhas da frota cobrem todos os pontos |
+| `robot_reach` | robô `i` atinge `targets[i]` |
+| `coverage_min` | fração mínima de células cobertas |
+| `report_rubric` | relatório final com marcador, seções e prosa |
 
 ## Fase 3 — Propostas de atividades (para aprovação)
 
@@ -595,10 +600,10 @@ idêntica. Nenhuma dessas falhas envolve os templates ou o currículo desta fase
 
 ## Fase 4 — Currículo completo e recursos de sala
 
-Status: **parcialmente concluída**. Nesta rodada entraram o exportar/importar
+Status: **concluída na parte de sala de aula**; o modo professor e o backend
+opcional continuam pendentes. Nesta rodada entraram o exportar/importar
 progresso e a estrutura do relatório final com botão de submissão e rubrica.
-Continuam pendentes o modo professor, o backend opcional e as atividades
-abertas/avançadas.
+A Fase 5 expandiu as atividades e o backup protegido.
 
 - [x] Exportar/importar progresso pela interface (JSON versionado).
 - [x] Atividade de conclusão `relatorio-final` com esqueleto `.md`, rubrica e
@@ -663,6 +668,79 @@ funcionais e testados.
   - importação de um arquivo válido preserva o progresso e um JSON inválido
     mostra o aviso sem alterar os dados.
 
+## Fase 5 — Currículo contextual e recursos de sala
+
+Status: **concluída e validada** (implementação no commit `19fca4a`).
+
+### Atividades contextuais
+
+Nove atividades obrigatórias, uma por trilha, cada uma com template próprio,
+`# TODO` e um problema real:
+
+| Nível | Trilha | Atividade | Template | Objetivo principal |
+|---|---|---|---|---|
+| 1 | Fundamentos | `patrulha-armazem` | `patrulha_armazem.py` | visitar estações na ordem |
+| 1 | Python | `python-telemetria` | `python_telemetria.py` | autonomia + gráfico + `TUDO CERTO` |
+| 2 | Cinemática | `cinematica-rodas` | `cinematica_rodas.py` | cinemática inversa até o alvo |
+| 2 | Navegação | `estacionar-doca` | `estacionar_doca.py` | posição + orientação na doca |
+| 2 | Linha | `faixa-adaptativa` | `faixa_adaptativa.py` | velocidade adaptativa + volta |
+| 3 | Percepção | `apf-tunel` | `apf_tunel.py` | repulsão + tangencial sem colisão |
+| 4 | Planejamento | `planejamento-armazem` | `planejamento_armazem.py` | A* + `caminho=` |
+| 4 | Multirobo | `enxame-inventario` | `enxame_inventario.py` | quatro rotas em paralelo |
+| 4 | Projeto | `projeto-entrega` | `projeto_entrega.py` | entregas + arquivos + `ENTREGA CONCLUIDA` |
+
+Nove treinos complementam as trilhas: `python-supervisor`,
+`python-lidar-listas`, `python-diario`, `python-pid-classe`, `linha-pid`,
+`lidar-filtro`, `cobertura-agricola`, `replanejamento` e `formacao-drones`.
+Os seis primeiros são opcionais; os três últimos entram nas conquistas
+agregadas `logistica` e `automacao`.
+
+### Objetivos e progressão
+
+- Novos objetivos comportamentais: `visit_points`, `points_covered`,
+  `robot_reach`, `coverage_min` e `report_rubric`.
+- `XP_THRESHOLDS = [0, 300, 800, 1500]` para a grade expandida.
+- Conquistas novas: `logistica`, `dados` e `automacao`; `mestre` passa a
+  considerar todas as atividades obrigatórias.
+
+### Limiares calibrados na Fase 5
+
+| Atividade | Métrica | Limiar |
+|---|---|---|
+| `faixa-adaptativa` | erro máximo de linha (meta/estrela) | 0,30 / 0,26 |
+| `apf-tunel` | tempo (meta/estrela) | 60 s / 45 s |
+| `planejamento-armazem` | comprimento/tempo (estrela) | 28 m / 45 s |
+| `projeto-entrega` | comprimento/tempo (estrela) | 40 m / 90 s |
+
+Os valores foram medidos com as soluções de referência no harness Python. O
+layout do túnel foi ajustado para obstáculos alternados, evitando mínimos locais
+simétricos; a caixa do projeto foi deslocada para não prender o robô antes da
+terceira entrega.
+
+### Identidade local e backup protegido
+
+- `hivebr.web.student.v1` guarda `{ v, id, name, group, createdAt }`,
+  separado do progresso; zerar o progresso mantém a identidade.
+- Identificador legível `HB-XXXX-XXXX` (Crockford base32, sem I/L/O/U).
+- Exportação v2: `{ format: 'hivebr-progress', v: 2, encrypted, crypto, payload }`.
+- Com senha: PBKDF2-SHA256 (250 mil iterações) + AES-GCM-256, salt de 16 bytes
+  e IV de 12 bytes aleatórios.
+- Sem senha: o mesmo envelope v2 fica legível; arquivos v1 continuam aceitos.
+- O bundle carrega progresso, relatório final e, opcionalmente, capturas e abas
+  de código. A senha protege o arquivo exportado, não o `localStorage`.
+
+### Validação da Fase 5
+
+- `node --test "tests/**/*.test.mjs"`: 49/49.
+- `npx vite build`: concluído (apenas os avisos antigos de chunk/dynamic import).
+- `node tests/e2e/learning.e2e.mjs`: 11/11, incluindo perfil local, exportação
+  v2, importação simples, exportação protegida, senha errada, restauração e
+  arquivo inválido.
+- Harness Python: as nove soluções de referência atingem as metas; os templates
+  sem solução falham; paridade AST dos 18 pares PT/EN novos confirmada.
+- Continuam fora do escopo as falhas antigas de `line_follower.py`,
+  `multi_line_follower.py`, `seguidor_de_linha.py` e dos testes de ambiente.
+
 ## Riscos e cuidados
 
 1. **Progresso local**: pode ser perdido ao limpar o navegador; exportar/importar resolve.
@@ -707,25 +785,28 @@ Registro histórico da rodada anterior; a validação da Fase 3 está na seção
 
 ## Estado atual do repositório
 
-Fases 1, 2 e 3 concluídas e validadas; Fase 4 parcialmente concluída
-(exportar/importar progresso e relatório final). O trabalho desta rodada está
-**sem commit**.
+Fases 1–5 concluídas e validadas. O trabalho desta rodada está commitado em
+`19fca4a`; a Fase 5 expandiu o currículo com atividades contextuais, identidade
+local e bundles de progresso protegidos. O modo professor, o backend opcional e
+o refinamento do conteúdo do relatório final continuam como próximos passos.
 
 Arquivos principais:
 
 - `OQUEFAZER.md` (este plano);
-- `web/src/learning/curriculum.js`, `progress.js`, `validate.js` e `report.js`;
-- `web/src/components/LearningModal.vue`;
-- `web/src/state/store.js` (evidências, conquistas e relatório final);
+- `web/src/learning/curriculum.js`, `progress.js`, `validate.js`, `report.js`,
+  `identity.js` e `bundle.js`;
+- `web/src/components/LearningModal.vue` e `PromptModal.vue`;
+- `web/src/state/store.js` (evidências, conquistas, bundles e relatório final);
 - `web/tests/learning/learning.test.mjs`;
 - `web/tests/e2e/learning.e2e.mjs`;
-- 15 templates PT em `web/templates/` e 15 espelhos EN em `web/templates/en/`;
+- 51 templates PT em `web/templates/` e 51 espelhos EN em `web/templates/en/`;
 - novas entradas e categorias em `web/src/examples/catalog.js`.
 
 Pendências conhecidas:
 
-- o modo professor, o backend opcional e as atividades abertas/avançadas
-  continuam para a próxima etapa da Fase 4;
+- o modo professor, o backend opcional e o acompanhamento de turma continuam
+  para a próxima etapa;
+- o conteúdo de cada seção do relatório final será refinado com a turma;
 - seis testes Python antigos falham por diferenças de ambiente, sem relação com
   os templates ou o currículo desta fase;
 - a suíte e2e completa continua instável neste ambiente; o teste focado
@@ -733,15 +814,16 @@ Pendências conhecidas:
 
 Próximos passos:
 
-1. Revisar e commitar a Fase 4 parcial.
-2. Refinar o conteúdo de cada seção do relatório final com a turma.
-3. Implementar o modo professor e as atividades abertas restantes.
+1. Refinar o conteúdo de cada seção do relatório final com a turma.
+2. Implementar o modo professor e o backend opcional.
+3. Revisar as atividades abertas/avançadas restantes.
 
 ### Emojis de medalhas e conquistas
 
-Todas as 20 medalhas e as 2 conquistas agregadas já têm emoji no rótulo i18n
+Todas as 38 medalhas e as 5 conquistas agregadas têm emoji no rótulo i18n
 (PT e EN), então o emoji aparece tanto no chip da medalha quanto no toast.
-A medalha do relatório final (📝 Relatorista) foi incluída na Fase 4:
+A medalha do relatório final (📝 Relatorista) foi incluída na Fase 4 e as
+medalhas contextuais (🚚, 📊, 🏭, entre outras) na Fase 5:
 
 | Chave | Emoji | Chave | Emoji |
 |---|---|---|---|
