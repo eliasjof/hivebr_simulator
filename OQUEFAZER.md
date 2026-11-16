@@ -741,6 +741,55 @@ terceira entrega.
 - Continuam fora do escopo as falhas antigas de `line_follower.py`,
   `multi_line_follower.py`, `seguidor_de_linha.py` e dos testes de ambiente.
 
+## Fase 6 — Modo professor e identificação visível
+
+Status: **concluída e validada** nesta rodada.
+
+### Perfil visível do aluno
+
+- O menu “Turma” reúne “Meu perfil (nome e turma)” e “Modo professor”.
+- Um chip no topo, ao lado do estado do simulador, mostra nome e turma o tempo
+  todo; sem nome, ele vira o convite “Definir nome e turma”.
+- `ProfileModal.vue` edita nome e turma, mostra o identificador local
+  `HB-XXXX-XXXX`, copia o ID e permite criar uma nova identidade.
+- O nome/turma continuam em `hivebr.web.student.v1`, separados do progresso.
+- Ao salvar, `syncLearningReportIdentity()` reescreve **somente** a tabela de
+  identificação do relatório final já existente. O texto que o aluno escreveu é
+  preservado; a sincronização também roda por `watch` em `student.name` e
+  `student.group`.
+
+### Modo professor (somente local, sem servidor)
+
+- `web/src/learning/teacher.js` guarda a turma em `hivebr.web.teacher.v1`, uma
+  chave própria para não misturar dados do professor com o progresso do aluno.
+- A palavra-chave é um portão de interface: hash SHA-256 (FNV-1a como fallback)
+  com salt aleatório, sem guardar o texto puro. Ela não criptografa a turma e
+  não resiste ao DevTools; nota oficial ainda exige backend ou arquivo assinado.
+- Fases do painel: `setup` → `locked` → `open`. O desbloqueio vale para a sessão
+  e volta a bloquear ao recarregar ou clicar em “Sair”.
+- A importação aceita vários bundles de alunos (v1/v2, com ou sem senha) e
+  backups `hivebr-roster`. Ela apenas resume o boletim: nunca aplica o bundle ao
+  progresso local nem altera o perfil do aluno.
+- A lista é ordenada por turma/nome, deduplicada por identificador e um export
+  antigo nunca sobrescreve um mais novo (`exportedAt`).
+- A planilha da turma é CSV com separador `;`, BOM UTF-8 e CRLF, com cabeçalhos
+  localizados; o backup JSON da turma pode ser reimportado depois.
+- O resumo por aluno inclui XP, nível, obrigatórias concluídas, estrelas,
+  medalhas, conquistas, palavras do relatório e se a rubrica foi cumprida.
+
+### Validação da Fase 6
+
+- `node --test "tests/**/*.test.mjs"`: 53/53, incluindo sincronização da
+  identificação, resumo/deduplicação da turma, CSV, portão da palavra-chave e
+  ida-e-volta do backup.
+- `npx vite build`: concluído (apenas os avisos antigos de chunk/dynamic import).
+- `node tests/e2e/learning.e2e.mjs`: 15/15; os quatro novos cenários cobrem o
+  chip com nome/turma, a edição da turma refletida no relatório, a configuração
+  do modo professor com importação de bundle e download do CSV, e o bloqueio
+  com rejeição de palavra-chave errada.
+- Permanecem as falhas Python antigas de paridade PT/EN em `line_follower.py`,
+  `multi_line_follower.py` e `seguidor_de_linha.py`, sem relação com esta fase.
+
 ## Riscos e cuidados
 
 1. **Progresso local**: pode ser perdido ao limpar o navegador; exportar/importar resolve.
@@ -785,18 +834,21 @@ Registro histórico da rodada anterior; a validação da Fase 3 está na seção
 
 ## Estado atual do repositório
 
-Fases 1–5 concluídas e validadas. O trabalho desta rodada está commitado em
-`19fca4a`; a Fase 5 expandiu o currículo com atividades contextuais, identidade
-local e bundles de progresso protegidos. O modo professor, o backend opcional e
-o refinamento do conteúdo do relatório final continuam como próximos passos.
+Fases 1–6 concluídas e validadas. A Fase 5 expandiu o currículo com atividades
+contextuais, identidade local e bundles de progresso protegidos; a Fase 6
+adicionou o perfil visível (nome/turma), a sincronização do relatório e o modo
+professor local com planilha da turma. O backend opcional e o refinamento do
+conteúdo do relatório final continuam como próximos passos.
 
 Arquivos principais:
 
 - `OQUEFAZER.md` (este plano);
 - `web/src/learning/curriculum.js`, `progress.js`, `validate.js`, `report.js`,
-  `identity.js` e `bundle.js`;
-- `web/src/components/LearningModal.vue` e `PromptModal.vue`;
-- `web/src/state/store.js` (evidências, conquistas, bundles e relatório final);
+  `identity.js`, `bundle.js` e `teacher.js`;
+- `web/src/components/LearningModal.vue`, `PromptModal.vue`, `ProfileModal.vue`,
+  `StudentChip.vue` e `TeacherModal.vue`;
+- `web/src/state/store.js` (evidências, conquistas, bundles, relatório final e
+  sincronização da identificação);
 - `web/tests/learning/learning.test.mjs`;
 - `web/tests/e2e/learning.e2e.mjs`;
 - 51 templates PT em `web/templates/` e 51 espelhos EN em `web/templates/en/`;
@@ -804,8 +856,8 @@ Arquivos principais:
 
 Pendências conhecidas:
 
-- o modo professor, o backend opcional e o acompanhamento de turma continuam
-  para a próxima etapa;
+- o backend opcional de acompanhamento de turma e a nota oficial continuam para
+  a próxima etapa; o modo professor atual é local e contornável;
 - o conteúdo de cada seção do relatório final será refinado com a turma;
 - seis testes Python antigos falham por diferenças de ambiente, sem relação com
   os templates ou o currículo desta fase;
@@ -815,7 +867,7 @@ Pendências conhecidas:
 Próximos passos:
 
 1. Refinar o conteúdo de cada seção do relatório final com a turma.
-2. Implementar o modo professor e o backend opcional.
+2. Avaliar um backend opcional para nota oficial e sincronização da turma.
 3. Revisar as atividades abertas/avançadas restantes.
 
 ### Emojis de medalhas e conquistas

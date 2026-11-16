@@ -14,6 +14,8 @@ import MapWindow from './components/MapWindow.vue'
 import RobotsWindow from './components/RobotsWindow.vue'
 import ExamplesModal from './components/ExamplesModal.vue'
 import LearningModal from './components/LearningModal.vue'
+import ProfileModal from './components/ProfileModal.vue'
+import TeacherModal from './components/TeacherModal.vue'
 import HelpModal from './components/HelpModal.vue'
 import AboutModal from './components/AboutModal.vue'
 import PromptModal from './components/PromptModal.vue'
@@ -271,6 +273,8 @@ const viewFitTip = computed(() => `${t('view.fit')} (F)`)
     <ToastHost />
     <ExamplesModal v-if="store.modals.examples" />
     <LearningModal v-if="store.modals.learning" />
+    <ProfileModal v-if="store.modals.profile" />
+    <TeacherModal v-if="store.modals.teacher" />
     <HelpModal v-if="store.modals.help" />
     <AboutModal v-if="store.modals.about" />
     <PromptModal v-if="store.prompt" />

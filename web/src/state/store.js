@@ -8,7 +8,7 @@ import { learning, completeActivity, progressData, importProgressData } from '..
 import { student, ensureStudent, applyStudent } from '../learning/identity.js'
 import { activityById, trackById, ACTIVITIES } from '../learning/curriculum.js'
 import { evaluateActivity, starsFor } from '../learning/validate.js'
-import { buildLearningReport } from '../learning/report.js'
+import { buildLearningReport, updateReportIdentification } from '../learning/report.js'
 
 export { fileExtension, isPythonFile, normalizeFileName }
 
@@ -214,7 +214,7 @@ export const store = reactive({
   // UI
   toasts: [],
   ctx: null,
-  modals: { examples: false, help: false, about: false, learning: false },
+  modals: { examples: false, help: false, about: false, learning: false, profile: false, teacher: false },
   prompt: null,
   figures: [],
   consoleUnread: 0,
@@ -1120,23 +1120,9 @@ export function findLearningReport() {
   return reports.find((report) => report.learning) || null
 }
 
-/** Creates (or reopens) the final report skeleton and opens the reports panel. */
-export function createLearningReport() {
-  const existing = findLearningReport()
-  if (existing) {
-    openReport(existing.id)
-    return { report: existing, created: false }
-  }
-  const rows = ACTIVITIES
-    .filter((activity) => learning.activities[activity.id]?.done)
-    .map((activity) => ({
-      level: activity.level,
-      track: t(trackById(activity.track).titleKey),
-      title: t(activity.titleKey),
-      stars: learning.activities[activity.id]?.stars ?? 0,
-      xp: activity.xp,
-    }))
-  const labels = {
+/** Localized labels used by the report builder and by the identification sync. */
+function reportLabels() {
+  return {
     title: t('learn.report.title'),
     identification: t('learn.report.identification'),
     student: t('learn.report.student'),
@@ -1155,6 +1141,48 @@ export function createLearningReport() {
     stars: t('learn.report.stars'),
     xp: t('learn.report.xp'),
   }
+}
+
+/**
+ * Keeps the report identification in sync with the local profile: the student
+ * can fix their name or class after writing the report without losing the text.
+ */
+export function syncLearningReportIdentity() {
+  const report = findLearningReport()
+  if (!report) return false
+  ensureStudent()
+  report.content = updateReportIdentification(report.content, {
+    labels: reportLabels(),
+    studentName: student.name || student.id,
+    groupName: student.group,
+    date: new Date(report.created || Date.now()),
+  })
+  report.modified = Date.now()
+  return true
+}
+
+watch(
+  () => [student.name, student.group],
+  () => { syncLearningReportIdentity() },
+)
+
+/** Creates (or reopens) the final report skeleton and opens the reports panel. */
+export function createLearningReport() {
+  const existing = findLearningReport()
+  if (existing) {
+    openReport(existing.id)
+    return { report: existing, created: false }
+  }
+  const rows = ACTIVITIES
+    .filter((activity) => learning.activities[activity.id]?.done)
+    .map((activity) => ({
+      level: activity.level,
+      track: t(trackById(activity.track).titleKey),
+      title: t(activity.titleKey),
+      stars: learning.activities[activity.id]?.stars ?? 0,
+      xp: activity.xp,
+    }))
+  const labels = reportLabels()
   ensureStudent()
   const report = {
     id: 'rpt_' + Date.now(),

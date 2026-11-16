@@ -13,7 +13,7 @@ import {
   GOAL_CHECKS, checkGoal, evaluateActivity, starsFor, trailLength, trailMinDistance,
 } from '../../src/learning/validate.js'
 import {
-  REPORT_MARKER, buildLearningReport, proseWordCount, reportRubric,
+  REPORT_MARKER, buildLearningReport, proseWordCount, reportRubric, updateReportIdentification,
 } from '../../src/learning/report.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -478,4 +478,167 @@ test('xp thresholds match the expanded curriculum', async () => {
   assert.equal(xpForLevel(1), 0)
   assert.equal(xpForLevel(4), 1500)
   assert.equal(xpForLevel(5), null)
+})
+
+test('report identification updates without touching the student text', () => {
+  const labels = {
+    title: 'Relatório final', identification: 'Identificação', student: 'Aluno(a)',
+    group: 'Turma', date: 'Data', summary: 'Resumo', activities: 'Atividades',
+    results: 'Resultados', figures: 'Figuras', difficulties: 'Dificuldades',
+    conclusion: 'Conclusão', todo: 'TODO: escreva aqui.', none: 'Nenhum item.',
+    level: 'Nível', activity: 'Atividade', stars: 'Estrelas', xp: 'XP',
+  }
+  const content = buildLearningReport({
+    labels,
+    rows: [],
+    studentName: 'Ana',
+    groupName: 'Turma A',
+    date: new Date('2026-03-02T12:00:00Z'),
+  })
+  const withProse = content.replace('TODO: escreva aqui.', 'Texto que o aluno escreveu.')
+  const updated = updateReportIdentification(withProse, {
+    labels,
+    studentName: 'Ana Souza',
+    groupName: 'Turma B',
+    date: new Date('2026-03-02T12:00:00Z'),
+  })
+  assert.ok(updated.includes('| Aluno(a) | Ana Souza |'))
+  assert.ok(updated.includes('| Turma | Turma B |'))
+  assert.ok(updated.includes('| Data | 2026-03-02 |'))
+  assert.ok(updated.includes('Texto que o aluno escreveu.'))
+  assert.ok(updated.includes('## Resumo'))
+  assert.equal((updated.match(/## Identificação/g) || []).length, 1)
+  assert.equal(updateReportIdentification('sem cabeçalho', { labels }), 'sem cabeçalho')
+})
+
+test('teacher roster summarizes bundles, deduplicates and exports a sheet', async () => {
+  const teacher = await import('../../src/learning/teacher.js')
+  teacher.resetTeacher()
+
+  const payload = {
+    app: 'hivebr',
+    exportedAt: 1000,
+    student: { id: 'HB-AAAA-BBBB', name: 'Ana', group: 'Turma A' },
+    progress: {
+      v: 1,
+      xp: 300,
+      activities: {
+        'python-tipos': { done: true, stars: 3 },
+        'grid-astar': { done: true, stars: 2 },
+        'relatorio-final': { done: true, stars: 1 },
+      },
+      badges: ['pythonista', 'astar'],
+      achievements: ['planejador'],
+    },
+    reports: [],
+  }
+  const entry = teacher.rosterEntryFromBundle(payload, { source: 'ana.json' })
+  assert.equal(entry.id, 'HB-AAAA-BBBB')
+  assert.equal(entry.name, 'Ana')
+  assert.equal(entry.group, 'Turma A')
+  assert.equal(entry.xp, 300)
+  assert.equal(entry.level, 2)
+  assert.equal(entry.done, 3)
+  assert.equal(entry.total, ACTIVITIES.length)
+  assert.equal(entry.requiredDone, 2)
+  assert.equal(entry.stars, 6)
+  assert.equal(entry.badges, 2)
+  assert.equal(entry.achievements, 1)
+  assert.equal(entry.reportHas, false)
+  assert.equal(entry.reportOk, false)
+  assert.equal(entry.source, 'ana.json')
+
+  assert.equal(teacher.rosterEntryFromBundle({ student: { id: 'X' } }), null)
+  assert.equal(teacher.rosterEntryFromBundle({ student: { id: '' }, progress: { xp: 1, activities: {} } }), null)
+  assert.equal(teacher.rosterEntryFromBundle(null), null)
+
+  assert.deepEqual(teacher.upsertStudent(entry), { added: true, updated: false, stale: false })
+  // An older export must not overwrite a newer one.
+  const older = { ...entry, xp: 10, exportedAt: 500 }
+  assert.equal(teacher.upsertStudent(older).stale, true)
+  assert.equal(teacher.teacher.students[0].xp, 300)
+  // A newer export replaces it.
+  const newer = { ...entry, xp: 900, exportedAt: 2000, name: 'Ana Souza' }
+  assert.equal(teacher.upsertStudent(newer).updated, true)
+  assert.equal(teacher.teacher.students.length, 1)
+  assert.equal(teacher.teacher.students[0].xp, 900)
+
+  const summary = teacher.rosterSummary()
+  assert.equal(summary.students, 1)
+  assert.equal(summary.averageXp, 900)
+
+  const csv = teacher.rosterCsv(teacher.teacher.students, {
+    headers: { name: 'Aluno', id: 'ID', xp: 'XP' },
+    yes: 'sim',
+    no: 'não',
+  })
+  assert.ok(csv.startsWith('\ufeff'))
+  const [head, row] = csv.slice(1).split('\r\n')
+  // Unmapped columns fall back to the field name, so the sheet never loses data.
+  assert.equal(
+    head,
+    'ID;Aluno;group;XP;level;activities;required;stars;badges;achievements;report;words;exportedAt;importedAt',
+  )
+  const cells = row.split(';')
+  assert.deepEqual(
+    cells.slice(0, 11),
+    ['HB-AAAA-BBBB', 'Ana Souza', 'Turma A', '900', '3', '3/38', '2/30', '6', '2', '1', 'não'],
+  )
+  assert.equal(cells[11], '')
+  assert.equal(cells[12], '1970-01-01')
+  // Names with the separator are quoted.
+  const quoted = teacher.rosterCsv([{ ...entry, name: 'Ana; "A"', group: 'A' }], { headers: { name: 'Aluno' } })
+  assert.ok(quoted.includes('"Ana; ""A"""'))
+
+  teacher.resetTeacher()
+})
+
+test('teacher keyword gates the panel without storing the plain text', async () => {
+  const teacher = await import('../../src/learning/teacher.js')
+  teacher.resetTeacher()
+  assert.equal(teacher.teacher.configured, false)
+  assert.equal(await teacher.checkTeacherKey('qualquer'), false)
+  assert.equal(await teacher.setTeacherKey('abc'), false)
+  assert.equal(await teacher.setTeacherKey('segredo'), true)
+  assert.equal(teacher.teacher.configured, true)
+  assert.ok(teacher.teacher.keyHash)
+  assert.equal(teacher.teacher.keyHash.includes('segredo'), false)
+  assert.equal(teacher.isSessionUnlocked(), true)
+
+  teacher.lockSession()
+  assert.equal(teacher.isSessionUnlocked(), false)
+  assert.equal(await teacher.unlockTeacher('errada'), false)
+  assert.equal(teacher.isSessionUnlocked(), false)
+  assert.equal(await teacher.unlockTeacher('segredo'), true)
+  assert.equal(teacher.isSessionUnlocked(), true)
+
+  teacher.clearTeacherKey()
+  assert.equal(teacher.teacher.configured, false)
+  assert.equal(teacher.teacher.keyHash, '')
+  teacher.resetTeacher()
+})
+
+test('teacher roster backup round-trips', async () => {
+  const teacher = await import('../../src/learning/teacher.js')
+  teacher.resetTeacher()
+  teacher.setTeacherProfile({ name: 'Prof. Souza', school: 'Turma A' })
+  const entry = teacher.rosterEntryFromBundle({
+    exportedAt: 10,
+    student: { id: 'HB-AAAA-BBBB', name: 'Ana', group: 'A' },
+    progress: { xp: 10, activities: {} },
+  })
+  teacher.upsertStudent(entry)
+  const backup = teacher.rosterPayload()
+  assert.equal(backup.format, 'hivebr-roster')
+  assert.equal(teacher.isRosterPayload(backup), true)
+  assert.equal(teacher.isRosterPayload({ format: 'other' }), false)
+
+  teacher.clearRoster()
+  assert.equal(teacher.teacher.students.length, 0)
+  assert.equal(teacher.applyRosterPayload(backup), 1)
+  assert.equal(teacher.teacher.students.length, 1)
+  assert.equal(teacher.teacher.students[0].id, 'HB-AAAA-BBBB')
+  assert.equal(teacher.applyRosterPayload({ format: 'other' }), 0)
+  assert.equal(teacher.applyRosterPayload(null), 0)
+  teacher.resetTeacher()
 })

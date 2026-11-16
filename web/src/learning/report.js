@@ -139,3 +139,39 @@ export function buildLearningReport({
 
   return lines.join('\n')
 }
+
+/**
+ * Rewrites only the identification table of an existing report, so a student
+ * who fixes their name or class after generating the report does not lose the
+ * text they already wrote. Returns the content unchanged when the heading is
+ * missing.
+ */
+export function updateReportIdentification(content, {
+  labels = {},
+  studentName = '',
+  groupName = '',
+  date = new Date(),
+} = {}) {
+  const text = String(content || '')
+  const label = (key) => String(labels[key] ?? key)
+  const heading = `## ${label('identification')}`
+  const start = text.indexOf(heading)
+  if (start < 0) return text
+
+  const next = text.indexOf('\n## ', start + heading.length)
+  const end = next < 0 ? text.length : next + 1
+  const day = date instanceof Date ? date.toISOString().slice(0, 10) : String(date)
+  const block = [
+    heading,
+    '',
+    tableRow(['', '']),
+    tableRow(['---', '---']),
+    tableRow([label('student'), studentName]),
+    tableRow([label('group'), groupName]),
+    tableRow([label('date'), day]),
+    '',
+    '',
+  ].join('\n')
+
+  return text.slice(0, start) + block + text.slice(end)
+}

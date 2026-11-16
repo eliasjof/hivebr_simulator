@@ -414,6 +414,144 @@ await test('malformed progress files are rejected', async () => {
   check(still.xp === state.xp, 'malformed import changed the progress')
 })
 
+// ------------------------------------------------------------------ phase 6
+const TEACHER_KEY = 'hivebr.web.teacher.v1'
+const teacherState = () => page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}'), TEACHER_KEY)
+
+async function closeLearning() {
+  if (await learningModal.isVisible().catch(() => false)) {
+    await page.keyboard.press('Escape')
+    await learningModal.waitFor({ state: 'detached' })
+  }
+}
+
+async function openMenu(label) {
+  // Hovering another top item opens it, so a click on a menu that is already
+  // open only closes it. Start from a clean state.
+  await page.keyboard.press('Escape')
+  await page.locator('.mb .menus').getByRole('menuitem', { name: label, exact: true }).click()
+}
+
+async function openClassMenu(label) {
+  await openMenu('Turma')
+  await page.locator('.mb .drop').getByRole('menuitem', { name: label, exact: true }).click()
+}
+
+async function openTeacher() {
+  await openClassMenu('Modo professor')
+  const modal = page.locator('[role="dialog"][aria-label="Modo professor"]')
+  await modal.waitFor()
+  return modal
+}
+
+await test('student chip shows the name and class and opens the profile', async () => {
+  await closeLearning()
+  const chip = page.locator('.mb .chip')
+  check(await chip.isVisible(), 'student chip is not visible in the menu bar')
+  const text = (await chip.innerText()).replace(/\s+/g, ' ').trim()
+  check(text.includes('Ana Silva') && text.includes('Turma A'), `chip is missing name/class: ${text}`)
+
+  await chip.click()
+  const modal = page.locator('[role="dialog"][aria-label="Meu perfil"]')
+  await modal.waitFor()
+  check((await modal.locator('#sp-name').inputValue()) === 'Ana Silva', 'profile modal did not load the name')
+  check((await modal.locator('#sp-group').inputValue()) === 'Turma A', 'profile modal did not load the class')
+
+  await modal.locator('#sp-group').fill('Turma B')
+  await modal.getByRole('button', { name: 'Salvar perfil' }).click()
+  await modal.waitFor({ state: 'detached' })
+  check((await studentState()).group === 'Turma B', 'class was not saved from the profile modal')
+  const updated = (await page.locator('.mb .chip').innerText()).replace(/\s+/g, ' ')
+  check(updated.includes('Turma B'), `chip did not follow the new class: ${updated}`)
+  await page.screenshot({ path: path.join(SHOTS, 'student-chip.png') })
+})
+
+await test('changing the class updates the report identification in place', async () => {
+  // The import tests replace the reports and close their tabs, so reopen the
+  // saved learning report before checking the identification block.
+  const panel = page.locator('aside.side.right.reports')
+  if (!(await panel.count())) {
+    await openMenu('Exibir')
+    await page.locator('.mb .drop').getByRole('menuitemcheckbox', { name: /Relatórios/ }).click()
+    await panel.waitFor()
+  }
+  const editor = page.locator('textarea.md-editor')
+  if (!(await editor.isVisible().catch(() => false))) {
+    const saved = panel.locator('.saved-row').filter({ hasText: 'relatorio_final' })
+    await saved.locator('button').first().click()
+  }
+  await editor.waitFor()
+  const content = await editor.inputValue()
+  check(content.includes('| Turma | Turma B |'), 'report identification did not follow the profile')
+  check(content.includes('| Aluno(a) | Ana Silva |'), 'report lost the student name')
+  check(content.includes('Este relatório descreve'), 'report prose was overwritten by the identification sync')
+  await page.screenshot({ path: path.join(SHOTS, 'report-identity.png') })
+})
+
+await test('teacher mode sets a keyword, imports a bundle and exports the class sheet', async () => {
+  const modal = await openTeacher()
+  await modal.locator('#tf-name').fill('Prof. Souza')
+  await modal.locator('#tf-school').fill('Escola Modelo')
+  await modal.locator('#tf-keyword').fill('turma2026')
+  await modal.locator('#tf-keyword-confirm').fill('turma2026')
+  await modal.getByRole('button', { name: 'Ativar modo professor' }).click()
+  await sleep(400)
+
+  const stored = await teacherState()
+  check(stored.configured === true, 'teacher mode was not stored')
+  check(!JSON.stringify(stored).includes('turma2026'), 'the plain keyword must never be stored')
+  check((await modal.locator('.roster').count()) === 0, 'the roster should start empty')
+
+  const beforeXp = (await progress()).xp
+  await modal.locator('input.teacher-file').setInputFiles(plainFile)
+  const rows = modal.locator('.roster tr[data-student-id]')
+  await rows.first().waitFor()
+  check((await rows.count()) === 1, 'the student bundle was not imported into the roster')
+  const rowText = (await rows.first().innerText()).replace(/\s+/g, ' ')
+  check(rowText.includes('Ana Silva') && rowText.includes('Turma A'), `roster row is wrong: ${rowText}`)
+  check(rowText.includes('Completo'), `roster row should show the completed report: ${rowText}`)
+  // The import must not touch the local student progress.
+  check((await progress()).xp === beforeXp, 'teacher import changed the local progress')
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    modal.getByRole('button', { name: 'Exportar planilha' }).click(),
+  ])
+  const csvFile = path.join(SHOTS, 'turma.csv')
+  await download.saveAs(csvFile)
+  const csv = fs.readFileSync(csvFile, 'utf8')
+  check(csv.startsWith('\ufeff'), 'the class sheet must start with a UTF-8 BOM')
+  check(csv.includes('Identificador;Aluno;Turma;XP'), `CSV header is not localized: ${csv.slice(0, 120)}`)
+  check(csv.includes('Ana Silva') && csv.includes('HB-'), 'CSV lost the student row')
+  check(csv.includes(';sim;'), 'CSV should localize the report column')
+  await page.screenshot({ path: path.join(SHOTS, 'teacher.png') })
+})
+
+await test('teacher panel locks on exit and only unlocks with the keyword', async () => {
+  const modal = page.locator('[role="dialog"][aria-label="Modo professor"]')
+  await modal.getByRole('button', { name: 'Sair', exact: true }).click()
+  await modal.getByRole('button', { name: 'Fechar' }).click()
+  await modal.waitFor({ state: 'detached' })
+
+  const locked = await openTeacher()
+  check((await locked.locator('#tf-unlock').count()) === 1, 'locked panel should ask for the keyword')
+  await locked.locator('#tf-unlock').fill('errada')
+  await locked.getByRole('button', { name: 'Entrar', exact: true }).click()
+  await sleep(400)
+  check(
+    (await page.locator('.toast').filter({ hasText: 'Palavra-chave incorreta' }).count()) >= 1,
+    'a wrong keyword did not warn the user',
+  )
+
+  await locked.locator('#tf-unlock').fill('turma2026')
+  await locked.getByRole('button', { name: 'Entrar', exact: true }).click()
+  await locked.locator('.roster').waitFor()
+  check((await locked.locator('.roster tr[data-student-id]').count()) === 1, 'the roster was lost after unlocking')
+  await page.screenshot({ path: path.join(SHOTS, 'teacher-unlocked.png') })
+  await locked.getByRole('button', { name: 'Fechar' }).click()
+  await locked.waitFor({ state: 'detached' })
+})
+
 // ------------------------------------------------------------------ summary
 const failed = results.filter((r) => !r.ok)
 if (pageErrors.length) console.log('\nPage errors:\n' + pageErrors.join('\n'))

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import Logo from './Logo.vue'
+import StudentChip from './StudentChip.vue'
 import {
   store, scene, catalog, newFile, pickFile, downloadScript, saveNow, runCode, stopCode, toggleSim, stepOnce, resetSim,
   restartScene, restartPage, clearSiteData,
@@ -72,6 +73,10 @@ const menus = computed(() => [
     { label: t('toolbar.demo'), run: runDemo },
     { sep: true },
     ...examples.value.map((e) => ({ label: e.title, run: () => loadExample(e) })),
+  ] },
+  { id: 'class', label: t('menu.class'), items: [
+    { label: t('student.profile_menu'), run: () => { store.modals.profile = true } },
+    { label: t('student.teacher_menu'), run: () => { store.modals.teacher = true } },
   ] },
   { id: 'help', label: t('menu.help'), items: [
     { label: t('help.guide'), key: '?', run: () => { store.modals.help = true } },
@@ -210,6 +215,7 @@ const summary = computed(() => {
       </div>
     </nav>
     <div class="center" aria-live="polite"><b>{{ title }}</b><span>·</span><span>{{ summary }}</span></div>
+    <StudentChip />
     <div class="pill" data-testid="pill" :class="pill.c" role="status"><i />{{ pill.t }}</div>
   </header>
 </template>
