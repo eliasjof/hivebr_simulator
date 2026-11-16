@@ -248,18 +248,45 @@ await test('progress and emoji badges survive a reload', async () => {
 })
 
 // ------------------------------------------------------------------ phase 4
-await test('progress export downloads a JSON file with the current progress', async () => {
+const STUDENT_KEY = 'hivebr.web.student.v1'
+const ID_RE = /^HB-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/
+const studentState = () => page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}'), STUDENT_KEY)
+
+async function exportBundle({ password = '' } = {}) {
   await openLearning()
+  await learningModal.getByRole('button', { name: 'Exportar progresso' }).click()
+  const prompt = page.locator('[role="dialog"][aria-label="Exportar progresso"]')
+  await prompt.waitFor()
+  if (password) {
+    await prompt.locator('#pf-password').fill(password)
+    await prompt.locator('#pf-confirm').fill(password)
+  }
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    learningModal.getByRole('button', { name: 'Exportar progresso' }).click(),
+    prompt.getByRole('button', { name: 'Exportar', exact: true }).click(),
   ])
-  check(download.suggestedFilename() === 'hivebr-progress.json', `unexpected export name: ${download.suggestedFilename()}`)
-  const file = await download.path()
-  const data = JSON.parse(fs.readFileSync(file, 'utf8'))
-  const state = await progress()
-  check(data.xp === state.xp, `exported XP ${data.xp} differs from stored ${state.xp}`)
-  check(Object.keys(data.activities || {}).length === Object.keys(state.activities || {}).length, 'exported activities differ')
+  return download
+}
+
+let plainFile = null
+let protectedFile = null
+
+await test('student profile is local, readable and kept when progress is reset', async () => {
+  await openLearning()
+  const profile = learningModal.locator('.profile')
+  check(await profile.count() === 1, 'student profile section is missing')
+  const id = (await profile.locator('.profile-id b').innerText()).trim()
+  check(ID_RE.test(id), `unexpected student id: ${id}`)
+  check((await studentState()).id === id, 'student id was not stored locally')
+
+  const inputs = profile.locator('.field-inline input')
+  await inputs.nth(0).fill('Ana Silva')
+  await inputs.nth(1).fill('Turma A')
+  await sleep(250)
+  const stored = await studentState()
+  check(stored.name === 'Ana Silva', `student name not stored: ${stored.name}`)
+  check(stored.group === 'Turma A', `student group not stored: ${stored.group}`)
+  await page.screenshot({ path: path.join(SHOTS, 'profile.png') })
 })
 
 await test('final report fails the rubric, then passes after the student writes it', async () => {
@@ -294,22 +321,93 @@ await test('final report fails the rubric, then passes after the student writes 
   await page.screenshot({ path: path.join(SHOTS, 'final-report.png') })
 })
 
-await test('progress import round-trips a file and rejects malformed JSON', async () => {
+await test('progress export downloads a v2 bundle named after the student', async () => {
   const state = await progress()
-  const good = path.join(SHOTS, 'progress-good.json')
-  fs.writeFileSync(good, JSON.stringify(state))
+  const student = await studentState()
+  const download = await exportBundle()
+  check(
+    download.suggestedFilename() === `hivebr-progress-${student.id}.json`,
+    `unexpected export name: ${download.suggestedFilename()}`,
+  )
+  const file = await download.path()
+  plainFile = path.join(SHOTS, 'progress-plain.json')
+  fs.copyFileSync(file, plainFile)
+  const data = JSON.parse(fs.readFileSync(plainFile, 'utf8'))
+  check(data.format === 'hivebr-progress' && data.v === 2, 'export is not a v2 bundle')
+  check(data.encrypted === false, 'export without a password must be readable')
+  check(data.payload?.student?.id === student.id, 'bundle lost the student identity')
+  check(data.payload?.progress?.xp === state.xp, `bundle XP ${data.payload?.progress?.xp} differs from stored ${state.xp}`)
+  check(Array.isArray(data.payload?.reports), 'bundle lost the reports')
+})
+
+await test('progress import accepts a v2 bundle and reports the student', async () => {
+  const state = await progress()
   await openLearning()
-  await page.locator('input.file-input').setInputFiles(good)
-  await page.getByRole('button', { name: 'Importar', exact: true }).click()
-  await sleep(400)
+  await page.locator('input.file-input').setInputFiles(plainFile)
+  const confirm = page.locator('[role="dialog"][aria-label="Importar progresso"]')
+  await confirm.waitFor()
+  const text = await confirm.innerText()
+  check(text.includes('Importar o progresso de'), `unexpected import message: ${text}`)
+  await confirm.getByRole('button', { name: 'Importar', exact: true }).click()
+  await sleep(500)
   const imported = await progress()
   check(imported.xp === state.xp, `imported XP changed: ${state.xp} -> ${imported.xp}`)
   check(imported.activities?.['relatorio-final']?.done === true, 'import lost the capstone activity')
+})
 
+await test('protected export encrypts the bundle and protected import restores it', async () => {
+  const before = await progress()
+  const download = await exportBundle({ password: 'segredo42' })
+  const file = await download.path()
+  protectedFile = path.join(SHOTS, 'progress-protected.json')
+  fs.copyFileSync(file, protectedFile)
+  const data = JSON.parse(fs.readFileSync(protectedFile, 'utf8'))
+  check(data.encrypted === true, 'protected export must be encrypted')
+  check(data.crypto?.kdf === 'PBKDF2-SHA256' && data.crypto?.alg === 'AES-GCM', 'unexpected crypto metadata')
+  check(typeof data.payload === 'string' && !data.payload.includes('"xp"'), 'encrypted payload must be opaque')
+
+  // Reset through the UI: the identity must stay, the progress must go.
+  await openLearning()
+  await learningModal.getByRole('button', { name: 'Zerar progresso' }).click()
+  const reset = page.locator('[role="dialog"][aria-label="Zerar progresso"]')
+  await reset.waitFor()
+  await reset.getByRole('button', { name: 'Zerar', exact: true }).click()
+  await sleep(400)
+  check(((await progress()).xp || 0) === 0, 'reset did not clear the XP')
+  check(!!(await studentState()).id, 'reset must keep the student identity')
+
+  // Wrong password is rejected without touching the progress.
+  await page.locator('input.file-input').setInputFiles(protectedFile)
+  const password = page.locator('[role="dialog"][aria-label="Importar progresso protegido"]')
+  await password.waitFor()
+  await password.locator('#pf-password').fill('errada')
+  await password.getByRole('button', { name: 'Importar', exact: true }).click()
+  await sleep(500)
+  check(await page.locator('.toast').filter({ hasText: 'Senha incorreta' }).count() >= 1, 'wrong password did not warn the user')
+  check(((await progress()).xp || 0) === 0, 'wrong password changed the progress')
+
+  // Correct password restores the exported state.
+  await page.locator('input.file-input').setInputFiles(protectedFile)
+  const again = page.locator('[role="dialog"][aria-label="Importar progresso protegido"]')
+  await again.waitFor()
+  await again.locator('#pf-password').fill('segredo42')
+  await again.getByRole('button', { name: 'Importar', exact: true }).click()
+  const confirm = page.locator('[role="dialog"][aria-label="Importar progresso"]')
+  await confirm.waitFor()
+  await confirm.getByRole('button', { name: 'Importar', exact: true }).click()
+  await sleep(600)
+  const restored = await progress()
+  check(restored.xp === before.xp, `protected import lost XP: ${before.xp} -> ${restored.xp}`)
+  check(restored.activities?.['relatorio-final']?.done === true, 'protected import lost the capstone activity')
+  await page.screenshot({ path: path.join(SHOTS, 'protected-import.png') })
+})
+
+await test('malformed progress files are rejected', async () => {
+  const state = await progress()
   const bad = path.join(SHOTS, 'progress-bad.json')
   fs.writeFileSync(bad, '{ not json')
+  await openLearning()
   await page.locator('input.file-input').setInputFiles(bad)
-  await page.getByRole('button', { name: 'Importar', exact: true }).click()
   await sleep(400)
   check(await page.locator('.toast').filter({ hasText: 'inválido' }).count() >= 1, 'malformed import did not warn the user')
   const still = await progress()

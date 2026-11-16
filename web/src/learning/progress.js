@@ -9,7 +9,7 @@ import { ACHIEVEMENTS } from './curriculum.js'
 
 export const LS_KEY = 'hivebr.web.learning.v1'
 
-export const XP_THRESHOLDS = [0, 200, 500, 900]
+export const XP_THRESHOLDS = [0, 300, 800, 1500]
 
 function empty() {
   return {
@@ -159,8 +159,9 @@ export function resetProgress() {
   learning.updatedAt = Date.now()
 }
 
-export function exportProgress() {
-  return JSON.stringify({
+/** Plain progress object (the payload used by bundles and by v1 files). */
+export function progressData() {
+  return {
     v: 1,
     xp: learning.xp,
     activeId: learning.activeId,
@@ -168,36 +169,54 @@ export function exportProgress() {
     badges: learning.badges,
     achievements: learning.achievements,
     updatedAt: learning.updatedAt,
-  }, null, 2)
+  }
 }
 
+export function exportProgress() {
+  return JSON.stringify(progressData(), null, 2)
+}
+
+/** Sanitizes and applies a progress object (v1 or the payload of a v2 bundle). */
+export function importProgressData(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false
+  if (!Number.isFinite(Number(data.xp))) return false
+  if (!data.activities || typeof data.activities !== 'object' || Array.isArray(data.activities)) return false
+
+  const activities = {}
+  for (const [id, value] of Object.entries(data.activities)) {
+    if (!value || typeof value !== 'object') continue
+    activities[id] = {
+      done: value.done === true,
+      stars: Math.max(0, Math.min(3, Number(value.stars) || 0)),
+      at: Number(value.at) || 0,
+      evidence: value.evidence && typeof value.evidence === 'object' ? value.evidence : null,
+    }
+  }
+
+  learning.xp = Math.max(0, Number(data.xp) || 0)
+  learning.activeId = typeof data.activeId === 'string' ? data.activeId : null
+  learning.activities = activities
+  learning.badges = Array.isArray(data.badges) ? data.badges.filter((b) => typeof b === 'string') : []
+  learning.achievements = Array.isArray(data.achievements) ? data.achievements.filter((b) => typeof b === 'string') : []
+  learning.updatedAt = Date.now()
+  // The file may predate an activity that unlocks an aggregate achievement.
+  syncAchievements()
+  return true
+}
+
+/**
+ * Synchronous import used by the old UI and by tests. It accepts v1 files and
+ * unencrypted v2 envelopes; encrypted bundles must be decrypted first with
+ * decodeBundle() and then applied with importProgressData().
+ */
 export function importProgress(json) {
   try {
     const data = JSON.parse(json)
-    if (!data || typeof data !== 'object' || Array.isArray(data)) return false
-    if (!Number.isFinite(Number(data.xp))) return false
-    if (!data.activities || typeof data.activities !== 'object' || Array.isArray(data.activities)) return false
-
-    const activities = {}
-    for (const [id, value] of Object.entries(data.activities)) {
-      if (!value || typeof value !== 'object') continue
-      activities[id] = {
-        done: value.done === true,
-        stars: Math.max(0, Math.min(3, Number(value.stars) || 0)),
-        at: Number(value.at) || 0,
-        evidence: value.evidence && typeof value.evidence === 'object' ? value.evidence : null,
-      }
+    if (data?.format === 'hivebr-progress' && data?.v >= 2) {
+      if (data.encrypted) return false
+      return importProgressData(data.payload)
     }
-
-    learning.xp = Math.max(0, Number(data.xp) || 0)
-    learning.activeId = typeof data.activeId === 'string' ? data.activeId : null
-    learning.activities = activities
-    learning.badges = Array.isArray(data.badges) ? data.badges.filter((b) => typeof b === 'string') : []
-    learning.achievements = Array.isArray(data.achievements) ? data.achievements.filter((b) => typeof b === 'string') : []
-    learning.updatedAt = Date.now()
-    // The file may predate an activity that unlocks an aggregate achievement.
-    syncAchievements()
-    return true
+    return importProgressData(data)
   } catch {
     return false
   }

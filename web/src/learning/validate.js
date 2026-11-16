@@ -48,6 +48,53 @@ export function trailMinDistance(trail, x, y) {
   return best
 }
 
+/**
+ * Visits a list of points in order. Each point is matched to the first trail
+ * sample after the previous match, so a route that passes the stations in the
+ * wrong order does not count.
+ */
+export function trailVisitsInOrder(trail, points) {
+  const list = Array.isArray(points) ? points : []
+  if (!list.length || !Array.isArray(trail) || !trail.length) return false
+  let start = 0
+  for (const point of list) {
+    const x = Number(point?.x)
+    const y = Number(point?.y)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return false
+    const tolerance = Number(point.tolerance) || 0.5
+    let found = -1
+    for (let i = start; i < trail.length; i += 1) {
+      if (distanceTo(trail[i], x, y) <= tolerance) {
+        found = i
+        break
+      }
+    }
+    if (found < 0) return false
+    start = found + 1
+  }
+  return true
+}
+
+/** Fraction of an arena covered by the trail, on a grid of `cell` metres. */
+export function coverageFraction(trail, { width = 20, height = 12, cell = 1 } = {}) {
+  const w = Number(width)
+  const h = Number(height)
+  const size = Number(cell)
+  if (!Array.isArray(trail) || !trail.length || !(w > 0) || !(h > 0) || !(size > 0)) return 0
+  const cols = Math.max(1, Math.ceil(w / size))
+  const rows = Math.max(1, Math.ceil(h / size))
+  const seen = new Set()
+  for (const point of trail) {
+    const x = Number(point?.x)
+    const y = Number(point?.y)
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+    const cx = Math.floor(x / size)
+    const cy = Math.floor(y / size)
+    if (cx >= 0 && cx < cols && cy >= 0 && cy < rows) seen.add(cy * cols + cx)
+  }
+  return seen.size / (cols * rows)
+}
+
 export const GOAL_CHECKS = {
   run_ok: (_goal, ctx) => ctx.finished?.ok === true,
 
@@ -101,6 +148,62 @@ export const GOAL_CHECKS = {
   waypoint_count_min: (goal, ctx) => (ctx.evidence?.waypointCount ?? 0) >= (goal.n ?? 1),
 
   robot_count: (goal, ctx) => (ctx.evidence?.robots ?? 0) >= (goal.n ?? 1),
+
+  // --- contextual applications (phase 5) ---
+  // Every station must be visited in order; passing near the last one first
+  // does not satisfy the goal.
+  visit_points: (goal, ctx) => trailVisitsInOrder(trailOf(ctx), goal.points),
+
+  // Each robot has its own trail. With `targets`, robot i must reach
+  // targets[i]; with x/y, every robot must reach the same point.
+  robot_reach: (goal, ctx) => {
+    const trails = Array.isArray(ctx.evidence?.trails) ? ctx.evidence.trails : []
+    if (Array.isArray(goal.targets) && goal.targets.length) {
+      return goal.targets.every((target, i) => {
+        const trail = trails[i]
+        if (!Array.isArray(trail) || !trail.length) return false
+        const x = Number(target?.x)
+        const y = Number(target?.y)
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return false
+        return trailMinDistance(trail, x, y) <= (Number(target.tolerance) || goal.tolerance || 0.5)
+      })
+    }
+    if (!Number.isFinite(goal.x) || !Number.isFinite(goal.y)) return false
+    const count = Math.max(1, Number(goal.n) || trails.length)
+    const list = trails.slice(0, count)
+    if (!list.length) return false
+    const tolerance = Number(goal.tolerance) || 0.5
+    return list.every((trail) => trailMinDistance(trail, goal.x, goal.y) <= tolerance)
+  },
+
+  // Every inventory point must be visited by at least one robot trail. Unlike
+  // visit_points, the order across robots does not matter: the fleet works in
+  // parallel and each station only needs one visit.
+  points_covered: (goal, ctx) => {
+    const trails = Array.isArray(ctx.evidence?.trails) ? ctx.evidence.trails : []
+    const points = Array.isArray(goal.points) ? goal.points : []
+    if (!points.length || !trails.length) return false
+    const fallback = Number(goal.tolerance) || 0.6
+    return points.every((point) => {
+      const x = Number(point?.x)
+      const y = Number(point?.y)
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return false
+      const tolerance = Number(point.tolerance) || fallback
+      return trails.some((trail) => (
+        Array.isArray(trail) && trailMinDistance(trail, x, y) <= tolerance
+      ))
+    })
+  },
+
+  // Fraction of an arena covered by the trail (agricultural coverage).
+  coverage_min: (goal, ctx) => {
+    const fraction = coverageFraction(trailOf(ctx), {
+      width: goal.width ?? 20,
+      height: goal.height ?? 12,
+      cell: goal.cell ?? 1,
+    })
+    return fraction >= (Number(goal.value) || 0)
+  },
 
   // --- deliverables ---
   file_exists: (goal, ctx) => {

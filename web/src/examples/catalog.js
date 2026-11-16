@@ -21,7 +21,7 @@ export const DEFAULT_EXAMPLE_ID = 'inicio_rapido'
 export const DEMO_EXAMPLE_ID = 'demonstracao'
 
 /** Ordem de exibição das categorias na galeria. */
-export const CATEGORY_IDS = ['fundamentos', 'python', 'percepcao', 'linha', 'locomocao', 'controle', 'planejamento', 'multirobo']
+export const CATEGORY_IDS = ['fundamentos', 'python', 'percepcao', 'linha', 'locomocao', 'controle', 'planejamento', 'multirobo', 'projeto']
 
 /** Níveis pedagógicos: 1 = técnico, 4 = graduação avançada. */
 export const LEVEL_IDS = [1, 2, 3, 4]
@@ -198,6 +198,96 @@ const ENTRIES = [
     id: 'curvas_parametricas', file: 'curvas_parametricas.py', group: 'advanced', category: 'planejamento', level: 4, order: 50,
     pt: { title: 'Curvas paramétricas (Bézier)', description: 'Atividade: implemente a curva de Bézier e o custo (comprimento + obstáculos + curvatura) e otimize os pontos de controle.', tags: ['Bézier', 'curvas', 'otimização', 'atividade'], robots: '1 B-bot diferencial' },
     en: { filename: 'parametric_curves.py', title: 'Parametric curves (Bezier)', description: 'Activity: implement the Bezier curve and the cost (length + obstacles + curvature) and optimize the control points.', tags: ['Bezier', 'curves', 'optimization', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'patrulha_armazem', file: 'patrulha_armazem.py', group: 'tutorial', category: 'fundamentos', level: 1, order: 40,
+    pt: { title: 'Patrulha de armazém', description: 'Atividade: um B-bot visita as estações de um armazém em ordem, desviando das prateleiras. Complete o agente go-to-goal.', tags: ['armazém', 'patrulha', 'HiveBrAgent', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'warehouse_patrol.py', title: 'Warehouse patrol', description: 'Activity: a B-bot visits warehouse stations in order while avoiding shelves. Complete the go-to-goal agent.', tags: ['warehouse', 'patrol', 'HiveBrAgent', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'python_telemetria', file: 'python_telemetria.py', group: 'tutorial', category: 'python', level: 1, order: 40,
+    pt: { title: 'Telemetria de bateria', description: 'Atividade: calcule a autonomia e o instante de alerta de um robô de entrega e plote a descarga da bateria.', tags: ['Python', 'bateria', 'matplotlib', 'atividade'], robots: 'Nenhum robô — só Python', notes: 'Grava autonomia.png na pasta de trabalho.' },
+    en: { filename: 'battery_telemetry.py', title: 'Battery telemetry', description: 'Activity: compute the range and alert time of a delivery robot and plot the battery discharge.', tags: ['Python', 'battery', 'matplotlib', 'activity'], robots: 'No robot — Python only', notes: 'Writes autonomia.png to the working folder.' },
+  },
+  {
+    id: 'python_supervisor', file: 'python_supervisor.py', group: 'tutorial', category: 'python', level: 1, order: 50,
+    pt: { title: 'Supervisor de frota', description: 'Atividade: analise leituras de telemetria com listas e dicionários (média, pico de corrente e alertas).', tags: ['Python', 'listas', 'dicionários', 'atividade'], robots: 'Nenhum robô — só Python' },
+    en: { filename: 'fleet_supervisor.py', title: 'Fleet supervisor', description: 'Activity: analyse telemetry readings with lists and dictionaries (mean, current peak and alerts).', tags: ['Python', 'lists', 'dictionaries', 'activity'], robots: 'No robot — Python only' },
+  },
+  {
+    id: 'python_lidar_listas', file: 'python_lidar_listas.py', group: 'tutorial', category: 'python', level: 1, order: 60,
+    pt: { title: 'Limpando leituras do LiDAR', description: 'Atividade: filtre leituras inválidas do LiDAR e resuma as distâncias boas com listas.', tags: ['Python', 'LiDAR', 'listas', 'atividade'], robots: 'Nenhum robô — só Python' },
+    en: { filename: 'lidar_lists.py', title: 'Cleaning LiDAR readings', description: 'Activity: filter invalid LiDAR readings and summarise the good distances with lists.', tags: ['Python', 'LiDAR', 'lists', 'activity'], robots: 'No robot — Python only' },
+  },
+  {
+    id: 'python_diario', file: 'python_diario.py', group: 'tutorial', category: 'python', level: 1, order: 70,
+    pt: { title: 'Diário de bordo em CSV', description: 'Atividade: grave a telemetria do robô em diario.csv com cabeçalho e duas casas decimais.', tags: ['Python', 'CSV', 'arquivo', 'atividade'], robots: 'Nenhum robô — só Python', notes: 'Grava diario.csv na pasta de trabalho.' },
+    en: { filename: 'logbook_csv.py', title: 'CSV logbook', description: 'Activity: write the robot telemetry to diario.csv with a header and two decimal places.', tags: ['Python', 'CSV', 'file', 'activity'], robots: 'No robot — Python only', notes: 'Writes diario.csv to the working folder.' },
+  },
+  {
+    id: 'python_pid_classe', file: 'python_pid_classe.py', group: 'tutorial', category: 'python', level: 1, order: 80,
+    pt: { title: 'Classe ControladorPID', description: 'Atividade: implemente update() de um PID discreto com limite integral e controle uma planta de primeira ordem.', tags: ['Python', 'classe', 'PID', 'atividade'], robots: 'Nenhum robô — só Python' },
+    en: { filename: 'pid_class.py', title: 'PID controller class', description: 'Activity: implement update() for a discrete PID with integral clamping and control a first-order plant.', tags: ['Python', 'class', 'PID', 'activity'], robots: 'No robot — Python only' },
+  },
+  {
+    id: 'cinematica_rodas', file: 'cinematica_rodas.py', group: 'tutorial', category: 'locomocao', level: 2, order: 50,
+    pt: { title: 'Cinemática das rodas', description: 'Atividade: implemente a cinemática inversa do robô diferencial (rodas esquerda e direita) e leve o robô ao alvo.', tags: ['cinemática', 'rodas', 'diferencial', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'wheel_kinematics.py', title: 'Wheel kinematics', description: 'Activity: implement the differential-drive inverse kinematics (left and right wheels) and drive the robot to the target.', tags: ['kinematics', 'wheels', 'differential', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'estacionar_doca', file: 'estacionar_doca.py', group: 'advanced', category: 'controle', level: 3, order: 50,
+    pt: { title: 'Estacionar na doca', description: 'Atividade: aproxime o robô da doca e gire no lugar até a orientação final, como um caminhão de carga.', tags: ['estacionamento', 'pose', 'controle', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'dock_parking.py', title: 'Dock parking', description: 'Activity: approach the dock and rotate in place to the final heading, like a loading truck.', tags: ['parking', 'pose', 'control', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'faixa_adaptativa', file: 'faixa_adaptativa.py', group: 'tutorial', category: 'linha', level: 2, order: 60,
+    pt: { title: 'Seguidor de linha adaptativo', description: 'Atividade: reduza a velocidade quando o erro de linha crescer e mantenha a correção proporcional.', tags: ['linha', 'velocidade', 'adaptativo', 'atividade'], robots: '1 seguidor de linha' },
+    en: { filename: 'adaptive_line.py', title: 'Adaptive line follower', description: 'Activity: slow down when the line error grows and keep the proportional correction.', tags: ['line', 'speed', 'adaptive', 'activity'], robots: '1 line follower' },
+  },
+  {
+    id: 'linha_pid', file: 'linha_pid.py', group: 'advanced', category: 'linha', level: 3, order: 50,
+    pt: { title: 'Seguidor de linha com classe PID', description: 'Atividade: implemente update() de um PID e use-o para completar uma volta na pista.', tags: ['linha', 'PID', 'classe', 'atividade'], robots: '1 seguidor de linha' },
+    en: { filename: 'line_pid.py', title: 'Line follower with a PID class', description: 'Activity: implement update() for a PID and use it to complete a lap on the track.', tags: ['line', 'PID', 'class', 'activity'], robots: '1 line follower' },
+  },
+  {
+    id: 'apf_tunel', file: 'apf_tunel.py', group: 'advanced', category: 'percepcao', level: 3, order: 40,
+    pt: { title: 'Campo potencial em um túnel', description: 'Atividade: some a repulsão do LiDAR e uma componente tangencial para atravessar um túnel com uma coluna central.', tags: ['campo potencial', 'LiDAR', 'túnel', 'atividade'], robots: '1 B-bot diferencial com LiDAR' },
+    en: { filename: 'tunnel_apf.py', title: 'Potential field in a tunnel', description: 'Activity: add LiDAR repulsion and a tangential component to cross a tunnel with a central column.', tags: ['potential field', 'LiDAR', 'tunnel', 'activity'], robots: '1 differential B-bot with LiDAR' },
+  },
+  {
+    id: 'lidar_filtro', file: 'lidar_filtro.py', group: 'advanced', category: 'percepcao', level: 3, order: 50,
+    pt: { title: 'Filtrando o LiDAR antes do desvio', description: 'Atividade: descarte leituras inválidas e use a lista filtrada para desviar dos obstáculos.', tags: ['LiDAR', 'filtro', 'desvio', 'atividade'], robots: '1 B-bot diferencial com LiDAR' },
+    en: { filename: 'lidar_filter.py', title: 'Filtering LiDAR before avoidance', description: 'Activity: discard invalid readings and use the filtered list to avoid obstacles.', tags: ['LiDAR', 'filter', 'avoidance', 'activity'], robots: '1 differential B-bot with LiDAR' },
+  },
+  {
+    id: 'planejamento_armazem', file: 'planejamento_armazem.py', group: 'advanced', category: 'planejamento', level: 4, order: 60,
+    pt: { title: 'Planejamento de rota no armazém', description: 'Atividade: implemente heurística, A* e reconstrução de caminho para desviar das prateleiras.', tags: ['A*', 'armazém', 'planejamento', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'warehouse_planning.py', title: 'Warehouse route planning', description: 'Activity: implement the heuristic, A* and path reconstruction to avoid the shelves.', tags: ['A*', 'warehouse', 'planning', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'cobertura_agricola', file: 'cobertura_agricola.py', group: 'advanced', category: 'planejamento', level: 4, order: 70,
+    pt: { title: 'Cobertura de área agrícola', description: 'Atividade: gere waypoints em zigue-zague para varrer um campo retangular com um robô.', tags: ['cobertura', 'boustrophedon', 'agricultura', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'field_coverage.py', title: 'Agricultural field coverage', description: 'Activity: generate boustrophedon waypoints to sweep a rectangular field with one robot.', tags: ['coverage', 'boustrophedon', 'agriculture', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'replanejamento', file: 'replanejamento.py', group: 'advanced', category: 'planejamento', level: 4, order: 80,
+    pt: { title: 'Replanejamento em tempo real', description: 'Atividade: bloqueie a célula de uma caixa que surge no caminho e recalcule a rota com A*.', tags: ['replanejamento', 'A*', 'obstáculo', 'atividade'], robots: '1 B-bot diferencial' },
+    en: { filename: 'replanning.py', title: 'Real-time replanning', description: 'Activity: block the cell of a box that appears on the way and recompute the route with A*.', tags: ['replanning', 'A*', 'obstacle', 'activity'], robots: '1 differential B-bot' },
+  },
+  {
+    id: 'enxame_inventario', file: 'enxame_inventario.py', group: 'advanced', category: 'multirobo', level: 4, order: 50,
+    pt: { title: 'Inventário com enxame', description: 'Atividade: quatro B-bots conferem estações em paralelo, cada um com sua rota e agente descentralizado.', tags: ['enxame', 'inventário', 'HiveBrAgent', 'atividade'], robots: '4 B-bots diferenciais' },
+    en: { filename: 'swarm_inventory.py', title: 'Swarm inventory', description: 'Activity: four B-bots check stations in parallel, each with its own route and decentralized agent.', tags: ['swarm', 'inventory', 'HiveBrAgent', 'activity'], robots: '4 differential B-bots' },
+  },
+  {
+    id: 'formacao_drones', file: 'formacao_drones.py', group: 'advanced', category: 'multirobo', level: 4, order: 60,
+    pt: { title: 'Formação de drones', description: 'Atividade: distribua quatro drones nos vértices de um quadrado com um SwarmController.', tags: ['formação', 'SwarmController', 'drones', 'atividade'], robots: '4 B-bots diferenciais' },
+    en: { filename: 'drone_formation.py', title: 'Drone formation', description: 'Activity: assign four drones to the corners of a square with a SwarmController.', tags: ['formation', 'SwarmController', 'drones', 'activity'], robots: '4 differential B-bots' },
+  },
+  {
+    id: 'projeto_entrega', file: 'projeto_entrega.py', group: 'advanced', category: 'projeto', level: 4, order: 10,
+    pt: { title: 'Projeto: entrega autônoma', description: 'Projeto final: o robô visita quatro paradas em ordem, desvia de caixas e grava entrega.csv e entrega.png.', tags: ['projeto', 'entrega', 'LiDAR', 'relatório'], robots: '1 B-bot diferencial com LiDAR', notes: 'Grava entrega.csv e entrega.png na pasta de trabalho.' },
+    en: { filename: 'delivery_project.py', title: 'Project: autonomous delivery', description: 'Final project: the robot visits four stops in order, avoids boxes and writes entrega.csv and entrega.png.', tags: ['project', 'delivery', 'LiDAR', 'report'], robots: '1 differential B-bot with LiDAR', notes: 'Writes entrega.csv and entrega.png to the working folder.' },
   },
 ]
 

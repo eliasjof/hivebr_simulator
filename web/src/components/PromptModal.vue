@@ -15,6 +15,8 @@ function ok() {
       if (!Number.isFinite(v)) return
       if (f.min != null) v = Math.max(f.min, v)
       if (f.max != null) v = Math.min(f.max, v)
+    } else if (f.type === 'checkbox') {
+      v = v === true
     }
     out[f.key] = v
   }
@@ -28,8 +30,11 @@ function cancel() { resolvePrompt(null) }
       <p v-if="cfg.message" class="msg">{{ cfg.message }}</p>
       <div v-for="(f, i) in cfg.fields || []" :key="f.key" class="field">
         <label :for="'pf-' + f.key">{{ f.label }}<span v-if="f.suffix" class="faint"> ({{ f.suffix }})</span></label>
-        <input :id="'pf-' + f.key" class="input mono" :type="f.type === 'number' ? 'number' : 'text'" v-model="values[f.key]"
-          :min="f.min" :max="f.max" :step="f.step" :data-autofocus="i === 0 ? '' : null" @focus="$event.target.select?.()" />
+        <input v-if="f.type === 'checkbox'" :id="'pf-' + f.key" type="checkbox" v-model="values[f.key]" />
+        <input v-else :id="'pf-' + f.key" class="input mono"
+          :type="f.type === 'number' ? 'number' : (f.type === 'password' ? 'password' : 'text')"
+          v-model="values[f.key]" :min="f.min" :max="f.max" :step="f.step"
+          :data-autofocus="i === 0 ? '' : null" @focus="$event.target.select?.()" />
         <small v-if="f.hint" class="faint">{{ f.hint }}</small>
       </div>
       <button type="submit" hidden />

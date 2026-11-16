@@ -5,16 +5,31 @@ import Icon from './Icon.vue'
 import {
   store, ask, catalog, loadExample, learningSnapshot, download, toast,
   createLearningReport, submitLearningReport, findLearningReport,
+  learningBundlePayload, applyLearningBundle,
 } from '../state/store.js'
 import { t } from '../i18n/index.js'
 import { LEVELS, ACTIVITIES, ACHIEVEMENTS, activitiesForLevel, activityById, trackById } from '../learning/curriculum.js'
 import {
   learning, levelForXp, xpForLevel, isActivityDone, activityStars,
   hasBadge, hasAchievement, setActiveActivity, resetProgress,
-  exportProgress, importProgress,
 } from '../learning/progress.js'
+import {
+  student, ensureStudent, setStudentName, setStudentGroup, resetStudent,
+} from '../learning/identity.js'
+import { encodeBundle, decodeBundle, inspectBundle, cryptoAvailable } from '../learning/bundle.js'
 import { evaluateActivity } from '../learning/validate.js'
 import { reportRubric } from '../learning/report.js'
+
+ensureStudent()
+
+const studentName = computed({
+  get: () => student.name,
+  set: (value) => setStudentName(value),
+})
+const studentGroup = computed({
+  get: () => student.group,
+  set: (value) => setStudentGroup(value),
+})
 
 const level = computed(() => levelForXp(learning.xp))
 const nextLevelXp = computed(() => xpForLevel(level.value + 1))
@@ -96,6 +111,10 @@ const GOAL_KEYS = {
   min_travel: 'learn.goal.min_travel',
   waypoint_count_min: 'learn.goal.waypoint_count_min',
   robot_count: 'learn.goal.robot_count',
+  visit_points: 'learn.goal.visit_points',
+  points_covered: 'learn.goal.points_covered',
+  robot_reach: 'learn.goal.robot_reach',
+  coverage_min: 'learn.goal.coverage_min',
   code_uses: 'learn.goal.code_uses',
 }
 function goalText(goal) {
@@ -109,8 +128,9 @@ function goalText(goal) {
     text: goal.text ?? '',
     x: goal.x ?? 0,
     y: goal.y ?? 0,
-    n: goal.n ?? 1,
+    n: goal.n ?? goal.points?.length ?? goal.targets?.length ?? 1,
     tolerance: goal.tolerance ?? 0.4,
+    percent: Math.round((Number(goal.value) || 0) * 100),
   })
 }
 
@@ -160,9 +180,66 @@ function submitReport() {
   store.modals.learning = false
 }
 
-function exportProgressFile() {
-  download('hivebr-progress.json', new Blob([exportProgress()], { type: 'application/json' }))
-  toast(t('learn.export_done'))
+async function copyStudentId() {
+  try {
+    await navigator.clipboard.writeText(student.id)
+    toast(t('learn.profile_copied'))
+  } catch {
+    toast(t('learn.profile_copy_failed'), 'warn')
+  }
+}
+
+async function removeProfile() {
+  const ok = await ask({
+    title: t('learn.profile_remove_title'),
+    message: t('learn.profile_remove_message'),
+    confirmText: t('learn.profile_remove_confirm'),
+    danger: true,
+  })
+  if (!ok) return
+  resetStudent()
+  ensureStudent()
+  toast(t('learn.profile_removed'))
+}
+
+async function exportProgressFile() {
+  ensureStudent()
+  const canProtect = cryptoAvailable()
+  const result = await ask({
+    title: t('learn.export_title'),
+    message: t(canProtect ? 'learn.export_message' : 'learn.export_insecure'),
+    confirmText: t('learn.export_confirm'),
+    fields: [
+      { key: 'password', label: t('learn.export_password'), type: 'password', hint: t('learn.export_password_hint') },
+      { key: 'confirm', label: t('learn.export_password_confirm'), type: 'password' },
+      { key: 'captures', label: t('learn.export_captures'), type: 'checkbox', value: true },
+      { key: 'tabs', label: t('learn.export_tabs'), type: 'checkbox', value: false },
+    ],
+  })
+  if (!result) return
+  const password = String(result.password || '')
+  if (password !== String(result.confirm || '')) {
+    toast(t('learn.export_password_mismatch'), 'warn')
+    return
+  }
+  if (password && !canProtect) {
+    toast(t('learn.export_crypto_unavailable'), 'error')
+    return
+  }
+  let text
+  try {
+    const payload = learningBundlePayload({
+      includeCaptures: result.captures === true,
+      includeTabs: result.tabs === true,
+    })
+    text = await encodeBundle(payload, password)
+  } catch (e) {
+    toast(t('learn.export_failed', { error: String(e?.message || e) }), 'error')
+    return
+  }
+  const suffix = student.id ? `-${student.id}` : ''
+  download(`hivebr-progress${suffix}.json`, new Blob([text], { type: 'application/json' }))
+  toast(t(password ? 'learn.export_done_protected' : 'learn.export_done'))
 }
 
 function pickImport() {
@@ -173,15 +250,60 @@ async function onImportFile(event) {
   const file = event.target.files?.[0]
   event.target.value = ''
   if (!file) return
+  const text = await file.text()
+  const info = inspectBundle(text)
+  if (!info) {
+    toast(t('learn.import_failed'), 'error')
+    return
+  }
+
+  let password = ''
+  if (info.encrypted) {
+    const answer = await ask({
+      title: t('learn.import_password_title'),
+      message: t('learn.import_password_message'),
+      confirmText: t('learn.import_confirm'),
+      fields: [
+        { key: 'password', label: t('learn.import_password'), type: 'password', hint: t('learn.import_password_hint') },
+      ],
+    })
+    if (!answer) return
+    password = String(answer.password || '')
+    if (!password) {
+      toast(t('learn.import_password_required'), 'warn')
+      return
+    }
+  }
+
+  let payload
+  try {
+    payload = await decodeBundle(text, password)
+  } catch (e) {
+    const key = String(e?.message) === 'wrong-password' ? 'learn.import_wrong_password' : 'learn.import_failed'
+    toast(t(key), 'error')
+    return
+  }
+
+  const progress = payload?.progress && typeof payload.progress === 'object' ? payload.progress : payload
+  const importedStudent = payload?.student && typeof payload.student === 'object' ? payload.student : {}
+  const xp = Math.max(0, Number(progress?.xp) || 0)
+  const activities = progress?.activities && typeof progress.activities === 'object' ? Object.keys(progress.activities).length : 0
+  const reportsCount = Array.isArray(payload?.reports) ? payload.reports.length : 0
+  const who = importedStudent.name || importedStudent.id || t('learn.import_unknown_student')
+  const different = !!importedStudent.id && !!student.id && importedStudent.id !== student.id
   const ok = await ask({
     title: t('learn.import_confirm_title'),
-    message: t('learn.import_confirm_message'),
+    message: t(different ? 'learn.import_confirm_message_other' : 'learn.import_confirm_message', {
+      student: who, xp, activities, reports: reportsCount, current: student.id,
+    }),
     confirmText: t('learn.import_confirm'),
   })
   if (!ok) return
-  const text = await file.text()
-  if (importProgress(text)) toast(t('learn.import_done', { xp: learning.xp }))
-  else toast(t('learn.import_failed'), 'error')
+  if (!applyLearningBundle(payload)) {
+    toast(t('learn.import_failed'), 'error')
+    return
+  }
+  toast(t('learn.import_done', { xp: learning.xp }))
 }
 </script>
 <template>
@@ -203,6 +325,24 @@ async function onImportFile(event) {
     <div class="levelbar" :aria-label="t('learn.level_label', { n: level })">
       <i :style="{ width: levelPct + '%' }" />
     </div>
+
+    <section class="profile" :aria-label="t('learn.profile')">
+      <div class="profile-id">
+        <span class="muted small">{{ t('learn.profile_id') }}</span>
+        <b class="mono">{{ student.id }}</b>
+        <button class="btn ghost sm" @click="copyStudentId"><Icon name="copy" :size="12" />{{ t('learn.profile_copy') }}</button>
+      </div>
+      <label class="field-inline">
+        <span class="muted small">{{ t('learn.profile_name') }}</span>
+        <input v-model="studentName" class="input" maxlength="60" />
+      </label>
+      <label class="field-inline">
+        <span class="muted small">{{ t('learn.profile_group') }}</span>
+        <input v-model="studentGroup" class="input" maxlength="60" />
+      </label>
+      <button class="btn ghost sm" @click="removeProfile"><Icon name="trash" :size="12" />{{ t('learn.profile_remove') }}</button>
+    </section>
+
     <p class="intro">{{ t('learn.intro') }}</p>
 
     <p v-if="activeActivity" class="active">
@@ -298,6 +438,11 @@ async function onImportFile(event) {
 .xp .sep { color: var(--text-muted); }
 .levelbar { height: 6px; margin: var(--sp-3) 0 var(--sp-4); background: var(--surface-3); border-radius: var(--radius-pill); overflow: hidden; }
 .levelbar i { display: block; height: 100%; background: var(--accent); transition: width var(--dur) var(--ease); }
+.profile { display: flex; align-items: flex-end; gap: var(--sp-4); flex-wrap: wrap; margin: 0 0 var(--sp-5); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+.profile-id { display: flex; align-items: center; gap: var(--sp-2); }
+.profile-id b { letter-spacing: 0.06em; }
+.field-inline { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }
+.field-inline .input { height: 28px; }
 .intro { margin: 0 0 var(--sp-5); color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.5; }
 .active { display: flex; align-items: flex-start; gap: var(--sp-3); margin: 0 0 var(--sp-5); padding: var(--sp-4) var(--sp-5); border: 1px solid var(--accent); border-radius: var(--radius); background: var(--accent-soft); color: var(--text); font-size: var(--fs-sm); }
 .active svg { flex: none; color: var(--accent); margin-top: 2px; }

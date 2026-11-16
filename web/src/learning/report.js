@@ -68,6 +68,8 @@ export function buildLearningReport({
   rows = [],
   captures = [],
   date = new Date(),
+  studentName = '',
+  groupName = '',
 } = {}) {
   const label = (key) => String(labels[key] ?? key)
   const lines = []
@@ -79,8 +81,8 @@ export function buildLearningReport({
   lines.push(`## ${label('identification')}`, '')
   lines.push(tableRow(['', '']))
   lines.push(tableRow(['---', '---']))
-  lines.push(tableRow([label('student'), '']))
-  lines.push(tableRow([label('group'), '']))
+  lines.push(tableRow([label('student'), studentName]))
+  lines.push(tableRow([label('group'), groupName]))
   lines.push(tableRow([label('date'), day]))
   lines.push('')
 

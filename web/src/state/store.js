@@ -4,7 +4,8 @@ import { getCatalog, DEFAULT_EXAMPLE_ID, DEMO_EXAMPLE_ID } from '../examples/cat
 import { t, tOr, locale, fmtNum } from '../i18n/index.js'
 import { fileExtension, isPythonFile, normalizeFileName } from '../utils/fileNames.js'
 import { defaultFigureStyle } from '../utils/figureStyle.js'
-import { learning, completeActivity } from '../learning/progress.js'
+import { learning, completeActivity, progressData, importProgressData } from '../learning/progress.js'
+import { student, ensureStudent, applyStudent } from '../learning/identity.js'
 import { activityById, trackById, ACTIVITIES } from '../learning/curriculum.js'
 import { evaluateActivity, starsFor } from '../learning/validate.js'
 import { buildLearningReport } from '../learning/report.js'
@@ -1007,6 +1008,92 @@ export function learningSnapshot() {
   return learningContext()
 }
 
+// ---- student bundle ---------------------------------------------------------
+// The exported bundle carries the identity, the progress and the reports (and
+// optionally the captures and the code tabs). Encryption is handled by
+// learning/bundle.js; this module only assembles and applies the payload.
+export function learningBundlePayload({ includeCaptures = true, includeTabs = false } = {}) {
+  ensureStudent()
+  const payload = {
+    app: 'hivebr',
+    exportedAt: Date.now(),
+    student: {
+      id: student.id,
+      name: student.name,
+      group: student.group,
+      createdAt: student.createdAt,
+    },
+    progress: progressData(),
+    reports: reports.map((report) => ({ ...report })),
+  }
+  if (includeCaptures) payload.captures = captures.map((capture) => ({ ...capture }))
+  if (includeTabs) {
+    saveNow()
+    payload.tabs = store.tabs
+      .filter((tab) => !tab.readonly)
+      .map((tab) => ({ id: tab.id, name: tab.name, code: tab.code, baseline: tab.baseline, open: tab.open !== false }))
+  }
+  return payload
+}
+
+/** Applies a decoded v1/v2 bundle payload. Returns false when it is unusable. */
+export function applyLearningBundle(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false
+  const progress = payload.progress && typeof payload.progress === 'object' ? payload.progress : payload
+  if (!importProgressData(progress)) return false
+
+  if (payload.student && typeof payload.student === 'object') applyStudent(payload.student)
+
+  if (Array.isArray(payload.reports)) {
+    const clean = payload.reports
+      .filter((report) => report && typeof report === 'object' && typeof report.id === 'string' && typeof report.content === 'string')
+      .map((report) => ({
+        id: report.id,
+        name: String(report.name || t('report.default_name', { n: 1 })),
+        content: report.content,
+        learning: !!report.learning,
+        created: Number(report.created) || Date.now(),
+        modified: Number(report.modified) || Date.now(),
+      }))
+    if (clean.length) {
+      reports.splice(0, reports.length, ...clean)
+      openReportIds.splice(0, openReportIds.length)
+      store.activeReportId = null
+    }
+  }
+
+  if (Array.isArray(payload.captures)) {
+    const clean = payload.captures
+      .filter((capture) => capture && typeof capture === 'object' && typeof capture.id === 'string' && typeof capture.dataUrl === 'string')
+      .map((capture) => ({
+        id: capture.id,
+        name: String(capture.name || capture.id),
+        dataUrl: capture.dataUrl,
+        created: Number(capture.created) || Date.now(),
+      }))
+    captures.splice(0, captures.length, ...clean)
+  }
+
+  if (Array.isArray(payload.tabs) && payload.tabs.length) {
+    const clean = payload.tabs.filter((tab) => tab && typeof tab.code === 'string')
+    if (clean.length) {
+      const tabs = clean.map((tab, i) => ({
+        id: 't' + (i + 1),
+        name: normalizeFileName(tab.name || `script_${i + 1}.py`),
+        code: tab.code,
+        baseline: typeof tab.baseline === 'string' ? tab.baseline : tab.code,
+        open: tab.open !== false,
+      }))
+      store.tabs.splice(0, store.tabs.length, ...tabs)
+      const first = tabs.find((tab) => tab.open !== false) || tabs[0]
+      loadTab(first)
+      saveNow()
+    }
+  }
+
+  return true
+}
+
 function awardActivity(activity, ctx) {
   const stars = starsFor(activity, ctx)
   const info = completeActivity(activity, { stars, evidence: ctx.evidence }, stars)
@@ -1068,10 +1155,17 @@ export function createLearningReport() {
     stars: t('learn.report.stars'),
     xp: t('learn.report.xp'),
   }
+  ensureStudent()
   const report = {
     id: 'rpt_' + Date.now(),
     name: t('learn.report.name'),
-    content: buildLearningReport({ labels, rows, captures: captures.slice(0, 3) }),
+    content: buildLearningReport({
+      labels,
+      rows,
+      captures: captures.slice(0, 3),
+      studentName: student.name || student.id,
+      groupName: student.group,
+    }),
     learning: true,
     created: Date.now(),
     modified: Date.now(),

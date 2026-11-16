@@ -314,3 +314,168 @@ test('progress export/import round-trips and rejects malformed files', async () 
 
   resetProgress()
 })
+
+// ---------------------------------------------------------------------------
+// Phase 5: contextual activities, fleet goals, identity and protected bundles.
+// ---------------------------------------------------------------------------
+test('phase 5 goals cover ordered visits, fleet coverage and area coverage', () => {
+  const stops = [
+    { x: 2, y: 2 }, { x: 5, y: 9 }, { x: 10, y: 2 }, { x: 15, y: 9 },
+  ]
+  const route = { x: 2, y: 2 }
+  const delivery = {
+    evidence: {
+      trail: [
+        route, { x: 5, y: 9 }, { x: 10, y: 2 }, { x: 15, y: 9 }, { x: 18, y: 4 },
+      ],
+    },
+  }
+  assert.equal(checkGoal({ kind: 'visit_points', points: stops }, delivery), true)
+  assert.equal(checkGoal({ kind: 'visit_points', points: [...stops].reverse() }, delivery), false)
+  assert.equal(checkGoal({ kind: 'visit_points', points: [...stops, { x: 9, y: 9 }] }, delivery), false)
+  assert.equal(checkGoal({ kind: 'visit_points', points: [] }, delivery), false)
+
+  // Each station only needs one visit; two robots split the route.
+  const fleet = {
+    evidence: {
+      trails: [
+        [{ x: 4, y: 2 }, { x: 4, y: 6 }, { x: 2, y: 8 }],
+        [{ x: 12, y: 6 }, { x: 15, y: 9 }],
+      ],
+    },
+  }
+  assert.equal(checkGoal({
+    kind: 'points_covered',
+    tolerance: 0.6,
+    points: [{ x: 4, y: 2 }, { x: 4, y: 6 }, { x: 2, y: 8 }, { x: 12, y: 6 }, { x: 15, y: 9 }],
+  }, fleet), true)
+  assert.equal(checkGoal({ kind: 'points_covered', points: [{ x: 9, y: 9 }] }, fleet), false)
+  assert.equal(checkGoal({ kind: 'points_covered', points: [] }, fleet), false)
+
+  // Robot i must reach targets[i].
+  const drones = {
+    evidence: {
+      trails: [
+        [{ x: 2, y: 2 }, { x: 8, y: 4 }],
+        [{ x: 2, y: 10 }, { x: 8, y: 8 }],
+        [{ x: 18, y: 2 }, { x: 12, y: 4 }],
+        [{ x: 18, y: 10 }, { x: 12, y: 8 }],
+      ],
+    },
+  }
+  const targets = [
+    { x: 8, y: 4, tolerance: 0.6 }, { x: 8, y: 8, tolerance: 0.6 },
+    { x: 12, y: 4, tolerance: 0.6 }, { x: 12, y: 8, tolerance: 0.6 },
+  ]
+  assert.equal(checkGoal({ kind: 'robot_reach', targets }, drones), true)
+  assert.equal(checkGoal({ kind: 'robot_reach', targets: [...targets].reverse() }, drones), false)
+  assert.equal(checkGoal({ kind: 'robot_reach', targets: targets.slice(0, 2) }, drones), true)
+  assert.equal(checkGoal({ kind: 'robot_reach', targets: [] }, drones), false)
+
+  // Coverage counts the arena cells touched by the trail.
+  const grid = []
+  for (let x = 0.5; x < 20; x += 1) {
+    for (let y = 0.5; y < 12; y += 1) grid.push({ x, y })
+  }
+  const covered = { evidence: { trail: grid } }
+  assert.equal(checkGoal({ kind: 'coverage_min', width: 20, height: 12, cell: 1, value: 1 }, covered), true)
+  assert.equal(checkGoal({ kind: 'coverage_min', width: 20, height: 12, cell: 1, value: 0.5 }, { evidence: { trail: grid.slice(0, 100) } }), false)
+  assert.equal(checkGoal({ kind: 'coverage_min', width: 20, height: 12, cell: 1, value: 0.5 }, { evidence: { trail: [] } }), false)
+})
+
+test('phase 5 achievements require the contextual activities', () => {
+  const byId = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]))
+  assert.deepEqual(byId.logistica.requires, ['planejamento-armazem', 'cobertura-agricola', 'replanejamento'])
+  assert.deepEqual(byId.dados.requires, ['python-telemetria', 'python-diario', 'python-supervisor', 'python-lidar-listas'])
+  assert.ok(byId.automacao.requires.includes('enxame-inventario'))
+  assert.ok(byId.automacao.requires.includes('formacao-drones'))
+  for (const id of [
+    'patrulha-armazem', 'python-telemetria', 'cinematica-rodas', 'estacionar-doca',
+    'faixa-adaptativa', 'apf-tunel', 'planejamento-armazem', 'enxame-inventario',
+    'projeto-entrega',
+  ]) {
+    assert.ok(activityById(id), `missing contextual activity: ${id}`)
+  }
+  for (const achievement of ACHIEVEMENTS) {
+    assert.ok(achievement.labelKey, `${achievement.id} sem labelKey`)
+    for (const id of achievement.requires) assert.ok(activityById(id), `${achievement.id}: ${id}`)
+  }
+})
+
+test('local student identity generates readable ids and survives a reset', async () => {
+  const identity = await import('../../src/learning/identity.js')
+  const pattern = /^HB-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$/
+  assert.match(identity.generateStudentId(), pattern)
+  assert.equal(identity.generateStudentId().length, 'HB-AAAA-AAAA'.length)
+
+  identity.resetStudent()
+  const created = identity.ensureStudent()
+  assert.match(created.id, pattern)
+  identity.setStudentName('  Ana  ')
+  identity.setStudentGroup('  Turma A  ')
+  assert.equal(created.name, 'Ana')
+  assert.equal(created.group, 'Turma A')
+  assert.equal(identity.applyStudent({ id: 'HB-AAAA-BBBB', name: 'Bia', group: 'B' }), true)
+  assert.equal(identity.student.id, 'HB-AAAA-BBBB')
+  assert.equal(identity.applyStudent({}), false)
+  assert.equal(identity.applyStudent({ id: '   ' }), false)
+
+  const kept = identity.student.id
+  identity.resetStudent()
+  assert.equal(identity.student.id, '')
+  identity.ensureStudent()
+  assert.match(identity.student.id, pattern)
+  assert.notEqual(identity.student.id, kept)
+  identity.resetStudent()
+})
+
+test('protected bundles encrypt the payload and reject a wrong password', async () => {
+  const bundle = await import('../../src/learning/bundle.js')
+  const payload = {
+    app: 'hivebr',
+    student: { id: 'HB-AAAA-BBBB', name: 'Ana' },
+    progress: { v: 1, xp: 42, activities: { a: { done: true, stars: 3 } } },
+  }
+
+  const plain = await bundle.encodeBundle(payload)
+  const plainInfo = bundle.inspectBundle(plain)
+  assert.equal(plainInfo.bundle, true)
+  assert.equal(plainInfo.encrypted, false)
+  assert.equal(plainInfo.version, 2)
+  assert.deepEqual(await bundle.decodeBundle(plain), payload)
+
+  const secret = await bundle.encodeBundle(payload, 'segredo')
+  const secretInfo = bundle.inspectBundle(secret)
+  assert.equal(secretInfo.bundle, true)
+  assert.equal(secretInfo.encrypted, true)
+  assert.equal(secretInfo.payload, null)
+  const envelope = JSON.parse(secret)
+  assert.equal(envelope.format, 'hivebr-progress')
+  assert.equal(envelope.v, 2)
+  assert.equal(envelope.crypto.alg, 'AES-GCM')
+  assert.equal(envelope.crypto.kdf, 'PBKDF2-SHA256')
+  assert.ok(envelope.crypto.salt && envelope.crypto.iv)
+  assert.deepEqual(await bundle.decodeBundle(secret, 'segredo'), payload)
+  await assert.rejects(bundle.decodeBundle(secret, 'errada'), /wrong-password/)
+  await assert.rejects(bundle.decodeBundle(secret), /password-required/)
+
+  // v1 files (plain progress at the top level) still decode.
+  assert.deepEqual(await bundle.decodeBundle(JSON.stringify(payload)), payload)
+  assert.equal(bundle.inspectBundle('not json'), null)
+  assert.equal(bundle.inspectBundle('[]'), null)
+})
+
+test('xp thresholds match the expanded curriculum', async () => {
+  const { XP_THRESHOLDS, levelForXp, xpForLevel } = await import('../../src/learning/progress.js')
+  assert.deepEqual(XP_THRESHOLDS, [0, 300, 800, 1500])
+  assert.equal(levelForXp(0), 1)
+  assert.equal(levelForXp(299), 1)
+  assert.equal(levelForXp(300), 2)
+  assert.equal(levelForXp(799), 2)
+  assert.equal(levelForXp(800), 3)
+  assert.equal(levelForXp(1499), 3)
+  assert.equal(levelForXp(1500), 4)
+  assert.equal(xpForLevel(1), 0)
+  assert.equal(xpForLevel(4), 1500)
+  assert.equal(xpForLevel(5), null)
+})
