@@ -22,3 +22,7 @@ config/line_drawn.png
 
 # Deploy credentials: never commit
 PRIVADO-*
+
+# Local editor and tooling state
+.vscode/
+web/.vite/
