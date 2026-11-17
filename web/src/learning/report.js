@@ -9,15 +9,20 @@
 // the final activity behaviour-based instead of a single button click.
 
 export const REPORT_MARKER = '<!-- hivebr:learning-report -->'
+// Same marker used by the IFMG template in ReportsPanel: the decorative banner
+// is expanded only for preview/export, so the Markdown source stays readable.
+export const IFMG_HEADER = '<!-- ifmg-header -->'
+export const IDENTITY_START = '<!-- hivebr:report-identity -->'
+export const IDENTITY_END = '<!-- /hivebr:report-identity -->'
 
 export const RUBRIC_DEFAULTS = {
-  // Words that are not part of the skeleton: tables, headings, images and
+  // Words that are not part of the skeleton: tables, headings, images, HTML and
   // comments are ignored, so the student must write real prose.
   minWords: 300,
-  sections: 7,
+  sections: 5,
 }
 
-/** Words in prose lines only (no headings, tables, images, comments). */
+/** Words in prose lines only (no headings, tables, images, HTML or comments). */
 export function proseWordCount(text) {
   const prose = String(text || '')
     .split(/\r?\n/)
@@ -27,7 +32,7 @@ export function proseWordCount(text) {
       if (trimmed.startsWith('#')) return false
       if (trimmed.startsWith('|')) return false
       if (trimmed.startsWith('![')) return false
-      if (trimmed.startsWith('<!--')) return false
+      if (trimmed.startsWith('<')) return false
       if (/^[-:|\s]+$/.test(trimmed)) return false
       return true
     })
@@ -55,11 +60,39 @@ function tableRow(cells) {
   return `| ${cells.join(' | ')} |`
 }
 
+function escapeHtml(text) {
+  return String(text ?? '').replace(/[&<>"']/g, (char) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]
+  ))
+}
+
 /**
- * Builds the final report skeleton.
+ * IFMG identification table. It is delimited by markers so the profile sync can
+ * rewrite only this block and keep everything the student wrote.
+ */
+function identityLines({ labels = {}, studentName = '', groupName = '', day = '' }) {
+  const label = (key) => escapeHtml(labels[key] ?? key)
+  const value = (text) => escapeHtml(text ?? '')
+  return [
+    IDENTITY_START,
+    '<table>',
+    `  <tr><td style="width:26%;color:#1e4d2e;font-weight:600;">${label('date')}</td><td>${value(day)}</td></tr>`,
+    `  <tr><td style="color:#1e4d2e;font-weight:600;">${label('professor')}</td><td>${value(labels.notInformed)}</td></tr>`,
+    `  <tr><td style="color:#1e4d2e;font-weight:600;">${label('subject')}</td><td>${value(labels.subjectValue)}</td></tr>`,
+    `  <tr><td style="color:#1e4d2e;font-weight:600;">${label('group')}</td><td>${value(groupName)}</td></tr>`,
+    `  <tr><td style="color:#1e4d2e;font-weight:600;">${label('student')}</td><td>${value(studentName)}</td></tr>`,
+    '</table>',
+    IDENTITY_END,
+  ]
+}
+
+/**
+ * Builds the final report skeleton following the IFMG academic model:
+ * institutional header, identification table and five numbered sections.
  *
- * labels: { title, identification, student, group, date, summary, activities,
- *           results, figures, difficulties, conclusion, todo, none,
+ * labels: { title, professor, subject, subjectValue, notInformed, student,
+ *           group, date, introduction, development, resultsDiscussion,
+ *           activities, results, figures, conclusion, references, todo, none,
  *           level, activity, stars, xp }
  * rows:   [{ level, track, title, stars, xp }]
  */
@@ -76,21 +109,21 @@ export function buildLearningReport({
   const day = date instanceof Date ? date.toISOString().slice(0, 10) : String(date)
 
   lines.push(REPORT_MARKER)
+  lines.push(IFMG_HEADER)
+  lines.push('')
+  lines.push(...identityLines({ labels, studentName, groupName, day }))
   lines.push('', `# ${label('title')}`, '')
 
-  lines.push(`## ${label('identification')}`, '')
-  lines.push(tableRow(['', '']))
-  lines.push(tableRow(['---', '---']))
-  lines.push(tableRow([label('student'), studentName]))
-  lines.push(tableRow([label('group'), groupName]))
-  lines.push(tableRow([label('date'), day]))
-  lines.push('')
-
-  lines.push(`## ${label('summary')}`, '')
+  lines.push(`## 1) ${label('introduction')}`, '')
   lines.push(label('todo'))
   lines.push('')
 
-  lines.push(`## ${label('activities')}`, '')
+  lines.push(`## 2) ${label('development')}`, '')
+  lines.push(label('todo'))
+  lines.push('')
+
+  lines.push(`## 3) ${label('resultsDiscussion')}`, '')
+  lines.push(`### ${label('activities')}`, '')
   lines.push(tableRow([label('level'), label('activity'), label('stars'), label('xp')]))
   lines.push(tableRow(['---:', '---', '---:', '---:']))
   for (const row of rows) {
@@ -104,7 +137,7 @@ export function buildLearningReport({
   if (!rows.length) lines.push(tableRow([label('none'), '', '', '']))
   lines.push('')
 
-  lines.push(`## ${label('results')}`, '')
+  lines.push(`### ${label('results')}`, '')
   const byTrack = new Map()
   for (const row of rows) {
     const track = row.track || label('none')
@@ -112,14 +145,14 @@ export function buildLearningReport({
     byTrack.get(track).push(row)
   }
   for (const [track, list] of byTrack) {
-    lines.push(`### ${track}`, '')
+    lines.push(`#### ${track}`, '')
     for (const row of list) lines.push(`- ${row.title} (${row.stars ?? 0}/3, ${row.xp ?? 0} XP)`)
     lines.push('')
   }
   lines.push(label('todo'))
   lines.push('')
 
-  lines.push(`## ${label('figures')}`, '')
+  lines.push(`### ${label('figures')}`, '')
   if (captures.length) {
     for (const capture of captures) {
       lines.push(`![${capture.name || capture.id}](capture:${capture.id})`)
@@ -129,11 +162,11 @@ export function buildLearningReport({
   }
   lines.push('')
 
-  lines.push(`## ${label('difficulties')}`, '')
+  lines.push(`## 4) ${label('conclusion')}`, '')
   lines.push(label('todo'))
   lines.push('')
 
-  lines.push(`## ${label('conclusion')}`, '')
+  lines.push(`## 5) ${label('references')}`, '')
   lines.push(label('todo'))
   lines.push('')
 
@@ -141,10 +174,10 @@ export function buildLearningReport({
 }
 
 /**
- * Rewrites only the identification table of an existing report, so a student
+ * Rewrites only the identification block of an existing report, so a student
  * who fixes their name or class after generating the report does not lose the
- * text they already wrote. Returns the content unchanged when the heading is
- * missing.
+ * text they already wrote. Supports the IFMG block and the old `## Identificação`
+ * heading used by reports generated before the template change.
  */
 export function updateReportIdentification(content, {
   labels = {},
@@ -153,15 +186,26 @@ export function updateReportIdentification(content, {
   date = new Date(),
 } = {}) {
   const text = String(content || '')
+  const day = date instanceof Date ? date.toISOString().slice(0, 10) : String(date)
+  const block = identityLines({ labels, studentName, groupName, day }).join('\n')
+
+  const start = text.indexOf(IDENTITY_START)
+  if (start >= 0) {
+    const end = text.indexOf(IDENTITY_END, start)
+    if (end >= 0) {
+      return text.slice(0, start) + block + text.slice(end + IDENTITY_END.length)
+    }
+  }
+
+  // Legacy report: markdown identification table under its own heading.
   const label = (key) => String(labels[key] ?? key)
   const heading = `## ${label('identification')}`
-  const start = text.indexOf(heading)
-  if (start < 0) return text
+  const headingAt = text.indexOf(heading)
+  if (headingAt < 0) return text
 
-  const next = text.indexOf('\n## ', start + heading.length)
+  const next = text.indexOf('\n## ', headingAt + heading.length)
   const end = next < 0 ? text.length : next + 1
-  const day = date instanceof Date ? date.toISOString().slice(0, 10) : String(date)
-  const block = [
+  const legacy = [
     heading,
     '',
     tableRow(['', '']),
@@ -173,5 +217,5 @@ export function updateReportIdentification(content, {
     '',
   ].join('\n')
 
-  return text.slice(0, start) + block + text.slice(end)
+  return text.slice(0, headingAt) + legacy + text.slice(end)
 }
