@@ -6,7 +6,7 @@ import { fileExtension, isPythonFile, normalizeFileName } from '../utils/fileNam
 import { defaultFigureStyle } from '../utils/figureStyle.js'
 import { learning, completeActivity, progressData, importProgressData } from '../learning/progress.js'
 import { student, ensureStudent, applyStudent } from '../learning/identity.js'
-import { activityById, trackById, ACTIVITIES } from '../learning/curriculum.js'
+import { activityById, trackById, ACTIVITIES, finalActivityForLevel } from '../learning/curriculum.js'
 import { evaluateActivity, starsFor } from '../learning/validate.js'
 import { buildLearningReport, updateReportIdentification } from '../learning/report.js'
 
@@ -1047,14 +1047,21 @@ export function applyLearningBundle(payload) {
   if (Array.isArray(payload.reports)) {
     const clean = payload.reports
       .filter((report) => report && typeof report === 'object' && typeof report.id === 'string' && typeof report.content === 'string')
-      .map((report) => ({
-        id: report.id,
-        name: String(report.name || t('report.default_name', { n: 1 })),
-        content: report.content,
-        learning: !!report.learning,
-        created: Number(report.created) || Date.now(),
-        modified: Number(report.modified) || Date.now(),
-      }))
+      .map((report) => {
+        const level = Number(report.level)
+        return {
+          id: report.id,
+          name: String(report.name || t('report.default_name', { n: 1 })),
+          content: report.content,
+          learning: !!report.learning,
+          // Old single-capstone bundles have no level/finalId; reportLevelOf()
+          // treats those learning reports as level 4.
+          ...(Number.isFinite(level) && level > 0 ? { level } : {}),
+          ...(typeof report.finalId === 'string' && report.finalId ? { finalId: report.finalId } : {}),
+          created: Number(report.created) || Date.now(),
+          modified: Number(report.modified) || Date.now(),
+        }
+      })
     if (clean.length) {
       reports.splice(0, reports.length, ...clean)
       openReportIds.splice(0, openReportIds.length)
@@ -1115,15 +1122,24 @@ function checkActiveActivity() {
   awardActivity(activity, ctx)
 }
 
-// ---- final learning report ---------------------------------------------------
-export function findLearningReport() {
-  return reports.find((report) => report.learning) || null
+// ---- final learning reports (one per level) --------------------------------
+/** Reports saved by the old single-capstone version have no `level`. */
+function reportLevelOf(report) {
+  const n = Number(report?.level)
+  return Number.isFinite(n) && n > 0 ? n : 4
+}
+
+/** Finds the learning report of a level (or the first one when level is null). */
+export function findLearningReport(level = null) {
+  const list = reports.filter((report) => report.learning)
+  if (level == null) return list[0] || null
+  return list.find((report) => reportLevelOf(report) === Number(level)) || null
 }
 
 /** Localized labels used by the report builder and by the identification sync. */
-function reportLabels() {
+function reportLabels(title = t('learn.report.title')) {
   return {
-    title: t('learn.report.title'),
+    title,
     identification: t('learn.report.identification'),
     student: t('learn.report.student'),
     group: t('learn.report.group'),
@@ -1148,16 +1164,18 @@ function reportLabels() {
  * can fix their name or class after writing the report without losing the text.
  */
 export function syncLearningReportIdentity() {
-  const report = findLearningReport()
-  if (!report) return false
+  const list = reports.filter((report) => report.learning)
+  if (!list.length) return false
   ensureStudent()
-  report.content = updateReportIdentification(report.content, {
-    labels: reportLabels(),
-    studentName: student.name || student.id,
-    groupName: student.group,
-    date: new Date(report.created || Date.now()),
-  })
-  report.modified = Date.now()
+  for (const report of list) {
+    report.content = updateReportIdentification(report.content, {
+      labels: reportLabels(),
+      studentName: student.name || student.id,
+      groupName: student.group,
+      date: new Date(report.created || Date.now()),
+    })
+    report.modified = Date.now()
+  }
   return true
 }
 
@@ -1166,15 +1184,20 @@ watch(
   () => { syncLearningReportIdentity() },
 )
 
-/** Creates (or reopens) the final report skeleton and opens the reports panel. */
-export function createLearningReport() {
-  const existing = findLearningReport()
+/**
+ * Creates (or reopens) the final report skeleton of a level and opens the
+ * reports panel. Each level has its own report, so a student can submit one
+ * project per level without overwriting the previous one.
+ */
+export function createLearningReport(level = 4) {
+  const n = Number(level) || 4
+  const existing = findLearningReport(n)
   if (existing) {
     openReport(existing.id)
     return { report: existing, created: false }
   }
   const rows = ACTIVITIES
-    .filter((activity) => learning.activities[activity.id]?.done)
+    .filter((activity) => activity.level === n && learning.activities[activity.id]?.done)
     .map((activity) => ({
       level: activity.level,
       track: t(trackById(activity.track).titleKey),
@@ -1182,11 +1205,11 @@ export function createLearningReport() {
       stars: learning.activities[activity.id]?.stars ?? 0,
       xp: activity.xp,
     }))
-  const labels = reportLabels()
+  const labels = reportLabels(t('learn.report.title_level', { n }))
   ensureStudent()
   const report = {
-    id: 'rpt_' + Date.now(),
-    name: t('learn.report.name'),
+    id: `rpt_${Date.now()}_${n}`,
+    name: t('learn.report.name_level', { n }),
     content: buildLearningReport({
       labels,
       rows,
@@ -1195,6 +1218,8 @@ export function createLearningReport() {
       groupName: student.group,
     }),
     learning: true,
+    level: n,
+    finalId: finalActivityForLevel(n)?.id ?? null,
     created: Date.now(),
     modified: Date.now(),
   }
@@ -1203,9 +1228,10 @@ export function createLearningReport() {
   return { report, created: true }
 }
 
-/** Validates the saved report and completes the capstone activity. */
-export function submitLearningReport() {
-  const activity = activityById('relatorio-final')
+/** Validates the saved report of a level and completes its final project. */
+export function submitLearningReport(level = 4) {
+  const n = Number(level) || 4
+  const activity = finalActivityForLevel(n)
   if (!activity) return { ok: false, results: [] }
   const ctx = learningContext()
   const evaluation = evaluateActivity(activity, ctx)

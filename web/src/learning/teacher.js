@@ -9,7 +9,7 @@
 // student progress, so a teacher can use the same browser without mixing data.
 
 import { reactive } from 'vue'
-import { ACTIVITIES, activityById } from './curriculum.js'
+import { ACTIVITIES, FINAL_ACTIVITIES, finalActivityForLevel } from './curriculum.js'
 import { reportRubric } from './report.js'
 import { levelForXp } from './progress.js'
 
@@ -104,6 +104,12 @@ function sanitizeStudent(raw) {
   const id = typeof raw.id === 'string' ? raw.id.trim().slice(0, 24) : ''
   if (!id) return null
   const xp = Math.max(0, Number(raw.xp) || 0)
+  const reportTotal = clampInt(raw.reportTotal, 0, 99) || FINAL_ACTIVITIES.length
+  // Roster backups from before phase 7 only know the level 4 capstone.
+  const rawDone = raw.reportDone != null
+    ? clampInt(raw.reportDone, 0, 99)
+    : (raw.reportOk === true ? 1 : 0)
+  const reportDone = Math.min(rawDone, reportTotal)
   return {
     id,
     name: typeof raw.name === 'string' ? raw.name.trim().slice(0, 60) : '',
@@ -119,7 +125,10 @@ function sanitizeStudent(raw) {
     badges: clampInt(raw.badges, 0, 999),
     achievements: clampInt(raw.achievements, 0, 999),
     reportHas: raw.reportHas === true,
-    reportOk: raw.reportOk === true,
+    reportDone,
+    reportTotal,
+    // Complete means all four level reports pass, not just the capstone.
+    reportOk: reportTotal > 0 && reportDone >= reportTotal,
     reportWords: clampInt(raw.reportWords, 0, 999999),
     exportedAt: Number(raw.exportedAt) || 0,
     importedAt: Number(raw.importedAt) || 0,
@@ -203,14 +212,27 @@ export function summarizeProgress(progress = {}) {
   }
 }
 
-/** Summary of the final report found inside a bundle, if any. */
+/** Summary of every level report found inside a bundle. */
 export function summarizeReport(reports) {
-  const list = Array.isArray(reports) ? reports : []
-  const report = list.find((item) => item && item.learning && typeof item.content === 'string') || null
-  if (!report) return { reportHas: false, reportOk: false, reportWords: 0 }
-  const goal = activityById('relatorio-final')?.goals?.[0] || {}
-  const rubric = reportRubric(report.content, goal)
-  return { reportHas: true, reportOk: rubric.ok, reportWords: rubric.words }
+  const list = (Array.isArray(reports) ? reports : [])
+    .filter((item) => item && item.learning && typeof item.content === 'string')
+  const passed = new Set()
+  let words = 0
+  for (const report of list) {
+    const level = Number(report.level) > 0 ? Number(report.level) : 4
+    const goal = finalActivityForLevel(level)?.goals?.[0] || {}
+    const rubric = reportRubric(report.content, goal)
+    words += rubric.words
+    if (rubric.ok) passed.add(level)
+  }
+  const reportTotal = FINAL_ACTIVITIES.length
+  return {
+    reportHas: list.length > 0,
+    reportDone: passed.size,
+    reportTotal,
+    reportOk: reportTotal > 0 && passed.size >= reportTotal,
+    reportWords: words,
+  }
 }
 
 /**
@@ -361,11 +383,12 @@ function day(value) {
   }
 }
 
-function fieldValue(entry, field, texts) {
+function fieldValue(entry, field) {
   switch (field) {
     case 'activities': return `${entry.done}/${entry.total}`
     case 'required': return `${entry.requiredDone}/${entry.requiredTotal}`
-    case 'report': return entry.reportOk ? texts.yes : texts.no
+    case 'report': return `${entry.reportDone ?? 0}/${entry.reportTotal ?? 0}`
+    case 'words': return entry.reportWords ?? 0
     case 'exportedAt':
     case 'importedAt': return day(entry[field])
     default: return entry[field] ?? ''
@@ -373,14 +396,13 @@ function fieldValue(entry, field, texts) {
 }
 
 /**
- * Class sheet as CSV. `headers` maps ROSTER_FIELDS to localized labels and
- * `texts` carries the localized yes/no used for the report column.
+ * Class sheet as CSV. `headers` maps ROSTER_FIELDS to localized labels.
  */
-export function rosterCsv(entries = teacher.students, { headers = {}, yes = 'yes', no = 'no' } = {}) {
+export function rosterCsv(entries = teacher.students, { headers = {} } = {}) {
   const head = ROSTER_FIELDS.map((field) => csvCell(headers[field] ?? field))
   const lines = [head.join(';')]
   for (const entry of entries) {
-    lines.push(ROSTER_FIELDS.map((field) => csvCell(fieldValue(entry, field, { yes, no }))).join(';'))
+    lines.push(ROSTER_FIELDS.map((field) => csvCell(fieldValue(entry, field))).join(';'))
   }
   // BOM + CRLF so Excel opens the accents correctly.
   return '\ufeff' + lines.join('\r\n') + '\r\n'

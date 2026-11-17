@@ -291,8 +291,9 @@ await test('student profile is local, readable and kept when progress is reset',
 
 await test('final report fails the rubric, then passes after the student writes it', async () => {
   await openLearning()
-  const final = learningModal.locator('.final')
-  check(await final.count() === 1, 'final project section is missing')
+  const finals = learningModal.locator('.final')
+  check(await finals.count() === 4, `expected one final project per level: ${await finals.count()}/4`)
+  const final = learningModal.locator('.final[data-activity-id="relatorio-final"]')
   check(await final.getByRole('button', { name: 'Submeter para avaliação' }).isDisabled(), 'submit must be disabled before the report is written')
 
   await final.getByRole('button', { name: /Gerar relatório/ }).click()
@@ -308,16 +309,16 @@ await test('final report fails the rubric, then passes after the student writes 
   await sleep(300)
 
   await openLearning()
-  const okChecks = learningModal.locator('.final .rubric li.ok')
+  const okChecks = learningModal.locator('.final[data-activity-id="relatorio-final"] .rubric li.ok')
   check(await okChecks.count() === 4, `rubric not satisfied after writing: ${await okChecks.count()}/4`)
   const before = await progress()
-  await learningModal.locator('.final').getByRole('button', { name: 'Submeter para avaliação' }).click()
+  await final.getByRole('button', { name: 'Submeter para avaliação' }).click()
   await learningModal.waitFor({ state: 'detached' })
   await sleep(300)
   const after = await progress()
   check(after.activities?.['relatorio-final']?.done === true, 'capstone activity was not completed')
   check(after.badges?.includes('relatorio'), 'report badge was not awarded')
-  check(after.xp === before.xp + 150, `capstone XP missing: ${before.xp} -> ${after.xp}`)
+  check(after.xp === before.xp + 180, `capstone XP missing: ${before.xp} -> ${after.xp}`)
   await page.screenshot({ path: path.join(SHOTS, 'final-report.png') })
 })
 
@@ -477,7 +478,7 @@ await test('changing the class updates the report identification in place', asyn
   }
   const editor = page.locator('textarea.md-editor')
   if (!(await editor.isVisible().catch(() => false))) {
-    const saved = panel.locator('.saved-row').filter({ hasText: 'relatorio_final' })
+    const saved = panel.locator('.saved-row').filter({ hasText: 'relatorio_nivel_4' })
     await saved.locator('button').first().click()
   }
   await editor.waitFor()
@@ -509,7 +510,7 @@ await test('teacher mode sets a keyword, imports a bundle and exports the class 
   check((await rows.count()) === 1, 'the student bundle was not imported into the roster')
   const rowText = (await rows.first().innerText()).replace(/\s+/g, ' ')
   check(rowText.includes('Ana Silva') && rowText.includes('Turma A'), `roster row is wrong: ${rowText}`)
-  check(rowText.includes('Completo'), `roster row should show the completed report: ${rowText}`)
+  check(rowText.includes('Incompleto') && rowText.includes('1/4'), `roster row should show the partial report count: ${rowText}`)
   // The import must not touch the local student progress.
   check((await progress()).xp === beforeXp, 'teacher import changed the local progress')
 
@@ -523,7 +524,7 @@ await test('teacher mode sets a keyword, imports a bundle and exports the class 
   check(csv.startsWith('\ufeff'), 'the class sheet must start with a UTF-8 BOM')
   check(csv.includes('Identificador;Aluno;Turma;XP'), `CSV header is not localized: ${csv.slice(0, 120)}`)
   check(csv.includes('Ana Silva') && csv.includes('HB-'), 'CSV lost the student row')
-  check(csv.includes(';sim;'), 'CSV should localize the report column')
+  check(csv.includes(';1/4;'), 'CSV should count the completed level reports')
   await page.screenshot({ path: path.join(SHOTS, 'teacher.png') })
 })
 
@@ -550,6 +551,37 @@ await test('teacher panel locks on exit and only unlocks with the keyword', asyn
   await page.screenshot({ path: path.join(SHOTS, 'teacher-unlocked.png') })
   await locked.getByRole('button', { name: 'Fechar' }).click()
   await locked.waitFor({ state: 'detached' })
+})
+
+await test('each level submits its own report without overwriting the previous one', async () => {
+  await openLearning()
+  const final1 = learningModal.locator('.final[data-activity-id="projeto-final-1"]')
+  check(await final1.count() === 1, 'level 1 final project section is missing')
+  check(await final1.getByRole('button', { name: 'Submeter para avaliação' }).isDisabled(), 'level 1 submit must start disabled')
+
+  await final1.getByRole('button', { name: /Gerar relatório/ }).click()
+  await learningModal.waitFor({ state: 'detached' })
+  const editor = page.locator('textarea.md-editor')
+  await editor.waitFor()
+  const skeleton = await editor.inputValue()
+  check(skeleton.includes('Relatório final — Nível 1'), `level 1 report title is wrong: ${skeleton.slice(0, 80)}`)
+  const prose = 'Este projeto descreve a atividade do nível um e os resultados obtidos. '.repeat(25)
+  await editor.fill(skeleton.split('TODO: escreva aqui.').join(prose))
+  await sleep(300)
+
+  await openLearning()
+  const okChecks = learningModal.locator('.final[data-activity-id="projeto-final-1"] .rubric li.ok')
+  check(await okChecks.count() === 4, `level 1 rubric not satisfied: ${await okChecks.count()}/4`)
+  const before = await progress()
+  await learningModal.locator('.final[data-activity-id="projeto-final-1"]')
+    .getByRole('button', { name: 'Submeter para avaliação' }).click()
+  await learningModal.waitFor({ state: 'detached' })
+  await sleep(300)
+  const after = await progress()
+  check(after.activities?.['projeto-final-1']?.done === true, 'level 1 final project was not completed')
+  check(after.badges?.includes('projeto1'), 'level 1 project badge was not awarded')
+  check(after.xp === before.xp + 120, `level 1 project XP missing: ${before.xp} -> ${after.xp}`)
+  check(after.activities?.['relatorio-final']?.done === true, 'the level 4 report was overwritten')
 })
 
 // ------------------------------------------------------------------ summary

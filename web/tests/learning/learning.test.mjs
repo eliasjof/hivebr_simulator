@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 
 import {
   ACTIVITIES, ACHIEVEMENTS, LEVELS, TRACKS, LEVEL_IDS,
-  activitiesForLevel, activityById, trackById,
+  FINAL_ACTIVITIES, activitiesForLevel, activityById, trackById, finalActivityForLevel,
 } from '../../src/learning/curriculum.js'
 import {
   GOAL_CHECKS, checkGoal, evaluateActivity, starsFor, trailLength, trailMinDistance,
@@ -262,20 +262,43 @@ test('proseWordCount ignores headings, tables, images and comments', () => {
   assert.equal(proseWordCount(text), 3)
 })
 
-test('the capstone activity validates the saved report', () => {
-  const final = activityById('relatorio-final')
-  assert.ok(final, 'missing capstone activity')
-  assert.equal(final.final, true)
-  assert.equal(final.exampleId, null)
-  assert.equal(final.level, 4)
-  assert.equal(final.goals[0].kind, 'report_rubric')
-  assert.ok(final.badgeKey)
+test('each level has a final project with its own report rubric', () => {
+  assert.equal(FINAL_ACTIVITIES.length, LEVELS.length)
+  assert.deepEqual(FINAL_ACTIVITIES.map((activity) => activity.level), [1, 2, 3, 4])
+
+  const expected = [
+    ['projeto-final-1', 120, 150],
+    ['projeto-final-2', 140, 200],
+    ['projeto-final-3', 160, 250],
+    ['relatorio-final', 180, 300],
+  ]
+  for (const [id, xp, minWords] of expected) {
+    const final = finalActivityForLevel(Number(id.slice(-1)) || 4)
+    assert.ok(final, `missing final project for ${id}`)
+    assert.equal(final.id, id)
+    assert.equal(final.final, true)
+    assert.equal(final.exampleId, null)
+    assert.equal(final.xp, xp)
+    assert.equal(final.goals[0].kind, 'report_rubric')
+    assert.equal(final.goals[0].minWords, minWords)
+    assert.equal(final.goals[0].sections, 7)
+    assert.ok(final.badgeKey)
+  }
+  assert.equal(finalActivityForLevel(1).goals[0].level, 1)
+  assert.equal(activityById('relatorio-final').level, 4)
 
   const content = buildLearningReport({ labels: LABELS, rows: ROWS })
     .replaceAll(LABELS.todo, Array.from({ length: 80 }, (_, i) => `texto${i}`).join(' '))
   assert.equal(checkGoal({ kind: 'report_rubric', minWords: 100, sections: 7 }, { reports: [] }), false)
   assert.equal(checkGoal({ kind: 'report_rubric', minWords: 100, sections: 7 }, { reports: [{ content }] }), true)
   assert.equal(checkGoal({ kind: 'report_rubric', minWords: 100, sections: 7 }, { reports: [{ content: 'curto' }] }), false)
+
+  // A level-scoped rubric only accepts that level's learning report.
+  const scoped = { kind: 'report_rubric', level: 1, minWords: 100, sections: 7 }
+  assert.equal(checkGoal(scoped, { reports: [{ learning: true, level: 1, content }] }), true)
+  assert.equal(checkGoal(scoped, { reports: [{ learning: true, level: 2, content }] }), false)
+  assert.equal(checkGoal(scoped, { reports: [{ learning: true, content }] }), false, 'legacy report is level 4')
+  assert.equal(checkGoal({ ...scoped, level: 4 }, { reports: [{ learning: true, content }] }), true)
 })
 
 test('progress export/import round-trips and rejects malformed files', async () => {
@@ -511,6 +534,30 @@ test('report identification updates without touching the student text', () => {
   assert.equal(updateReportIdentification('sem cabeçalho', { labels }), 'sem cabeçalho')
 })
 
+test('teacher counts one passing report per level', async () => {
+  const teacher = await import('../../src/learning/teacher.js')
+  const prose = Array.from({ length: 350 }, (_, i) => `palavra${i}`).join(' ')
+  const content = buildLearningReport({ labels: LABELS, rows: ROWS }).replaceAll(LABELS.todo, prose)
+  const report = (level) => ({ learning: true, ...(level ? { level } : {}), content })
+
+  let summary = teacher.summarizeReport([report(1), report(2)])
+  assert.equal(summary.reportHas, true)
+  assert.equal(summary.reportDone, 2)
+  assert.equal(summary.reportTotal, 4)
+  assert.equal(summary.reportOk, false)
+  assert.ok(summary.reportWords >= 700)
+
+  // The legacy report without a level counts as level 4.
+  summary = teacher.summarizeReport([report(1), report(2), report(3), report(null)])
+  assert.equal(summary.reportDone, 4)
+  assert.equal(summary.reportOk, true)
+
+  // Two reports of the same level count once.
+  summary = teacher.summarizeReport([report(1), report(1)])
+  assert.equal(summary.reportDone, 1)
+  assert.equal(teacher.summarizeReport([]).reportTotal, 4)
+})
+
 test('teacher roster summarizes bundles, deduplicates and exports a sheet', async () => {
   const teacher = await import('../../src/learning/teacher.js')
   teacher.resetTeacher()
@@ -545,6 +592,8 @@ test('teacher roster summarizes bundles, deduplicates and exports a sheet', asyn
   assert.equal(entry.badges, 2)
   assert.equal(entry.achievements, 1)
   assert.equal(entry.reportHas, false)
+  assert.equal(entry.reportDone, 0)
+  assert.equal(entry.reportTotal, FINAL_ACTIVITIES.length)
   assert.equal(entry.reportOk, false)
   assert.equal(entry.source, 'ana.json')
 
@@ -569,8 +618,6 @@ test('teacher roster summarizes bundles, deduplicates and exports a sheet', asyn
 
   const csv = teacher.rosterCsv(teacher.teacher.students, {
     headers: { name: 'Aluno', id: 'ID', xp: 'XP' },
-    yes: 'sim',
-    no: 'não',
   })
   assert.ok(csv.startsWith('\ufeff'))
   const [head, row] = csv.slice(1).split('\r\n')
@@ -582,9 +629,9 @@ test('teacher roster summarizes bundles, deduplicates and exports a sheet', asyn
   const cells = row.split(';')
   assert.deepEqual(
     cells.slice(0, 11),
-    ['HB-AAAA-BBBB', 'Ana Souza', 'Turma A', '900', '3', '3/38', '2/30', '6', '2', '1', 'não'],
+    ['HB-AAAA-BBBB', 'Ana Souza', 'Turma A', '900', '3', `3/${ACTIVITIES.length}`, '2/30', '6', '2', '1', '0/4'],
   )
-  assert.equal(cells[11], '')
+  assert.equal(cells[11], '0')
   assert.equal(cells[12], '1970-01-01')
   // Names with the separator are quoted.
   const quoted = teacher.rosterCsv([{ ...entry, name: 'Ana; "A"', group: 'A' }], { headers: { name: 'Aluno' } })

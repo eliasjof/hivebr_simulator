@@ -192,8 +192,9 @@ async function onFiles(event) {
 }
 
 function reportLabel(entry) {
-  if (entry.reportOk) return t('teacher.report_ok')
-  if (entry.reportHas) return t('teacher.report_draft')
+  const count = `${entry.reportDone ?? 0}/${entry.reportTotal ?? 0}`
+  if (entry.reportOk) return `${t('teacher.report_ok')} (${count})`
+  if (entry.reportHas) return `${t('teacher.report_draft')} (${count})`
   return t('teacher.report_none')
 }
 
@@ -206,7 +207,7 @@ function reportClass(entry) {
 function exportCsv() {
   const headers = {}
   for (const field of ROSTER_FIELDS) headers[field] = t(COLUMN_KEYS[field])
-  const csv = rosterCsv(teacher.students, { headers, yes: t('teacher.yes'), no: t('teacher.no') })
+  const csv = rosterCsv(teacher.students, { headers })
   download(`hivebr-turma-${new Date().toISOString().slice(0, 10)}.csv`, new Blob([csv], { type: 'text/csv;charset=utf-8' }))
   toast(t('teacher.export_csv_done'))
 }

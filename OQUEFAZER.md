@@ -628,8 +628,9 @@ A Fase 5 expandiu as atividades e o backup protegido.
 
 ### Relatório final (estrutura inicial)
 
-A atividade `relatorio-final` (nível 4, trilha `projeto`, 150 XP, medalha
-📝 Relatorista) não carrega exemplo: ela gera `relatorio_final.md` no painel de
+A atividade `relatorio-final` (nível 4, trilha `projeto`, 150 XP naquela rodada,
+medalha 📝 Relatorista; na Fase 7 ela passou a 180 XP e ganhou um projeto
+equivalente em cada nível) não carrega exemplo: ela gera um `.md` no painel de
 relatórios com sete seções e marcadores `TODO`:
 
 1. Identificação (aluno, turma, data);
@@ -790,6 +791,60 @@ Status: **concluída e validada** nesta rodada.
 - Permanecem as falhas Python antigas de paridade PT/EN em `line_follower.py`,
   `multi_line_follower.py` e `seguidor_de_linha.py`, sem relação com esta fase.
 
+## Fase 7 — Um projeto final por nível
+
+Status: **concluída e validada** nesta rodada.
+
+### Currículo
+
+- Cada nível passou a ter o próprio projeto final, todos sem exemplo para
+  carregar: o modal gera o esqueleto do relatório daquele nível.
+- `FINAL_ACTIVITIES` e `finalActivityForLevel(level)` concentram a lista:
+
+| Nível | Atividade | XP | Medalha | Palavras |
+|---|---|---:|---|---:|
+| 1 | `projeto-final-1` | 120 | 🧪 Projeto I | 150 |
+| 2 | `projeto-final-2` | 140 | 🧭 Projeto II | 200 |
+| 3 | `projeto-final-3` | 160 | 🤖 Projeto III | 250 |
+| 4 | `relatorio-final` | 180 | 📝 Relatorista IV | 300 |
+
+- O id `relatorio-final` foi mantido no nível 4 por compatibilidade; relatórios
+  antigos sem `level` continuam tratados como nível 4.
+- As atividades finais ficam fora das obrigatórias (`required`), então o total
+  obrigatório continua 30 mesmo com 41 atividades no currículo.
+
+### Relatórios por nível
+
+- `createLearningReport(level)` gera `relatorio_nivel_{n}.md`, com título do
+  nível e apenas as atividades concluídas daquele nível.
+- Cada relatório guarda `level` e `finalId`; o bundle preserva os dois campos.
+- `findLearningReport(level)` e `syncLearningReportIdentity()` percorrem todos
+  os relatórios, então mudar nome/turma atualiza cada um sem perder o texto.
+- A rubrica `report_rubric` com `level` só aceita o relatório de aprendizagem
+  daquele nível; sem `level`, mantém o comportamento antigo dos testes.
+- O modal Aprender mostra um bloco de projeto final dentro de cada nível, com
+  rubrica, contagem de palavras e botões de gerar/abrir e submeter próprios.
+
+### Modo professor
+
+- O resumo do aluno agora conta `reportDone/reportTotal` (relatórios de nível
+  aprovados); `reportOk` só é verdadeiro com os quatro relatórios completos.
+- A planilha CSV mostra a coluna de relatório como `aprovados/total` e a coluna
+  de palavras soma todos os relatórios.
+- As chaves `teacher.yes`/`teacher.no` foram removidas.
+
+### Validação da Fase 7
+
+- `node --test "tests/**/*.test.mjs"`: 54/54, incluindo os quatro projetos
+  finais, a rubrica limitada por nível e a contagem de relatórios da turma.
+- `npx vite build`: concluído (apenas os avisos antigos de chunk/dynamic import).
+- `node tests/e2e/learning.e2e.mjs`: 16/16, incluindo a submissão do relatório
+  do nível 4 (+180 XP), a criação/submissão do relatório do nível 1 (+120 XP,
+  🧪 Projeto I) sem sobrescrever o anterior e a planilha com `1/4`.
+- `python web/python/tests/run_all.py test_templates`: 1/3; permanecem apenas
+  as duas falhas antigas de PT/EN (`line_follower.py` e
+  `seguidor_de_linha.py`), sem relação com esta fase.
+
 ## Riscos e cuidados
 
 1. **Progresso local**: pode ser perdido ao limpar o navegador; exportar/importar resolve.
@@ -834,11 +889,12 @@ Registro histórico da rodada anterior; a validação da Fase 3 está na seção
 
 ## Estado atual do repositório
 
-Fases 1–6 concluídas e validadas. A Fase 5 expandiu o currículo com atividades
+Fases 1–7 concluídas e validadas. A Fase 5 expandiu o currículo com atividades
 contextuais, identidade local e bundles de progresso protegidos; a Fase 6
 adicionou o perfil visível (nome/turma), a sincronização do relatório e o modo
-professor local com planilha da turma. O backend opcional e o refinamento do
-conteúdo do relatório final continuam como próximos passos.
+professor local com planilha da turma; a Fase 7 deu um projeto final com
+relatório próprio a cada nível. O backend opcional e o refinamento do conteúdo
+das seções dos relatórios continuam como próximos passos.
 
 Arquivos principais:
 
@@ -858,7 +914,7 @@ Pendências conhecidas:
 
 - o backend opcional de acompanhamento de turma e a nota oficial continuam para
   a próxima etapa; o modo professor atual é local e contornável;
-- o conteúdo de cada seção do relatório final será refinado com a turma;
+- o conteúdo de cada seção dos relatórios por nível será refinado com a turma;
 - seis testes Python antigos falham por diferenças de ambiente, sem relação com
   os templates ou o currículo desta fase;
 - a suíte e2e completa continua instável neste ambiente; o teste focado
@@ -866,16 +922,17 @@ Pendências conhecidas:
 
 Próximos passos:
 
-1. Refinar o conteúdo de cada seção do relatório final com a turma.
+1. Refinar o conteúdo de cada seção dos relatórios por nível com a turma.
 2. Avaliar um backend opcional para nota oficial e sincronização da turma.
 3. Revisar as atividades abertas/avançadas restantes.
 
 ### Emojis de medalhas e conquistas
 
-Todas as 38 medalhas e as 5 conquistas agregadas têm emoji no rótulo i18n
+Todas as 41 medalhas e as 5 conquistas agregadas têm emoji no rótulo i18n
 (PT e EN), então o emoji aparece tanto no chip da medalha quanto no toast.
-A medalha do relatório final (📝 Relatorista) foi incluída na Fase 4 e as
-medalhas contextuais (🚚, 📊, 🏭, entre outras) na Fase 5:
+A medalha do relatório final (📝 Relatorista IV) e as dos projetos de nível
+(🧪, 🧭 e 🤖) foram incluídas nas Fases 4 e 7; as medalhas contextuais (🚚, 📊,
+🏭, entre outras) entraram na Fase 5:
 
 | Chave | Emoji | Chave | Emoji |
 |---|---|---|---|
@@ -889,4 +946,6 @@ medalhas contextuais (🚚, 📊, 🏭, entre outras) na Fase 5:
 | `bfs` | 🗺️ | `astar` | ⭐ |
 | `rrt` | 🌳 | `rrt_star` | ✨ |
 | `curvas` | 〰️ | `relatorio` | 📝 |
-| `planejador` | 🧠 | `mestre` | 🏆 |
+| `projeto1` | 🧪 | `projeto2` | 🧭 |
+| `projeto3` | 🤖 | `planejador` | 🧠 |
+| `mestre` | 🏆 | | |

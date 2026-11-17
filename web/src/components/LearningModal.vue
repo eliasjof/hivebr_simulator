@@ -8,7 +8,7 @@ import {
   learningBundlePayload, applyLearningBundle,
 } from '../state/store.js'
 import { t } from '../i18n/index.js'
-import { LEVELS, ACTIVITIES, ACHIEVEMENTS, activitiesForLevel, activityById, trackById } from '../learning/curriculum.js'
+import { LEVELS, ACTIVITIES, ACHIEVEMENTS, activitiesForLevel, activityById, trackById, finalActivityForLevel } from '../learning/curriculum.js'
 import {
   learning, levelForXp, xpForLevel, isActivityDone, activityStars,
   hasBadge, hasAchievement, setActiveActivity, resetProgress,
@@ -52,12 +52,24 @@ const stats = computed(() => {
 
 const activeActivity = computed(() => activityById(learning.activeId))
 
-// ---- final report ----
-const finalActivity = computed(() => activityById('relatorio-final'))
-const finalDone = computed(() => !!finalActivity.value && isActivityDone(finalActivity.value.id))
-const finalGoal = computed(() => finalActivity.value?.goals?.[0] || {})
-const learningReport = computed(() => findLearningReport())
-const finalRubric = computed(() => reportRubric(learningReport.value?.content || '', finalGoal.value))
+// ---- final projects (one per level) ----
+const finals = computed(() => {
+  const out = {}
+  for (const lv of LEVELS) {
+    const activity = finalActivityForLevel(lv.id)
+    if (!activity) continue
+    const goal = activity.goals?.[0] || {}
+    const report = findLearningReport(lv.id)
+    out[lv.id] = {
+      activity,
+      goal,
+      report,
+      done: isActivityDone(activity.id),
+      rubric: reportRubric(report?.content || '', goal),
+    }
+  }
+  return out
+})
 const importInput = ref(null)
 const CHECK_KEYS = {
   marker: 'learn.report.check.marker',
@@ -65,11 +77,11 @@ const CHECK_KEYS = {
   words: 'learn.report.check.words',
   no_todo: 'learn.report.check.no_todo',
 }
-function checkText(check) {
+function checkText(check, goal = {}) {
   const key = CHECK_KEYS[check.id]
   if (!key) return check.id
   return t(key, {
-    n: check.id === 'sections' ? (finalGoal.value.sections ?? 7) : (finalGoal.value.minWords ?? 300),
+    n: check.id === 'sections' ? (goal.sections ?? 7) : (goal.minWords ?? 300),
   })
 }
 
@@ -131,6 +143,8 @@ function goalText(goal) {
     n: goal.n ?? goal.points?.length ?? goal.targets?.length ?? 1,
     tolerance: goal.tolerance ?? 0.4,
     percent: Math.round((Number(goal.value) || 0) * 100),
+    sections: goal.sections ?? 7,
+    words: goal.minWords ?? 300,
   })
 }
 
@@ -139,9 +153,13 @@ function trackLabel(activity) {
   return track ? t(track.titleKey) : ''
 }
 
+function regularActivities(levelId) {
+  return activitiesForLevel(levelId).filter((activity) => !activity.final)
+}
+
 async function start(activity) {
   if (activity.final) {
-    createLearningReport()
+    createLearningReport(activity.level)
     setActiveActivity(activity.id)
     store.modals.learning = false
     return
@@ -165,14 +183,14 @@ async function reset() {
   if (ok) resetProgress()
 }
 
-function generateReport() {
-  const { created } = createLearningReport()
+function generateReport(levelId) {
+  const { created } = createLearningReport(levelId)
   toast(t(created ? 'learn.report.generated' : 'learn.report.exists'))
   store.modals.learning = false
 }
 
-function submitReport() {
-  const result = submitLearningReport()
+function submitReport(levelId) {
+  const result = submitLearningReport(levelId)
   if (!result.ok) {
     toast(t('learn.report.incomplete'), 'warn')
     return
@@ -363,7 +381,7 @@ async function onImportFile(event) {
       <p class="muted small summary">{{ t(lv.summaryKey) }}</p>
       <div class="bar"><i :style="{ width: stats[lv.id].pct + '%' }" /></div>
       <div class="acts">
-        <article v-for="a in activitiesForLevel(lv.id).filter((x) => !x.final)" :key="a.id" class="act" :data-activity-id="a.id">
+        <article v-for="a in regularActivities(lv.id)" :key="a.id" class="act" :data-activity-id="a.id">
           <div class="act-h">
             <b>{{ t(a.titleKey) }}</b>
             <span v-if="isActivityDone(a.id)" class="pill done"><Icon name="check" :size="12" />{{ t('learn.done') }}</span>
@@ -382,35 +400,35 @@ async function onImportFile(event) {
             <button class="btn primary sm" @click="start(a)">{{ isActivityDone(a.id) ? t('learn.continue') : t('learn.start') }}</button>
           </div>
         </article>
-        <p v-if="!activitiesForLevel(lv.id).length" class="muted small">{{ t('learn.no_activities') }}</p>
+        <p v-if="!regularActivities(lv.id).length" class="muted small">{{ t('learn.no_activities') }}</p>
       </div>
-    </section>
 
-    <section v-if="finalActivity" class="final" :data-activity-id="finalActivity.id">
-      <header class="lvl-h">
-        <h3>{{ t('learn.final') }}</h3>
-        <span v-if="finalDone" class="pill done"><Icon name="check" :size="12" />{{ t('learn.done') }}</span>
-      </header>
-      <p class="muted small summary">{{ t(finalActivity.briefKey) }}</p>
-      <div class="final-body">
-        <div class="rubric">
-          <b>{{ t('learn.report.rubric') }}</b>
-          <ul>
-            <li v-for="check in finalRubric.checks" :key="check.id" :class="{ ok: check.ok }">
-              <Icon :name="check.ok ? 'check' : 'dots'" :size="12" />{{ checkText(check) }}
-            </li>
-          </ul>
-          <span class="muted small">{{ t('learn.report.words', { n: finalRubric.words }) }}</span>
+      <section v-if="finals[lv.id]" class="final" :data-activity-id="finals[lv.id].activity.id">
+        <header class="lvl-h">
+          <h3>{{ t('learn.final') }} · {{ t(finals[lv.id].activity.titleKey) }}</h3>
+          <span v-if="finals[lv.id].done" class="pill done"><Icon name="check" :size="12" />{{ t('learn.done') }}</span>
+        </header>
+        <p class="muted small summary">{{ t(finals[lv.id].activity.briefKey) }}</p>
+        <div class="final-body">
+          <div class="rubric">
+            <b>{{ t('learn.report.rubric') }}</b>
+            <ul>
+              <li v-for="check in finals[lv.id].rubric.checks" :key="check.id" :class="{ ok: check.ok }">
+                <Icon :name="check.ok ? 'check' : 'dots'" :size="12" />{{ checkText(check, finals[lv.id].goal) }}
+              </li>
+            </ul>
+            <span class="muted small">{{ t('learn.report.words', { n: finals[lv.id].rubric.words }) }}</span>
+          </div>
+          <div class="final-actions">
+            <button class="btn ghost sm" @click="generateReport(lv.id)">
+              <Icon name="file" :size="13" />{{ t(finals[lv.id].report ? 'learn.report.open' : 'learn.report.generate') }}
+            </button>
+            <button class="btn primary sm" :disabled="finals[lv.id].done || !finals[lv.id].rubric.ok" @click="submitReport(lv.id)">
+              <Icon name="check" :size="13" />{{ t('learn.report.submit') }}
+            </button>
+          </div>
         </div>
-        <div class="final-actions">
-          <button class="btn ghost sm" @click="generateReport">
-            <Icon name="file" :size="13" />{{ t(learningReport ? 'learn.report.open' : 'learn.report.generate') }}
-          </button>
-          <button class="btn primary sm" :disabled="finalDone || !finalRubric.ok" @click="submitReport">
-            <Icon name="check" :size="13" />{{ t('learn.report.submit') }}
-          </button>
-        </div>
-      </div>
+      </section>
     </section>
 
     <section class="badges">

@@ -217,7 +217,15 @@ export const GOAL_CHECKS = {
   report_saved: (goal, ctx) => (ctx.reports?.length ?? 0) >= (goal.min ?? 1),
 
   // The final report must have every section, enough prose and no TODO left.
-  report_rubric: (goal, ctx) => (ctx.reports || []).some((report) => reportRubric(report?.content || '', goal).ok),
+  // When the goal names a level, only that level's learning report counts; the
+  // legacy capstone report (no level) is treated as level 4.
+  report_rubric: (goal, ctx) => (ctx.reports || []).some((report) => {
+    if (goal.level != null) {
+      const level = Number(report?.level) || 4
+      if (report?.learning !== true || level !== Number(goal.level)) return false
+    }
+    return reportRubric(report?.content || '', goal).ok
+  }),
 
   capture_saved: (goal, ctx) => (ctx.captures?.length ?? 0) >= (goal.min ?? 1),
 
