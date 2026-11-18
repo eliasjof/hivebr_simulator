@@ -4,13 +4,14 @@
 // i18n key, so the pt-BR/en parity test keeps both languages in sync.
 // Activities reference examples from web/src/examples/catalog.js by id.
 
-export const LEVEL_IDS = [1, 2, 3, 4]
+export const LEVEL_IDS = [1, 2, 3, 4, 5]
 
 export const LEVELS = [
   { id: 1, labelKey: 'learn.level.1', summaryKey: 'learn.level.1_summary' },
   { id: 2, labelKey: 'learn.level.2', summaryKey: 'learn.level.2_summary' },
   { id: 3, labelKey: 'learn.level.3', summaryKey: 'learn.level.3_summary' },
   { id: 4, labelKey: 'learn.level.4', summaryKey: 'learn.level.4_summary' },
+  { id: 5, labelKey: 'learn.level.5', summaryKey: 'learn.level.5_summary' },
 ]
 
 export const TRACKS = [
@@ -49,6 +50,10 @@ export const TRACKS = [
   {
     id: 'projeto', level: 4,
     titleKey: 'learn.track.projeto', summaryKey: 'learn.track.projeto_summary',
+  },
+  {
+    id: 'manipulador', level: 5,
+    titleKey: 'learn.track.manipulador', summaryKey: 'learn.track.manipulador_summary',
   },
 ]
 
@@ -874,6 +879,82 @@ export const ACTIVITIES = [
       { kind: 'time_max', value: 90 },
     ],
   },
+  // Manipulator cell, level 5: DH table, URDF, homogeneous matrices, then the
+  // conveyor integration. Each step is a separate activity so the student can
+  // be checked before writing the full pick-and-place loop.
+  {
+    id: 'scara-dh',
+    level: 5,
+    track: 'manipulador',
+    exampleId: 'scara_dh',
+    xp: 100,
+    badge: 'dh',
+    badgeKey: 'learn.badge.dh',
+    titleKey: 'learn.act.scara_dh.title',
+    briefKey: 'learn.act.scara_dh.brief',
+    hints: ['learn.act.scara_dh.hint1', 'learn.act.scara_dh.hint2'],
+    goals: [
+      { kind: 'run_ok' },
+      { kind: 'console_has', text: 'DH OK' },
+    ],
+    starGoals: [],
+  },
+  {
+    id: 'scara-urdf',
+    level: 5,
+    track: 'manipulador',
+    exampleId: 'scara_urdf',
+    xp: 110,
+    badge: 'urdf',
+    badgeKey: 'learn.badge.urdf',
+    titleKey: 'learn.act.scara_urdf.title',
+    briefKey: 'learn.act.scara_urdf.brief',
+    hints: ['learn.act.scara_urdf.hint1', 'learn.act.scara_urdf.hint2'],
+    goals: [
+      { kind: 'run_ok' },
+      { kind: 'console_has', text: 'URDF OK' },
+    ],
+    starGoals: [],
+  },
+  {
+    id: 'scara-matrizes',
+    level: 5,
+    track: 'manipulador',
+    exampleId: 'scara_matrizes',
+    xp: 120,
+    badge: 'homogeneas',
+    badgeKey: 'learn.badge.homogeneas',
+    titleKey: 'learn.act.scara_matrizes.title',
+    briefKey: 'learn.act.scara_matrizes.brief',
+    hints: ['learn.act.scara_matrizes.hint1', 'learn.act.scara_matrizes.hint2'],
+    goals: [
+      { kind: 'run_ok' },
+      { kind: 'console_has', text: 'MATRIZ OK' },
+    ],
+    starGoals: [],
+  },
+  {
+    id: 'scara-esteira',
+    level: 5,
+    track: 'manipulador',
+    exampleId: 'scara_esteira',
+    xp: 130,
+    badge: 'scara',
+    badgeKey: 'learn.badge.scara',
+    titleKey: 'learn.act.scara_esteira.title',
+    briefKey: 'learn.act.scara_esteira.brief',
+    hints: ['learn.act.scara_esteira.hint1', 'learn.act.scara_esteira.hint2'],
+    goals: [
+      { kind: 'run_ok' },
+      { kind: 'scara_placed', min: 3 },
+      { kind: 'file_exists', path: 'scara_relatorio.csv' },
+      { kind: 'console_has', text: 'SCARA OK' },
+    ],
+    starGoals: [
+      { kind: 'scara_placed', min: 6 },
+      { kind: 'code_uses', text: 'cinematica_inversa' },
+    ],
+  },
   // Final projects: one per level. They have no example to load; the learning
   // modal generates a level-specific report skeleton and the student submits it.
   {
@@ -889,7 +970,7 @@ export const ACTIVITIES = [
     briefKey: 'learn.act.projeto_final_1.brief',
     hints: ['learn.act.projeto_final_1.hint1', 'learn.act.projeto_final_1.hint2'],
     goals: [
-      { kind: 'report_rubric', level: 1, minWords: 150, sections: 7 },
+      { kind: 'report_rubric', level: 1, minWords: 150, sections: 5 },
     ],
     starGoals: [],
   },
@@ -906,7 +987,7 @@ export const ACTIVITIES = [
     briefKey: 'learn.act.projeto_final_2.brief',
     hints: ['learn.act.projeto_final_2.hint1', 'learn.act.projeto_final_2.hint2'],
     goals: [
-      { kind: 'report_rubric', level: 2, minWords: 200, sections: 7 },
+      { kind: 'report_rubric', level: 2, minWords: 200, sections: 5 },
     ],
     starGoals: [],
   },
@@ -923,7 +1004,7 @@ export const ACTIVITIES = [
     briefKey: 'learn.act.projeto_final_3.brief',
     hints: ['learn.act.projeto_final_3.hint1', 'learn.act.projeto_final_3.hint2'],
     goals: [
-      { kind: 'report_rubric', level: 3, minWords: 250, sections: 7 },
+      { kind: 'report_rubric', level: 3, minWords: 250, sections: 5 },
     ],
     starGoals: [],
   },
@@ -942,7 +1023,24 @@ export const ACTIVITIES = [
     briefKey: 'learn.act.relatorio_final.brief',
     hints: ['learn.act.relatorio_final.hint1', 'learn.act.relatorio_final.hint2'],
     goals: [
-      { kind: 'report_rubric', level: 4, minWords: 300, sections: 7 },
+      { kind: 'report_rubric', level: 4, minWords: 300, sections: 5 },
+    ],
+    starGoals: [],
+  },
+  {
+    id: 'projeto-final-5',
+    level: 5,
+    track: 'projeto',
+    exampleId: null,
+    final: true,
+    xp: 200,
+    badge: 'projeto5',
+    badgeKey: 'learn.badge.projeto5',
+    titleKey: 'learn.act.projeto_final_5.title',
+    briefKey: 'learn.act.projeto_final_5.brief',
+    hints: ['learn.act.projeto_final_5.hint1', 'learn.act.projeto_final_5.hint2'],
+    goals: [
+      { kind: 'report_rubric', level: 5, minWords: 350, sections: 5 },
     ],
     starGoals: [],
   },
@@ -980,6 +1078,11 @@ export const ACHIEVEMENTS = [
       'patrulha-armazem', 'cinematica-rodas', 'estacionar-doca', 'faixa-adaptativa',
       'apf-tunel', 'lidar-filtro', 'enxame-inventario', 'formacao-drones',
     ],
+  },
+  {
+    id: 'manipulacao',
+    labelKey: 'learn.achievement.manipulacao',
+    requires: ['scara-dh', 'scara-urdf', 'scara-matrizes', 'scara-esteira'],
   },
   {
     id: 'mestre',

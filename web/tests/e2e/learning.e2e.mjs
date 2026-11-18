@@ -95,8 +95,31 @@ function replaceAll(source, from, to, label) {
   return source.split(from).join(to)
 }
 
+// The packaged model is the solved URDF; the student tab ships with TODOs.
+function solvedUrdf() {
+  return fs.readFileSync(path.join(WEB, 'python', 'hivebr_web', 'models', 'scara_cell.urdf'), 'utf8')
+}
+
 function solved(name) {
   const source = fs.readFileSync(path.join(WEB, 'templates', name), 'utf8')
+  if (name === 'scara_dh.py') {
+    return replaceAll(
+      source,
+      `    # TODO: preencha as tres linhas. Use "q1", "q2" e "d3" para as variaveis
+    # de junta e numeros para as dimensoes fixas.
+    return [
+        {"theta": "?", "d": "?", "a": "?", "alpha": "?"},
+        {"theta": "?", "d": "?", "a": "?", "alpha": "?"},
+        {"theta": "?", "d": "?", "a": "?", "alpha": "?"},
+    ]`,
+      `    return [
+        {"theta": "q1", "d": BASE_Z, "a": 0.0, "alpha": 0.0},
+        {"theta": "q2", "d": 0.0, "a": L1, "alpha": 0.0},
+        {"theta": 0.0, "d": "d3", "a": L2, "alpha": 0.0},
+    ]`,
+      name,
+    )
+  }
   if (name === 'python_tipos.py') {
     let out = replaceAll(source, '    # TODO: some todos os valores da lista.\n    raise NotImplementedError', '    return sum(distancias)', name)
     out = replaceAll(out, '    # TODO: use distancia_total e a soma dos tempos.\n    raise NotImplementedError', '    return distancia_total(distancias) / sum(tempos)', name)
@@ -121,6 +144,40 @@ function solved(name) {
       out,
       '        # TODO: gire no lugar ate o erro angular ficar pequeno.\n        v = 0.0\n        omega = 0.0',
       '        v = 0.0\n        omega = 2.0 * erro',
+      name,
+    )
+  }
+  if (name === 'scara_esteira.py') {
+    let out = replaceAll(
+      source,
+      `    # TODO: monte a matriz com cos/sin de theta e alpha.
+    return [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]`,
+      `    ct, st = math.cos(theta), math.sin(theta)
+    ca, sa = math.cos(alpha), math.sin(alpha)
+    return [
+        [ct, -st * ca, st * sa, a * ct],
+        [st, ct * ca, -ct * sa, a * st],
+        [0.0, sa, ca, d],
+        [0.0, 0.0, 0.0, 1.0],
+    ]`,
+      name,
+    )
+    return replaceAll(
+      out,
+      `    # TODO: lei dos cossenos para q2 e atan2 para q1.
+    return 0.0, 0.0, 0.0`,
+      `    r2 = x * x + y * y
+    c2 = (r2 - L1 * L1 - L2 * L2) / (2.0 * L1 * L2)
+    c2 = max(-1.0, min(1.0, c2))
+    q2 = math.acos(c2)
+    q1 = math.atan2(y, x) - math.atan2(L2 * math.sin(q2), L1 + L2 * math.cos(q2))
+    d3 = z - BASE_Z
+    return q1, q2, d3`,
       name,
     )
   }
@@ -195,6 +252,8 @@ const CASES = [
   { id: 'holonomico-vxvy', level: 2, template: 'cinematica_holonomica.py', badge: 'holonomico', xp: 60 },
   { id: 'chegar-alvo-orientacao', level: 3, template: 'ir_para_pose.py', badge: 'orientacao', xp: 80 },
   { id: 'grid-astar', level: 4, template: 'grid_astar.py', badge: 'astar', xp: 110 },
+  { id: 'scara-dh', level: 5, template: 'scara_dh.py', badge: 'dh', xp: 100 },
+  { id: 'scara-esteira', level: 5, template: 'scara_esteira.py', badge: 'scara', xp: 130, urdf: true },
 ]
 await boot()
 await page.locator('select.speed').selectOption('4')
@@ -211,6 +270,15 @@ for (const item of CASES) {
     check(/# TODO/.test(template), 'the template must still contain a TODO for the student')
 
     const beforeXp = (await progress()).xp || 0
+    if (item.urdf) {
+      // The SCARA cell loads scara_cell.urdf as a second tab; the student must
+      // fill its three origins before the arm can reach the conveyor.
+      await page.locator('.etab').filter({ hasText: 'scara_cell.urdf' }).first().click()
+      await sleep(150)
+      await setEditor(solvedUrdf())
+      await page.locator('.etab').filter({ hasText: item.template }).first().click()
+      await sleep(150)
+    }
     await setEditor(solved(item.template))
     await runUntilDone(item.id)
 
@@ -243,6 +311,7 @@ await test('progress and emoji badges survive a reload', async () => {
   check(/🛞/.test(badgeText), `holonomic badge without emoji: ${badgeText}`)
   check(/🧭/.test(badgeText), `orientation badge without emoji: ${badgeText}`)
   check(/⭐/.test(badgeText), `A* badge without emoji: ${badgeText}`)
+  check(/🦾/.test(badgeText), `SCARA badge without emoji: ${badgeText}`)
   check(await learningModal.locator('.badges h3').last().isVisible(), 'achievements section is present')
   await page.screenshot({ path: path.join(SHOTS, 'reload-learning.png') })
 })
@@ -292,7 +361,7 @@ await test('student profile is local, readable and kept when progress is reset',
 await test('final report fails the rubric, then passes after the student writes it', async () => {
   await openLearning()
   const finals = learningModal.locator('.final')
-  check(await finals.count() === 4, `expected one final project per level: ${await finals.count()}/4`)
+  check(await finals.count() === 5, `expected one final project per level: ${await finals.count()}/5`)
   const final = learningModal.locator('.final[data-activity-id="relatorio-final"]')
   check(await final.getByRole('button', { name: 'Submeter para avaliação' }).isDisabled(), 'submit must be disabled before the report is written')
 
@@ -483,8 +552,8 @@ await test('changing the class updates the report identification in place', asyn
   }
   await editor.waitFor()
   const content = await editor.inputValue()
-  check(content.includes('| Turma | Turma B |'), 'report identification did not follow the profile')
-  check(content.includes('| Aluno(a) | Ana Silva |'), 'report lost the student name')
+  check(content.includes('>Turma</td><td>Turma B</td>'), 'report identification did not follow the profile')
+  check(content.includes('>Aluno(a)</td><td>Ana Silva</td>'), 'report lost the student name')
   check(content.includes('Este relatório descreve'), 'report prose was overwritten by the identification sync')
   await page.screenshot({ path: path.join(SHOTS, 'report-identity.png') })
 })
@@ -510,7 +579,7 @@ await test('teacher mode sets a keyword, imports a bundle and exports the class 
   check((await rows.count()) === 1, 'the student bundle was not imported into the roster')
   const rowText = (await rows.first().innerText()).replace(/\s+/g, ' ')
   check(rowText.includes('Ana Silva') && rowText.includes('Turma A'), `roster row is wrong: ${rowText}`)
-  check(rowText.includes('Incompleto') && rowText.includes('1/4'), `roster row should show the partial report count: ${rowText}`)
+  check(rowText.includes('Incompleto') && rowText.includes('1/5'), `roster row should show the partial report count: ${rowText}`)
   // The import must not touch the local student progress.
   check((await progress()).xp === beforeXp, 'teacher import changed the local progress')
 
@@ -524,7 +593,7 @@ await test('teacher mode sets a keyword, imports a bundle and exports the class 
   check(csv.startsWith('\ufeff'), 'the class sheet must start with a UTF-8 BOM')
   check(csv.includes('Identificador;Aluno;Turma;XP'), `CSV header is not localized: ${csv.slice(0, 120)}`)
   check(csv.includes('Ana Silva') && csv.includes('HB-'), 'CSV lost the student row')
-  check(csv.includes(';1/4;'), 'CSV should count the completed level reports')
+  check(csv.includes(';1/5;'), 'CSV should count the completed level reports')
   await page.screenshot({ path: path.join(SHOTS, 'teacher.png') })
 })
 

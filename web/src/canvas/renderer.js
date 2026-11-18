@@ -1,5 +1,6 @@
 import { Camera } from './camera.js';
 import { drawRobot, drawBattery, robotGeometry, rgb, luminance, mix, ensureContrast } from './robots.js';
+import { drawScaraScene, DEFAULT_SCARA_CAMERA } from './scara.js';
 
 const TRAIL_CAP = 4000;
 const TAU = Math.PI * 2;
@@ -86,6 +87,9 @@ export class Renderer {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.camera = new Camera();
+    // Orbit camera for the SCARA cell. It is independent from the 2D Camera
+    // because the manipulator scene is drawn with a custom projection.
+    this.scaraCamera = { ...DEFAULT_SCARA_CAMERA };
     this.options = { ...DEFAULT_OPTIONS };
     this.scene = null;
     this.sceneVersion = -1;
@@ -259,10 +263,44 @@ export class Renderer {
     return { x: 0, y: 0, w, h };
   }
 
+  isScara() {
+    return !!(this.scene && this.scene.kind === 'scara');
+  }
+
   fit(margin = 48) {
+    if (this.isScara()) {
+      this.scaraReset();
+      return;
+    }
     const r = this.worldRect();
     if (!r) return;
     this.camera.fit(r, margin);
+    this.dirty = true;
+  }
+
+  // ---- SCARA orbit camera -------------------------------------------
+  scaraReset() {
+    this.scaraCamera = { ...DEFAULT_SCARA_CAMERA };
+    this.dirty = true;
+  }
+
+  scaraOrbit(dxPx, dyPx) {
+    const c = this.scaraCamera;
+    c.yaw -= dxPx * 0.008;
+    c.pitch = Math.max(0.08, Math.min(1.45, c.pitch + dyPx * 0.006));
+    this.dirty = true;
+  }
+
+  scaraPan(dxPx, dyPx) {
+    const c = this.scaraCamera;
+    c.panX += dxPx;
+    c.panY += dyPx;
+    this.dirty = true;
+  }
+
+  scaraZoom(factor) {
+    const c = this.scaraCamera;
+    c.zoom = Math.max(0.35, Math.min(4, c.zoom * factor));
     this.dirty = true;
   }
 
@@ -421,6 +459,10 @@ export class Renderer {
     ctx.fillRect(0, 0, cam.width, cam.height);
     const scene = this.scene;
     if (!scene) return;
+    if (scene.kind === 'scara') {
+      drawScaraScene(ctx, scene, this.frame, this.theme, cam.width, cam.height, this.scaraCamera);
+      return;
+    }
 
     this._drawMaps(ctx);
     if (o.showGrid) this._drawGrid(ctx);

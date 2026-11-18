@@ -34,6 +34,9 @@ _COLLECTION_COMMANDS = {
 }
 # Run controls only make sense while a script is executing.
 _RUN_CONTROLS = {"start", "pause", "toggle", "stop", "step_once"}
+# The SCARA cell has no mobile-engine collections; only these commands apply
+# while it is the idle editor.
+_SCARA_COMMANDS = _RUN_CONTROLS | {"reset", "set_speed", "refresh"}
 
 
 def dispatch(sim, raw, editing=False):
@@ -49,6 +52,8 @@ def dispatch(sim, raw, editing=False):
         host.notice("warn", f"Invalid command: {str(raw)[:80]}", "invalid_command", raw=str(raw)[:80])
         return
     if editing and name in _RUN_CONTROLS:
+        return
+    if getattr(sim, "kind", None) == "scara" and name not in _SCARA_COMMANDS:
         return
     handler = HANDLERS.get(name)
     if handler is None:

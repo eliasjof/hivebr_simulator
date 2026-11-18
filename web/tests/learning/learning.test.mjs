@@ -13,7 +13,8 @@ import {
   GOAL_CHECKS, checkGoal, evaluateActivity, starsFor, trailLength, trailMinDistance,
 } from '../../src/learning/validate.js'
 import {
-  REPORT_MARKER, buildLearningReport, proseWordCount, reportRubric, updateReportIdentification,
+  REPORT_MARKER, IFMG_HEADER, IDENTITY_START, IDENTITY_END,
+  buildLearningReport, proseWordCount, reportRubric, updateReportIdentification,
 } from '../../src/learning/report.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -100,6 +101,8 @@ test('goal checks cover run, lap, line, collision, files and deliverables', () =
   assert.equal(checkGoal({ kind: 'capture_saved' }, ctx), false)
   assert.equal(checkGoal({ kind: 'console_has', text: 'lap complete' }, ctx), true)
   assert.equal(checkGoal({ kind: 'console_has', text: 'missing' }, ctx), false)
+  assert.equal(checkGoal({ kind: 'scara_placed', min: 2 }, { evidence: { scaraPlaced: 3 } }), true)
+  assert.equal(checkGoal({ kind: 'scara_placed', min: 4 }, { evidence: { scaraPlaced: 3 } }), false)
   assert.equal(checkGoal({ kind: 'unknown' }, ctx), false)
 })
 
@@ -215,8 +218,10 @@ test('achievements require the expected activities', () => {
 // ---------------------------------------------------------------------------
 const LABELS = {
   title: 'Report', identification: 'Identification', student: 'Student', group: 'Class',
-  date: 'Date', summary: 'Summary', activities: 'Activities', results: 'Results',
-  figures: 'Figures', difficulties: 'Difficulties', conclusion: 'Conclusion',
+  date: 'Date', professor: 'Professor', subject: 'Subject', subjectValue: 'Robotics',
+  notInformed: 'Not informed', introduction: 'Introduction', development: 'Development',
+  resultsDiscussion: 'Results and Discussion', activities: 'Activities', results: 'Results',
+  figures: 'Figures', conclusion: 'Conclusion', references: 'References',
   todo: 'TODO: write here.', none: 'None.', level: 'Level', activity: 'Activity',
   stars: 'Stars', xp: 'XP',
 }
@@ -225,17 +230,30 @@ const ROWS = [
   { level: 2, track: 'Navigation', title: 'Goal', stars: 2, xp: 70 },
 ]
 
-test('final report builder creates a complete skeleton with TODO prompts', () => {
+test('final report builder follows the IFMG model with TODO prompts', () => {
   const report = buildLearningReport({
     labels: LABELS,
     rows: ROWS,
     captures: [{ id: 'cap_1', name: 'figure 1' }],
     date: new Date('2026-11-14T12:00:00Z'),
+    studentName: 'Ana',
+    groupName: 'Turma A',
   })
   assert.ok(report.startsWith(REPORT_MARKER), 'missing learning-report marker')
-  assert.equal((report.match(/^## /gm) || []).length, 7, 'expected seven sections')
-  for (const heading of ['Identification', 'Summary', 'Activities', 'Results', 'Figures', 'Difficulties', 'Conclusion']) {
-    assert.ok(report.includes(`## ${heading}`), `missing section ${heading}`)
+  assert.ok(report.includes(IFMG_HEADER), 'missing IFMG header marker')
+  assert.ok(report.includes(IDENTITY_START) && report.includes(IDENTITY_END), 'missing identity block')
+  assert.equal((report.match(/^## /gm) || []).length, 5, 'expected five sections')
+  for (const heading of ['Introduction', 'Development', 'Results and Discussion', 'Conclusion', 'References']) {
+    assert.ok(report.includes(`## `) && new RegExp(`^## \\d\\) ${heading}$`, 'm').test(report), `missing section ${heading}`)
+  }
+  for (const row of [
+    `>Date</td><td>2026-11-14</td>`,
+    `>Professor</td><td>Not informed</td>`,
+    `>Subject</td><td>Robotics</td>`,
+    `>Class</td><td>Turma A</td>`,
+    `>Student</td><td>Ana</td>`,
+  ]) {
+    assert.ok(report.includes(row), `missing identity row: ${row}`)
   }
   assert.ok(report.includes('| 1 | Types | 3/3 | 40 XP |'), 'activity row missing')
   assert.ok(report.includes('![figure 1](capture:cap_1)'), 'capture link missing')
@@ -247,7 +265,7 @@ test('report rubric requires marker, sections, prose and no TODO', () => {
   const skeleton = buildLearningReport({ labels: LABELS, rows: ROWS })
   const prose = Array.from({ length: 60 }, (_, i) => `palavra${i}`).join(' ')
   const done = skeleton.replaceAll(LABELS.todo, prose)
-  const result = reportRubric(done, { minWords: 50, sections: 7 })
+  const result = reportRubric(done, { minWords: 50, sections: 5 })
   assert.equal(result.ok, true)
   assert.ok(result.words >= 50)
 
@@ -257,20 +275,21 @@ test('report rubric requires marker, sections, prose and no TODO', () => {
   assert.equal(reportRubric(`${done}\nTODO: rest`, { minWords: 50 }).ok, false)
 })
 
-test('proseWordCount ignores headings, tables, images and comments', () => {
-  const text = `${REPORT_MARKER}\n# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n![x](capture:1)\n\numa duas três`
+test('proseWordCount ignores headings, tables, images, HTML and comments', () => {
+  const text = `${REPORT_MARKER}\n# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n<table><tr><td>HTML</td></tr></table>\n\n![x](capture:1)\n\numa duas três`
   assert.equal(proseWordCount(text), 3)
 })
 
 test('each level has a final project with its own report rubric', () => {
   assert.equal(FINAL_ACTIVITIES.length, LEVELS.length)
-  assert.deepEqual(FINAL_ACTIVITIES.map((activity) => activity.level), [1, 2, 3, 4])
+  assert.deepEqual(FINAL_ACTIVITIES.map((activity) => activity.level), [1, 2, 3, 4, 5])
 
   const expected = [
     ['projeto-final-1', 120, 150],
     ['projeto-final-2', 140, 200],
     ['projeto-final-3', 160, 250],
     ['relatorio-final', 180, 300],
+    ['projeto-final-5', 200, 350],
   ]
   for (const [id, xp, minWords] of expected) {
     const final = finalActivityForLevel(Number(id.slice(-1)) || 4)
@@ -281,7 +300,7 @@ test('each level has a final project with its own report rubric', () => {
     assert.equal(final.xp, xp)
     assert.equal(final.goals[0].kind, 'report_rubric')
     assert.equal(final.goals[0].minWords, minWords)
-    assert.equal(final.goals[0].sections, 7)
+    assert.equal(final.goals[0].sections, 5)
     assert.ok(final.badgeKey)
   }
   assert.equal(finalActivityForLevel(1).goals[0].level, 1)
@@ -289,12 +308,12 @@ test('each level has a final project with its own report rubric', () => {
 
   const content = buildLearningReport({ labels: LABELS, rows: ROWS })
     .replaceAll(LABELS.todo, Array.from({ length: 80 }, (_, i) => `texto${i}`).join(' '))
-  assert.equal(checkGoal({ kind: 'report_rubric', minWords: 100, sections: 7 }, { reports: [] }), false)
-  assert.equal(checkGoal({ kind: 'report_rubric', minWords: 100, sections: 7 }, { reports: [{ content }] }), true)
-  assert.equal(checkGoal({ kind: 'report_rubric', minWords: 100, sections: 7 }, { reports: [{ content: 'curto' }] }), false)
+  assert.equal(checkGoal({ kind: 'report_rubric', minWords: 100, sections: 5 }, { reports: [] }), false)
+  assert.equal(checkGoal({ kind: 'report_rubric', minWords: 100, sections: 5 }, { reports: [{ content }] }), true)
+  assert.equal(checkGoal({ kind: 'report_rubric', minWords: 100, sections: 5 }, { reports: [{ content: 'curto' }] }), false)
 
   // A level-scoped rubric only accepts that level's learning report.
-  const scoped = { kind: 'report_rubric', level: 1, minWords: 100, sections: 7 }
+  const scoped = { kind: 'report_rubric', level: 1, minWords: 100, sections: 5 }
   assert.equal(checkGoal(scoped, { reports: [{ learning: true, level: 1, content }] }), true)
   assert.equal(checkGoal(scoped, { reports: [{ learning: true, level: 2, content }] }), false)
   assert.equal(checkGoal(scoped, { reports: [{ learning: true, content }] }), false, 'legacy report is level 4')
@@ -490,7 +509,7 @@ test('protected bundles encrypt the payload and reject a wrong password', async 
 
 test('xp thresholds match the expanded curriculum', async () => {
   const { XP_THRESHOLDS, levelForXp, xpForLevel } = await import('../../src/learning/progress.js')
-  assert.deepEqual(XP_THRESHOLDS, [0, 300, 800, 1500])
+  assert.deepEqual(XP_THRESHOLDS, [0, 300, 800, 1500, 2200])
   assert.equal(levelForXp(0), 1)
   assert.equal(levelForXp(299), 1)
   assert.equal(levelForXp(300), 2)
@@ -498,17 +517,23 @@ test('xp thresholds match the expanded curriculum', async () => {
   assert.equal(levelForXp(800), 3)
   assert.equal(levelForXp(1499), 3)
   assert.equal(levelForXp(1500), 4)
+  assert.equal(levelForXp(2199), 4)
+  assert.equal(levelForXp(2200), 5)
   assert.equal(xpForLevel(1), 0)
   assert.equal(xpForLevel(4), 1500)
-  assert.equal(xpForLevel(5), null)
+  assert.equal(xpForLevel(5), 2200)
+  assert.equal(xpForLevel(6), null)
 })
 
 test('report identification updates without touching the student text', () => {
   const labels = {
     title: 'Relatório final', identification: 'Identificação', student: 'Aluno(a)',
-    group: 'Turma', date: 'Data', summary: 'Resumo', activities: 'Atividades',
-    results: 'Resultados', figures: 'Figuras', difficulties: 'Dificuldades',
-    conclusion: 'Conclusão', todo: 'TODO: escreva aqui.', none: 'Nenhum item.',
+    group: 'Turma', date: 'Data', professor: 'Professor(a)', subject: 'Matéria',
+    subjectValue: 'Robótica e Automação', notInformed: 'Não informado',
+    introduction: 'Introdução', development: 'Desenvolvimento',
+    resultsDiscussion: 'Resultados e Discussão', activities: 'Atividades',
+    results: 'Resultados', figures: 'Figuras', conclusion: 'Conclusão',
+    references: 'Referências', todo: 'TODO: escreva aqui.', none: 'Nenhum item.',
     level: 'Nível', activity: 'Atividade', stars: 'Estrelas', xp: 'XP',
   }
   const content = buildLearningReport({
@@ -525,12 +550,31 @@ test('report identification updates without touching the student text', () => {
     groupName: 'Turma B',
     date: new Date('2026-03-02T12:00:00Z'),
   })
-  assert.ok(updated.includes('| Aluno(a) | Ana Souza |'))
-  assert.ok(updated.includes('| Turma | Turma B |'))
-  assert.ok(updated.includes('| Data | 2026-03-02 |'))
+  assert.ok(updated.includes('>Aluno(a)</td><td>Ana Souza</td>'))
+  assert.ok(updated.includes('>Turma</td><td>Turma B</td>'))
+  assert.ok(updated.includes('>Data</td><td>2026-03-02</td>'))
   assert.ok(updated.includes('Texto que o aluno escreveu.'))
-  assert.ok(updated.includes('## Resumo'))
-  assert.equal((updated.match(/## Identificação/g) || []).length, 1)
+  assert.ok(updated.includes('## 1) Introdução'))
+  assert.equal((updated.match(/hivebr:report-identity/g) || []).length, 2)
+
+  // Reports generated before the IFMG change keep their Markdown table.
+  const legacy = [
+    '<!-- hivebr:learning-report -->', '', '# Relatório final', '',
+    '## Identificação', '',
+    '|  |  |', '| --- | --- |',
+    '| Aluno(a) | Ana |', '| Turma | Turma A |', '| Data | 2026-03-02 |', '',
+    '## Resumo', '', 'Texto que o aluno escreveu.', '',
+  ].join('\n')
+  const migrated = updateReportIdentification(legacy, {
+    labels,
+    studentName: 'Ana Souza',
+    groupName: 'Turma B',
+    date: new Date('2026-03-02T12:00:00Z'),
+  })
+  assert.ok(migrated.includes('| Aluno(a) | Ana Souza |'))
+  assert.ok(migrated.includes('| Turma | Turma B |'))
+  assert.ok(migrated.includes('Texto que o aluno escreveu.'))
+  assert.equal((migrated.match(/## Identificação/g) || []).length, 1)
   assert.equal(updateReportIdentification('sem cabeçalho', { labels }), 'sem cabeçalho')
 })
 
@@ -543,19 +587,19 @@ test('teacher counts one passing report per level', async () => {
   let summary = teacher.summarizeReport([report(1), report(2)])
   assert.equal(summary.reportHas, true)
   assert.equal(summary.reportDone, 2)
-  assert.equal(summary.reportTotal, 4)
+  assert.equal(summary.reportTotal, 5)
   assert.equal(summary.reportOk, false)
   assert.ok(summary.reportWords >= 700)
 
   // The legacy report without a level counts as level 4.
-  summary = teacher.summarizeReport([report(1), report(2), report(3), report(null)])
-  assert.equal(summary.reportDone, 4)
+  summary = teacher.summarizeReport([report(1), report(2), report(3), report(null), report(5)])
+  assert.equal(summary.reportDone, 5)
   assert.equal(summary.reportOk, true)
 
   // Two reports of the same level count once.
   summary = teacher.summarizeReport([report(1), report(1)])
   assert.equal(summary.reportDone, 1)
-  assert.equal(teacher.summarizeReport([]).reportTotal, 4)
+  assert.equal(teacher.summarizeReport([]).reportTotal, 5)
 })
 
 test('teacher roster summarizes bundles, deduplicates and exports a sheet', async () => {
@@ -627,9 +671,10 @@ test('teacher roster summarizes bundles, deduplicates and exports a sheet', asyn
     'ID;Aluno;group;XP;level;activities;required;stars;badges;achievements;report;words;exportedAt;importedAt',
   )
   const cells = row.split(';')
+  const requiredTotal = ACTIVITIES.filter((activity) => !activity.optional && !activity.final).length
   assert.deepEqual(
     cells.slice(0, 11),
-    ['HB-AAAA-BBBB', 'Ana Souza', 'Turma A', '900', '3', `3/${ACTIVITIES.length}`, '2/30', '6', '2', '1', '0/4'],
+    ['HB-AAAA-BBBB', 'Ana Souza', 'Turma A', '900', '3', `3/${ACTIVITIES.length}`, `2/${requiredTotal}`, '6', '2', '1', '0/5'],
   )
   assert.equal(cells[11], '0')
   assert.equal(cells[12], '1970-01-01')

@@ -1,0 +1,161 @@
+<?xml version="1.0"?>
+<!--
+  HiveBr didactic SCARA cell.
+
+  This file describes the robot geometry and kinematic chain. Both Python and
+  the canvas read exactly these values, so a wrong URDF produces a robot that
+  cannot reach the conveyor or the baskets.
+
+  Complete the three origins marked TODO. The SCARA dimensions are:
+    - joint 1 (shoulder) height above the base: 0.80 m
+    - arm 1 length: 1.60 m
+    - arm 2 length: 1.40 m
+  Joint 3 is prismatic (Z axis) and moves the vertical quill.
+-->
+<robot name="hivebr_scara">
+
+  <material name="abb_white">
+    <color rgba="0.93 0.94 0.96 1"/>
+  </material>
+  <material name="abb_dark">
+    <color rgba="0.16 0.18 0.22 1"/>
+  </material>
+  <material name="abb_orange">
+    <color rgba="0.96 0.55 0.12 1"/>
+  </material>
+  <material name="steel">
+    <color rgba="0.62 0.66 0.72 1"/>
+  </material>
+  <material name="magnet">
+    <color rgba="0.24 0.55 0.95 1"/>
+  </material>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0.10" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.40" length="0.20"/></geometry>
+      <material name="abb_dark"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0.30" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.32" length="0.22"/></geometry>
+      <material name="abb_white"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0.43" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.34" length="0.04"/></geometry>
+      <material name="abb_orange"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0.62" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.22" length="0.36"/></geometry>
+      <material name="abb_white"/>
+    </visual>
+  </link>
+
+  <link name="link_1">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.24" length="0.22"/></geometry>
+      <material name="abb_white"/>
+    </visual>
+    <visual>
+      <origin xyz="0.80 0 0.05" rpy="0 0 0"/>
+      <geometry><box size="1.48 0.28 0.22"/></geometry>
+      <material name="abb_white"/>
+    </visual>
+    <visual>
+      <origin xyz="0.80 0.145 0.09" rpy="0 0 0"/>
+      <geometry><box size="1.30 0.02 0.06"/></geometry>
+      <material name="abb_orange"/>
+    </visual>
+    <visual>
+      <origin xyz="0.55 0 -0.10" rpy="0 0 0"/>
+      <geometry><box size="0.80 0.10 0.05"/></geometry>
+      <material name="abb_dark"/>
+    </visual>
+  </link>
+
+  <link name="link_2">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.20" length="0.20"/></geometry>
+      <material name="abb_white"/>
+    </visual>
+    <visual>
+      <origin xyz="0.70 0 0.02" rpy="0 0 0"/>
+      <geometry><box size="1.32 0.24 0.20"/></geometry>
+      <material name="abb_white"/>
+    </visual>
+    <visual>
+      <origin xyz="0.70 0.125 0.05" rpy="0 0 0"/>
+      <geometry><box size="1.16 0.02 0.05"/></geometry>
+      <material name="abb_orange"/>
+    </visual>
+    <visual>
+      <origin xyz="0.45 0 -0.09" rpy="0 0 0"/>
+      <geometry><box size="0.60 0.08 0.04"/></geometry>
+      <material name="abb_dark"/>
+    </visual>
+  </link>
+
+  <link name="link_3">
+    <visual>
+      <origin xyz="0 0 -0.09" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.055" length="0.18"/></geometry>
+      <material name="steel"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 -0.21" rpy="0 0 0"/>
+      <geometry><box size="0.14 0.14 0.06"/></geometry>
+      <material name="abb_dark"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 -0.25" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.065" length="0.02"/></geometry>
+      <material name="magnet"/>
+    </visual>
+  </link>
+
+  <link name="tool_link">
+    <visual>
+      <origin xyz="0 0 -0.26" rpy="0 0 0"/>
+      <geometry><sphere radius="0.025"/></geometry>
+      <material name="magnet"/>
+    </visual>
+  </link>
+
+  <!-- TODO: the shoulder height above the base is 0.80 m. -->
+  <joint name="joint_1" type="revolute">
+    <parent link="base_link"/>
+    <child link="link_1"/>
+    <origin xyz="0 0 0.00" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.1416" upper="3.1416" effort="120" velocity="3.0"/>
+  </joint>
+
+  <!-- TODO: the first arm is 1.60 m long along X. -->
+  <joint name="joint_2" type="revolute">
+    <parent link="link_1"/>
+    <child link="link_2"/>
+    <origin xyz="0.00 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.70" upper="2.70" effort="80" velocity="3.0"/>
+  </joint>
+
+  <!-- TODO: the second arm is 1.40 m long along X. -->
+  <joint name="joint_3" type="prismatic">
+    <parent link="link_2"/>
+    <child link="link_3"/>
+    <origin xyz="0.00 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.00" upper="0.55" effort="60" velocity="1.0"/>
+  </joint>
+
+  <joint name="joint_4" type="fixed">
+    <parent link="link_3"/>
+    <child link="tool_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+</robot>

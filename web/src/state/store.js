@@ -899,6 +899,9 @@ const runEvidence = reactive({
   reachTime: null,
   waypointCount: 0,
   wpTotal: 0,
+  // SCARA cell: parts placed in the matching basket and parts lost on the belt.
+  scaraPlaced: 0,
+  scaraRejected: 0,
 })
 let lastFinished = null
 let runGoal = null
@@ -923,6 +926,8 @@ function resetRunEvidence() {
   runEvidence.reachTime = null
   runEvidence.waypointCount = 0
   runEvidence.wpTotal = 0
+  runEvidence.scaraPlaced = 0
+  runEvidence.scaraRejected = 0
   lastFinished = null
   lastSample = []
   lastPos = []
@@ -933,6 +938,11 @@ function trackEvidence(frame) {
   if (typeof frame.t === 'number') runEvidence.t = frame.t
   if (typeof frame.collisions_total === 'number') runEvidence.collisions = frame.collisions_total
   if (Array.isArray(frame.robots)) runEvidence.robots = frame.robots.length
+  // The SCARA cell has its own scene, so its counters live in frame.scara.
+  if (frame.scara) {
+    if (typeof frame.scara.placed === 'number') runEvidence.scaraPlaced = frame.scara.placed
+    if (typeof frame.scara.rejected === 'number') runEvidence.scaraRejected = frame.scara.rejected
+  }
   if (Array.isArray(frame.waypoints)) {
     const total = frame.waypoints.reduce((acc, list) => acc + (list?.length || 0), 0)
     if (total > runEvidence.waypointCount) runEvidence.waypointCount = total
@@ -1058,6 +1068,7 @@ export function applyLearningBundle(payload) {
           // treats those learning reports as level 4.
           ...(Number.isFinite(level) && level > 0 ? { level } : {}),
           ...(typeof report.finalId === 'string' && report.finalId ? { finalId: report.finalId } : {}),
+          ...(typeof report.template === 'string' && report.template ? { template: report.template } : {}),
           created: Number(report.created) || Date.now(),
           modified: Number(report.modified) || Date.now(),
         }
@@ -1144,12 +1155,18 @@ function reportLabels(title = t('learn.report.title')) {
     student: t('learn.report.student'),
     group: t('learn.report.group'),
     date: t('learn.report.date'),
-    summary: t('learn.report.summary'),
+    professor: t('learn.report.professor'),
+    subject: t('learn.report.subject'),
+    subjectValue: t('learn.report.subject_value'),
+    notInformed: t('learn.report.not_informed'),
+    introduction: t('learn.report.introduction'),
+    development: t('learn.report.development'),
+    resultsDiscussion: t('learn.report.results_discussion'),
     activities: t('learn.report.activities'),
     results: t('learn.report.results'),
     figures: t('learn.report.figures'),
-    difficulties: t('learn.report.difficulties'),
     conclusion: t('learn.report.conclusion'),
+    references: t('learn.report.references'),
     todo: t('learn.report.todo'),
     none: t('learn.report.none'),
     level: t('learn.report.level'),
@@ -1220,6 +1237,9 @@ export function createLearningReport(level = 4) {
     learning: true,
     level: n,
     finalId: finalActivityForLevel(n)?.id ?? null,
+    // Generated reports follow the institutional IFMG layout, so the panel
+    // renders the banner and the academic styling without extra steps.
+    template: 'ifmg',
     created: Date.now(),
     modified: Date.now(),
   }

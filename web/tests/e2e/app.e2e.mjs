@@ -761,7 +761,7 @@ await flow('p. categorias e trilha de aprendizagem', async () => {
 
   await page.locator('.tb').getByRole('button', { name: /^Aprender/ }).click()
   await modal.waitFor()
-  check(await modal.locator('.lvl').count() === 4, 'four learning levels')
+  check(await modal.locator('.lvl').count() === 5, 'five learning levels')
   check(await modal.locator('.act').count() >= 3, 'sample activities are listed')
   check(/XP/.test(await modal.locator('.xp').innerText()), 'XP is shown')
   await page.keyboard.press('Escape')

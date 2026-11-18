@@ -81,7 +81,7 @@ function checkText(check, goal = {}) {
   const key = CHECK_KEYS[check.id]
   if (!key) return check.id
   return t(key, {
-    n: check.id === 'sections' ? (goal.sections ?? 7) : (goal.minWords ?? 300),
+    n: check.id === 'sections' ? (goal.sections ?? 5) : (goal.minWords ?? 300),
   })
 }
 
@@ -143,7 +143,7 @@ function goalText(goal) {
     n: goal.n ?? goal.points?.length ?? goal.targets?.length ?? 1,
     tolerance: goal.tolerance ?? 0.4,
     percent: Math.round((Number(goal.value) || 0) * 100),
-    sections: goal.sections ?? 7,
+    sections: goal.sections ?? 5,
     words: goal.minWords ?? 300,
   })
 }

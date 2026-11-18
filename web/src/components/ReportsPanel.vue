@@ -10,6 +10,7 @@ import ReportActionsModal from './ReportActionsModal.vue'
 import ifmgLogo from '../assets/ifmg-simples.png?inline'
 import { store, toggleReportsPanel, toggleReportsMaximized, toggleReportTemplateModal, addCapture, captures, getCapture, openReport, deleteReport as deleteReportStore, download, toast } from '../state/store.js'
 import { t } from '../i18n/index.js'
+import { IFMG_HEADER } from '../learning/report.js'
 
 const localContent = ref('')
 const isEditing = ref(true)
@@ -298,8 +299,6 @@ ${meta.content || 'Escreva sua nota aqui...'}
 // IFMG template: the decorative banner lives behind this marker, so the
 // Markdown source stays readable and does not store the logo data URI.
 // It is expanded only for the preview and for HTML/PDF exports.
-const IFMG_HEADER = '<!-- ifmg-header -->'
-
 function ifmgHeaderHtml() {
   return `<div style="display:flex;align-items:center;gap:20px;padding:18px 22px;border-radius:10px;background:linear-gradient(135deg,#14351f,#1f4d2e 60%,#3f6b3a);border-bottom:6px solid #7d9b3a;color:#fff;">
   <div style="flex:none;background:#fff;border-radius:8px;padding:8px 12px;line-height:0;">

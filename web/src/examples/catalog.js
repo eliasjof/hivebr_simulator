@@ -4,7 +4,7 @@
 // são relativos a este arquivo (web/src/examples/).
 
 const raw = import.meta.glob(
-  ['../../templates/*.py', '../../templates/en/*.py'],
+  ['../../templates/*.py', '../../templates/en/*.py', '../../templates/*.urdf', '../../templates/en/*.urdf'],
   { query: '?raw', import: 'default', eager: true },
 )
 
@@ -23,8 +23,8 @@ export const DEMO_EXAMPLE_ID = 'demonstracao'
 /** Ordem de exibição das categorias na galeria. */
 export const CATEGORY_IDS = ['fundamentos', 'python', 'percepcao', 'linha', 'locomocao', 'controle', 'planejamento', 'multirobo', 'projeto']
 
-/** Níveis pedagógicos: 1 = técnico, 4 = graduação avançada. */
-export const LEVEL_IDS = [1, 2, 3, 4]
+/** Níveis pedagógicos: 1 = técnico, 5 = manipuladores e cinemática 3D. */
+export const LEVEL_IDS = [1, 2, 3, 4, 5]
 
 // Todos os exemplos agora vêm de web/templates/ (PT) e web/templates/en/ (EN).
 // Campos: id, file, group, category, level, order, readonly, pt/en com
@@ -288,6 +288,26 @@ const ENTRIES = [
     id: 'projeto_entrega', file: 'projeto_entrega.py', group: 'advanced', category: 'projeto', level: 4, order: 10,
     pt: { title: 'Projeto: entrega autônoma', description: 'Projeto final: o robô visita quatro paradas em ordem, desvia de caixas e grava entrega.csv e entrega.png.', tags: ['projeto', 'entrega', 'LiDAR', 'relatório'], robots: '1 B-bot diferencial com LiDAR', notes: 'Grava entrega.csv e entrega.png na pasta de trabalho.' },
     en: { filename: 'delivery_project.py', title: 'Project: autonomous delivery', description: 'Final project: the robot visits four stops in order, avoids boxes and writes entrega.csv and entrega.png.', tags: ['project', 'delivery', 'LiDAR', 'report'], robots: '1 differential B-bot with LiDAR', notes: 'Writes entrega.csv and entrega.png to the working folder.' },
+  },
+  {
+    id: 'scara_dh', file: 'scara_dh.py', group: 'advanced', category: 'controle', level: 5, order: 10,
+    pt: { title: 'Tabela DH do SCARA', description: 'Primeiro passo do manipulador: complete a tabela de Denavit-Hartenberg com theta, d, a e alpha das três juntas. A verificação confere a tabela com as dimensões do URDF.', tags: ['SCARA', 'DH', 'cinemática', 'manipulador'], robots: '1 manipulador SCARA', notes: 'Imprime DH OK quando a tabela está correta.' },
+    en: { filename: 'scara_dh.py', title: 'SCARA DH table', description: 'First manipulator step: complete the Denavit-Hartenberg table with theta, d, a and alpha for the three joints. The check compares the table with the URDF dimensions.', tags: ['SCARA', 'DH', 'kinematics', 'manipulator'], robots: '1 SCARA manipulator', notes: 'Prints DH OK when the table is correct.' },
+  },
+  {
+    id: 'scara_urdf', file: 'scara_urdf.py', group: 'advanced', category: 'controle', level: 5, order: 20, files: ['scara_cell.urdf'],
+    pt: { title: 'URDF do braço SCARA', description: 'Preencha os três origins marcados com TODO no arquivo scara_cell.urdf: altura do ombro e comprimentos dos dois braços. O Python e o desenho 3D leem o mesmo arquivo.', tags: ['URDF', 'SCARA', 'XML', 'geometria'], robots: '1 manipulador SCARA', notes: 'A aba scara_cell.urdf acompanha o script; preencha os TODO antes de executar.' },
+    en: { filename: 'scara_urdf.py', title: 'SCARA arm URDF', description: 'Fill the three origins marked with TODO in the scara_cell.urdf file: shoulder height and both arm lengths. Python and the 3D drawing read the same file.', tags: ['URDF', 'SCARA', 'XML', 'geometry'], robots: '1 SCARA manipulator', notes: 'The scara_cell.urdf tab ships with the script; fill the TODOs before running.' },
+  },
+  {
+    id: 'scara_matrizes', file: 'scara_matrizes.py', group: 'advanced', category: 'controle', level: 5, order: 30,
+    pt: { title: 'Matrizes homogêneas do SCARA', description: 'Monte a matriz 4x4 de cada linha DH, multiplique as três e confira a cinemática direta em duas poses. O resultado deve devolver (3,0; 0; 0,8) com as juntas em zero.', tags: ['SCARA', 'matrizes', 'homogêneas', 'cinemática direta'], robots: '1 manipulador SCARA', notes: 'Imprime MATRIZ OK quando a cinemática direta está correta.' },
+    en: { filename: 'scara_matrices.py', title: 'SCARA homogeneous matrices', description: 'Build the 4x4 matrix of each DH row, multiply the three and check forward kinematics in two poses. The result must be (3.0, 0, 0.8) with every joint at zero.', tags: ['SCARA', 'matrices', 'homogeneous', 'forward kinematics'], robots: '1 SCARA manipulator', notes: 'Prints MATRIZ OK when forward kinematics is correct.' },
+  },
+  {
+    id: 'scara_esteira', file: 'scara_esteira.py', group: 'advanced', category: 'controle', level: 5, order: 40, files: ['scara_cell.urdf'],
+    pt: { title: 'Célula SCARA 3D com esteira', description: 'Integração final do manipulador: use a tabela DH, as matrizes e a cinemática inversa para pegar cada peça da esteira e colocá-la na cesta da mesma cor, com o eletroímã como garra.', tags: ['SCARA', 'cinemática', 'DH', 'esteira', 'visão de cor'], robots: '1 manipulador SCARA + esteira', notes: 'Grava scara_relatorio.csv e imprime SCARA OK ao parar.' },
+    en: { filename: 'scara_cell.py', title: '3D SCARA cell with conveyor', description: 'Final manipulator integration: use the DH table, the matrices and inverse kinematics to pick each part from the conveyor and place it in the matching basket, with the electromagnet as gripper.', tags: ['SCARA', 'kinematics', 'DH', 'conveyor', 'colour vision'], robots: '1 SCARA manipulator + conveyor', notes: 'Writes scara_relatorio.csv and prints SCARA OK when stopped.' },
   },
 ]
 

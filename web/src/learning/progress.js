@@ -9,7 +9,7 @@ import { ACHIEVEMENTS } from './curriculum.js'
 
 export const LS_KEY = 'hivebr.web.learning.v1'
 
-export const XP_THRESHOLDS = [0, 300, 800, 1500]
+export const XP_THRESHOLDS = [0, 300, 800, 1500, 2200]
 
 function empty() {
   return {

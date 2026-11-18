@@ -60,6 +60,12 @@ function isEditable(t) {
 }
 
 function updateCursor() {
+  if (isScara()) {
+    if (gesture && gesture.kind === 'scara-pan') cursorStyle.value = 'grabbing';
+    else if (gesture && gesture.kind === 'scara-orbit') cursorStyle.value = 'move';
+    else cursorStyle.value = 'grab';
+    return;
+  }
   if (gesture && gesture.kind === 'pan') cursorStyle.value = 'grabbing';
   else if (spaceDown) cursorStyle.value = 'grab';
   else if (!props.interactive) cursorStyle.value = 'grab';
@@ -93,7 +99,7 @@ function sceneFitKey(s) {
   if (!s) return null;
   const w = s.world || {};
   const m = s.lineMap || s.map;
-  return [w.width, w.height, m ? m.width_m + 'x' + m.height_m + ':' + m.png_b64.length : 'nomap'].join('|');
+  return [s.kind || 'mobile', w.width, w.height, m ? m.width_m + 'x' + m.height_m + ':' + m.png_b64.length : 'nomap'].join('|');
 }
 
 function fit() {
@@ -113,16 +119,31 @@ function centerOn(x, y) {
   renderer.requestRender();
 }
 
+function isScara() {
+  return !!(renderer && renderer.isScara());
+}
 function zoomIn() {
-  renderer.camera.zoomCenter(1.25);
+  if (!renderer) return;
+  if (isScara()) renderer.scaraZoom(1.25);
+  else renderer.camera.zoomCenter(1.25);
   renderer.requestRender();
 }
 function zoomOut() {
-  renderer.camera.zoomCenter(1 / 1.25);
+  if (!renderer) return;
+  if (isScara()) renderer.scaraZoom(1 / 1.25);
+  else renderer.camera.zoomCenter(1 / 1.25);
+  renderer.requestRender();
+}
+function resetCamera() {
+  if (!renderer) return;
+  if (isScara()) renderer.scaraReset();
+  else fit();
   renderer.requestRender();
 }
 function getCamera() {
-  return renderer ? renderer.camera : null;
+  if (!renderer) return null;
+  if (isScara()) return { scale: 50 * renderer.scaraCamera.zoom };
+  return renderer.camera;
 }
 
 // ---- pointer handling ----------------------------------------------------
@@ -167,6 +188,16 @@ function onPointerDown(e) {
   }
   if (pointers.size > 2) return;
   if (e.button === 2) return; // handled in contextmenu
+
+  if (isScara()) {
+    const pan = e.button === 1 || e.shiftKey || spaceDown;
+    gesture = {
+      kind: pan ? 'scara-pan' : 'scara-orbit',
+      id: e.pointerId, lx: px, ly: py, sx: px, sy: py, moved: false,
+    };
+    updateCursor();
+    return;
+  }
 
   const [wx, wy] = toWorld(px, py);
   const hit = props.interactive ? renderer.hitTest(wx, wy) : null;
@@ -213,7 +244,7 @@ function onPointerMove(e) {
   const [px, py] = localXY(e);
   const rec = pointers.get(e.pointerId);
 
-  if (e.pointerType !== 'touch' || !rec) {
+  if ((e.pointerType !== 'touch' || !rec) && !isScara()) {
     cursorPending = toWorld(px, py);
     if (!cursorRaf) {
       cursorRaf = requestAnimationFrame(() => {
@@ -233,9 +264,14 @@ function onPointerMove(e) {
     const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
     const cx = (a.x + b.x) / 2;
     const cy = (a.y + b.y) / 2;
-    const cam = renderer.camera;
-    cam.panBy(cx - pinch.cx, cy - pinch.cy);
-    cam.zoomAt(cx, cy, dist / pinch.dist);
+    if (isScara()) {
+      renderer.scaraPan(cx - pinch.cx, cy - pinch.cy);
+      renderer.scaraZoom(dist / pinch.dist);
+    } else {
+      const cam = renderer.camera;
+      cam.panBy(cx - pinch.cx, cy - pinch.cy);
+      cam.zoomAt(cx, cy, dist / pinch.dist);
+    }
     pinch = { dist, cx, cy };
     renderer.requestRender();
     return;
@@ -248,6 +284,22 @@ function onPointerMove(e) {
       renderer.camera.panBy(px - g.lx, py - g.ly);
       g.lx = px;
       g.ly = py;
+      renderer.requestRender();
+      break;
+    }
+    case 'scara-orbit': {
+      renderer.scaraOrbit(px - g.lx, py - g.ly);
+      g.lx = px;
+      g.ly = py;
+      g.moved = true;
+      renderer.requestRender();
+      break;
+    }
+    case 'scara-pan': {
+      renderer.scaraPan(px - g.lx, py - g.ly);
+      g.lx = px;
+      g.ly = py;
+      g.moved = true;
       renderer.requestRender();
       break;
     }
@@ -347,8 +399,15 @@ function onWheel(e) {
   if (e.deltaMode === 1) dy *= 16;
   else if (e.deltaMode === 2) dy *= 400;
   const factor = Math.exp(-Math.max(-120, Math.min(120, dy)) * 0.0018);
-  renderer.camera.zoomAt(px, py, factor);
+  if (isScara()) renderer.scaraZoom(factor);
+  else renderer.camera.zoomAt(px, py, factor);
   renderer.requestRender();
+}
+
+function onDoubleClick(e) {
+  if (!isScara()) return;
+  e.preventDefault();
+  resetCamera();
 }
 
 function onPointerLeave(e) {
@@ -466,6 +525,7 @@ defineExpose({
       @pointercancel="endPointer($event, true)"
       @pointerleave="onPointerLeave"
       @contextmenu="onContextMenu"
+      @dblclick="onDoubleClick"
     ></canvas>
   </div>
 </template>

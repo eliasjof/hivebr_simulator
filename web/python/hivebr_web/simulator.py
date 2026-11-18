@@ -302,6 +302,17 @@ def reset_editor():
     _current = None
 
 
+def adopt(sim):
+    """Remember a simulator created by a user script.
+
+    The runner adopts it as the idle editor when the script ends, so a scene
+    with its own renderer (the SCARA cell) stays visible while the student
+    edits the code.
+    """
+    global _current
+    _current = sim
+
+
 def _make_editor(config_path=None):
     global autostart
     saved = autostart
@@ -338,6 +349,11 @@ def enter_edit_mode():
     sim.running = False
     sim.running_simulation = False
     sim._autostart_pending = False
+    # The SCARA cell owns its whole scene (no world/lidar/robots), so the
+    # mobile-engine signature and frame builder do not apply to it.
+    if getattr(sim, "kind", None) == "scara":
+        sim._emit(scene=True)
+        return sim
     # The final frame already reports "stopped" after a normal run. Only send
     # updates that are actually missing (interrupted run, changed statics).
     if serialize.static_signature(sim) != sim._sig:

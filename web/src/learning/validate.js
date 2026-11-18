@@ -205,6 +205,10 @@ export const GOAL_CHECKS = {
     return fraction >= (Number(goal.value) || 0)
   },
 
+  // --- SCARA cell ---
+  // Parts placed in the matching basket during the run.
+  scara_placed: (goal, ctx) => (ctx.evidence?.scaraPlaced ?? 0) >= (goal.min ?? 1),
+
   // --- deliverables ---
   file_exists: (goal, ctx) => {
     const wanted = String(goal.path || '').replace(/\\/g, '/')

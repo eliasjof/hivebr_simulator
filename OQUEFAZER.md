@@ -3,7 +3,11 @@
 
 - seria possível implmentar também a simulação de um robo manipulador SCARA 3D (como o da epson ou similar ABB?) por exemplo com uma esteira com objetos coloridos (colocar na esteira uma detecção de cor), de forma que no código o usuário controla a esteira e o braço robótico para pegar esses objetos e colocar nas cestas correspondentes.
 
-- o último do nível de aprendizado precisa fazer um relatório. avaliar o desenvolvimento por um relatório contendo os corretos, colocar um botão para submeter para avaliação ao chegar nas fases finais (crie a estrutura, para cada etapa iremos trabalhar no que precisa conter no relatório .md)
+avalie e se for factível implemente implmentar também a simulação de um robo manipulador SCARA 3D (como o da epson ou similar ABB?) por exemplo com uma esteira com objetos coloridos (colocar na esteira uma detecção de cor), de forma que no código o usuário controla a esteira e o braço robótico para pegar esses objetos e colocar nas cestas correspondentes. os alunos poderiam preencher a tabela Denavit hatenberg, montar as matrizes de transformação homogênea, testar a cinemática direta e inversa desse manipulador
+
+- exemplo com pure pursuit
+
+- me dê um exemplo para correção do professor com tudo funcionando do scara (não disponibilize na web)
 
 ---
 
@@ -825,6 +829,28 @@ Status: **concluída e validada** nesta rodada.
 - O modal Aprender mostra um bloco de projeto final dentro de cada nível, com
   rubrica, contagem de palavras e botões de gerar/abrir e submeter próprios.
 
+### Modelo IFMG do relatório
+
+- O esqueleto gerado passou a seguir o modelo IFMG do painel de relatórios:
+  banner institucional (`<!-- ifmg-header -->`), tabela de identificação
+  (Data, Professor(a), Matéria, Turma, Estudante(s)) e cinco seções numeradas
+  (Introdução, Desenvolvimento, Resultados e Discussão, Conclusão, Referências).
+- A tabela de identificação fica entre `<!-- hivebr:report-identity -->` e
+  `<!-- /hivebr:report-identity -->`; a sincronização de nome/turma reescreve
+  só esse bloco e preserva todo o texto do aluno. Relatórios antigos com
+  `## Identificação` continuam aceitos e são migrados no lugar.
+- O relatório criado recebe `template: 'ifmg'`, então o painel aplica o banner
+  e o estilo verde institucional no preview, no HTML e no PDF. O campo
+  `template` também é preservado no exportar/importar progresso.
+- `proseWordCount` ignora linhas HTML, então a tabela de identificação não
+  conta como palavras escritas pelo aluno.
+- A rubrica passou a exigir 5 seções (`sections: 5` nas quatro atividades
+  finais); relatórios antigos com 7 seções continuam aprovados porque a
+  verificação usa `>=`.
+- O nome do professor e a matéria são valores locais do modelo: professor fica
+  como “Não informado” e a matéria como “Robótica e Automação”, ambos
+  traduzidos em PT/EN.
+
 ### Modo professor
 
 - O resumo do aluno agora conta `reportDone/reportTotal` (relatórios de nível
@@ -844,6 +870,112 @@ Status: **concluída e validada** nesta rodada.
 - `python web/python/tests/run_all.py test_templates`: 1/3; permanecem apenas
   as duas falhas antigas de PT/EN (`line_follower.py` e
   `seguidor_de_linha.py`), sem relação com esta fase.
+
+## Fase 8 — Manipulador SCARA 3D, URDF e nível 5
+
+Status: **concluída e validada** nesta rodada.
+
+A pergunta original do topo do arquivo (um SCARA 3D com esteira, detecção de
+cor, tabela DH, matrizes homogêneas e cinemática direta/inversa) virou um nível
+inteiro do currículo, com simulador próprio, modelo URDF editável pelo aluno e
+desenho 3D no canvas 2D.
+
+### Simulador da célula
+
+- `web/python/hivebr_web/scara.py` (`ScaraSimulator`, `kind = "scara"`): esteira,
+  peças vermelhas/verdes/azuis, sensor de cor, três cestas e um braço SCARA de
+  três juntas (`q1`, `q2` e a prismática `d3`).
+- A interface do aluno é `conveyor_on()`, `step()`, `next_object()`,
+  `move_joints()`, `can_pick()`, `pick()`, `can_place()`, `place()`,
+  `basket_for()`, `export()` e `model_info()`.
+- A pinça é um eletroímã: só pega quando a ponta está a menos de 30 cm da peça.
+  Peças que chegam ao fim da esteira sem serem pegas contam como perdidas.
+- `pick()` e `place()` emitem um frame imediatamente, então o contador do HUD
+  bate com o `SCARA OK` impresso ao final do laço.
+- `scara_relatorio.csv` é neutro de idioma (`color;placed;lost`), para o
+  professor poder corrigir em PT ou EN.
+- `commands.py` restringe a célula aos comandos que fazem sentido (`start`,
+  `pause`, `toggle`, `stop`, `step_once`, `reset`, `set_speed`, `refresh`) e
+  `simulator.adopt()` mantém a cena viva enquanto o aluno edita o código.
+
+### URDF como fonte única de verdade
+
+- `web/python/hivebr_web/urdf.py`: leitor de URDF sem dependências (links com
+  visuais primitivos, juntas revolute/prismatic/fixed, origins, eixos e limites),
+  multiplicação de matrizes, FK da cadeia, `load_model()`, `resolve_model_path()`
+  e `model_summary()`. Não precisa de ROS.
+- `web/python/hivebr_web/models/scara_cell.urdf` é o modelo de referência
+  empacotado (inspirado no ABB IRB 910SC): 5 links, cadeia
+  `revolute, revolute, prismatic, fixed`, ombro em 0,80 m, braços de 1,60 m e
+  1,40 m. Com as juntas em zero a ponta fica em `(3,0; 0; 0,8)`.
+- O aluno recebe cópias com três `origin` marcados `TODO` em
+  `web/templates/scara_cell.urdf` (PT) e `web/templates/en/scara_cell.urdf` (EN).
+- `ScaraSimulator("scara_cell.urdf")` procura primeiro
+  `user_scripts/scara_cell.urdf` (a aba do editor) e só então o modelo
+  empacotado. Python e desenho leem o mesmo arquivo: um URDF errado deixa o
+  braço curto ou alto demais nas duas pontas.
+- O catálogo anexa o `.urdf` às atividades `scara-urdf` e `scara-esteira` com
+  `files: ['scara_cell.urdf']`, então a aba aparece junto do script.
+
+### Desenho 3D e câmera
+
+- `web/src/canvas/scara.js` desenha a célula com projeção isométrica própria
+  (sem WebGL/Three.js): chão, esteira, peças, cestas, braço e HUD.
+- A câmera tem órbita, zoom e pan: arrastar gira (yaw/pitch), Shift/meio/botão
+  direito ou espaço arrasta, a roda dá zoom, pinça dá zoom e duplo clique
+  redefine. O HUD mostra a dica `scara.controls`.
+- `renderer.js`/`SimCanvas.vue` guardam o estado da câmera por cena e incluem
+  `kind` na chave de enquadramento, para o reset não herdar a câmera do robô
+  móvel.
+- Se o URDF não carregar, o renderer cai num braço legado simples; o caminho
+  normal é sempre o modelo do aluno.
+
+### Currículo do nível 5
+
+Novo nível 5 “Manipuladores 3D” e trilha `manipulador`, em sequência:
+
+| Atividade | Template | XP | Medalha | Objetivo |
+|---|---|---:|---|---|
+| `scara-dh` | `scara_dh.py` | 100 | 📐 Tabela DH | `DH OK` |
+| `scara-urdf` | `scara_urdf.py` + `scara_cell.urdf` | 110 | 🧱 URDF | `URDF OK` |
+| `scara-matrizes` | `scara_matrizes.py` | 120 | 🧮 Homogêneas | `MATRIZ OK` |
+| `scara-esteira` | `scara_esteira.py` + `scara_cell.urdf` | 130 | 🦾 SCARA | 3 peças + CSV + `SCARA OK` |
+
+- `scara-dh` preenche theta, d, a e alpha das três juntas e compara com as
+  dimensões do URDF.
+- `scara-urdf` lê o arquivo do aluno e confere alturas, comprimentos, tipos de
+  junta e a pose FK em zero.
+- `scara-matrizes` monta a matriz 4x4 de cada linha DH e confere a cinemática
+  direta em duas poses.
+- `scara-esteira` integra tudo: DH, matrizes, FK e IK para pegar cada peça e
+  colocá-la na cesta da cor certa.
+- `scara-esteira` exige `scara_placed >= 3`, `scara_relatorio.csv` e
+  `SCARA OK`; as estrelas pedem 6 peças e o uso de `cinematica_inversa`.
+- Projeto final do nível: `projeto-final-5` (200 XP, 🦾 Projeto V, 350 palavras,
+  5 seções). A conquista agregada nova é 🦾 Manipulação (as quatro atividades).
+- `XP_THRESHOLDS = [0, 300, 800, 1500, 2200]`; o nível 5 começa em 2200 XP.
+
+### Templates PT/EN
+
+Quatro templates novos em cada idioma (`scara_dh.py`, `scara_urdf.py`,
+`scara_matrizes.py`, `scara_esteira.py`) e o par de URDFs. Os scripts sem
+solução imprimem a mensagem de erro traduzida; as soluções imprimem
+`DH OK`, `URDF OK`, `MATRIZ OK` e `SCARA OK`. A paridade AST PT/EN dos quatro
+pares foi verificada e é idêntica.
+
+### Validação da Fase 8
+
+- `node --test "tests/**/*.test.mjs"`: 57/57.
+- `python web/python/tests/run_all.py test_scara`: 8/8, incluindo DH, matrizes,
+  URDF do aluno e a célula completa colocando peças e gravando o CSV.
+- `npm run build`: 193 arquivos no `hivebr-py.zip`, com os templates SCARA e os
+  dois URDFs.
+- `node tests/e2e/learning.e2e.mjs`: 18/18; o nível 5 roda `scara-dh` e
+  `scara-esteira` (com a aba `scara_cell.urdf` resolvida), e o professor conta
+  `1/5` relatórios.
+- Permanecem as seis falhas Python antigas de ambiente/paridade
+  (`line_follower.py`, `multi_line_follower.py`, `seguidor_de_linha.py` e os
+  testes de caminho/encoding), sem relação com esta fase.
 
 ## Riscos e cuidados
 
@@ -889,12 +1021,15 @@ Registro histórico da rodada anterior; a validação da Fase 3 está na seção
 
 ## Estado atual do repositório
 
-Fases 1–7 concluídas e validadas. A Fase 5 expandiu o currículo com atividades
+Fases 1–8 concluídas e validadas. A Fase 5 expandiu o currículo com atividades
 contextuais, identidade local e bundles de progresso protegidos; a Fase 6
 adicionou o perfil visível (nome/turma), a sincronização do relatório e o modo
 professor local com planilha da turma; a Fase 7 deu um projeto final com
-relatório próprio a cada nível. O backend opcional e o refinamento do conteúdo
-das seções dos relatórios continuam como próximos passos.
+relatório próprio a cada nível; a Fase 8 acrescentou o nível 5 de manipuladores,
+com o simulador SCARA 3D, URDF editável, câmera orbital, DH, matrizes
+homogêneas, cinemática direta/inversa e a célula com esteira e eletroímã. O
+backend opcional e o refinamento do conteúdo das seções dos relatórios continuam
+como próximos passos.
 
 Arquivos principais:
 
@@ -907,7 +1042,11 @@ Arquivos principais:
   sincronização da identificação);
 - `web/tests/learning/learning.test.mjs`;
 - `web/tests/e2e/learning.e2e.mjs`;
-- 51 templates PT em `web/templates/` e 51 espelhos EN em `web/templates/en/`;
+- `web/python/hivebr_web/scara.py`, `urdf.py` e `models/scara_cell.urdf`;
+- `web/src/canvas/scara.js` (projeção isométrica, câmera orbital e HUD);
+- `web/python/tests/test_scara.py` e `web/tests/canvas/scara.test.mjs`;
+- 55 templates PT em `web/templates/` e 55 espelhos EN em `web/templates/en/`,
+  mais o par de URDFs (`scara_cell.urdf`);
 - novas entradas e categorias em `web/src/examples/catalog.js`.
 
 Pendências conhecidas:
@@ -928,11 +1067,12 @@ Próximos passos:
 
 ### Emojis de medalhas e conquistas
 
-Todas as 41 medalhas e as 5 conquistas agregadas têm emoji no rótulo i18n
+Todas as 46 medalhas e as 6 conquistas agregadas têm emoji no rótulo i18n
 (PT e EN), então o emoji aparece tanto no chip da medalha quanto no toast.
 A medalha do relatório final (📝 Relatorista IV) e as dos projetos de nível
-(🧪, 🧭 e 🤖) foram incluídas nas Fases 4 e 7; as medalhas contextuais (🚚, 📊,
-🏭, entre outras) entraram na Fase 5:
+(🧪, 🧭, 🤖 e 🦾) foram incluídas nas Fases 4, 7 e 8; as medalhas contextuais
+(🚚, 📊, 🏭, entre outras) entraram na Fase 5 e as do manipulador (📐, 🧱 e 🧮)
+na Fase 8:
 
 | Chave | Emoji | Chave | Emoji |
 |---|---|---|---|
@@ -947,5 +1087,8 @@ A medalha do relatório final (📝 Relatorista IV) e as dos projetos de nível
 | `rrt` | 🌳 | `rrt_star` | ✨ |
 | `curvas` | 〰️ | `relatorio` | 📝 |
 | `projeto1` | 🧪 | `projeto2` | 🧭 |
-| `projeto3` | 🤖 | `planejador` | 🧠 |
-| `mestre` | 🏆 | | |
+| `projeto3` | 🤖 | `projeto5` | 🦾 |
+| `dh` | 📐 | `urdf` | 🧱 |
+| `homogeneas` | 🧮 | `scara` | 🦾 |
+| `planejador` | 🧠 | `mestre` | 🏆 |
+| `manipulacao` | 🦾 | | |

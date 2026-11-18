@@ -15,11 +15,11 @@ const catalog = read(path.join(SRC, 'examples', 'catalog.js'))
 const files = [...catalog.matchAll(/file:\s*'([^']+\.py)'/g)].map((m) => m[1])
 const filenames = [...catalog.matchAll(/filename:\s*'([^']+\.py)'/g)].map((m) => m[1])
 const extraFiles = [...catalog.matchAll(/files:\s*\[([^\]]*)\]/g)]
-  .flatMap((m) => [...m[1].matchAll(/'([^']+\.py)'/g)].map((x) => x[1]))
+  .flatMap((m) => [...m[1].matchAll(/'([^']+\.[A-Za-z0-9]+)'/g)].map((x) => x[1]))
 
 test('o catálogo usa apenas web/templates (PT) e web/templates/en (EN)', () => {
   assert.doesNotMatch(catalog, /\.\.\/\.\.\/examples\//, 'catalog.js ainda lê de examples/')
-  assert.match(catalog, /import\.meta\.glob\([\s\S]*templates\/\*\.py[\s\S]*templates\/en\/\*\.py/)
+  assert.match(catalog, /import\.meta\.glob\([\s\S]*templates\/\*\.py[\s\S]*templates\/en\/\*\.py[\s\S]*templates\/\*\.urdf[\s\S]*templates\/en\/\*\.urdf/)
   assert.ok(files.length >= 7, 'poucos exemplos no catálogo')
   for (const name of files) {
     assert.ok(fs.existsSync(path.join(WEB, 'templates', name)), `falta templates/${name}`)
@@ -58,6 +58,6 @@ test('todo exemplo tem categoria, nível e ordem válidos', () => {
 
   const allowed = new Set(['fundamentos', 'python', 'percepcao', 'linha', 'locomocao', 'controle', 'planejamento', 'multirobo', 'projeto'])
   for (const c of categories) assert.ok(allowed.has(c), `categoria inválida: ${c}`)
-  for (const l of levels) assert.ok(l >= 1 && l <= 4, `nível inválido: ${l}`)
+  for (const l of levels) assert.ok(l >= 1 && l <= 5, `nível inválido: ${l}`)
   for (const o of orders) assert.ok(o > 0, `ordem inválida: ${o}`)
 })
