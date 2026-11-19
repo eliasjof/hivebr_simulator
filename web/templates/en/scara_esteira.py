@@ -16,16 +16,18 @@ height and both arm lengths. If the URDF is wrong, the robot cannot reach the
 conveyor. Fill the URDF TODOs before running.
 
 Hints:
-  - The reach is L1 + L2 = 3.0 m; the base sits at BASE_Z.
+  - The reach is L1 + L2 = 3.0 m; the base sits at BASE_Z (1.10 m).
   - Use math.atan2(y, x) and math.acos() with the argument clamped to [-1, 1].
-  - The gripper only picks when the tip is within 30 cm of the part.
+  - The electromagnet is the tool: alvo["z"] is the top of the part and the
+    gripper descends to it.
+  - Between targets, the arm rises to TRANSIT_Z before travelling.
 
 The script prints SCARA OK at the end and writes scara_relatorio.csv.
 """
 
 import math
 
-from hivebr_web.scara import BASE_Z, L1, L2, ScaraSimulator
+from hivebr_web.scara import BASE_Z, BASKET_Z, L1, L2, TRANSIT_Z, ScaraSimulator
 
 
 def tabela_dh():
@@ -77,6 +79,18 @@ def cinematica_inversa(x, y, z):
     return 0.0, 0.0, 0.0
 
 
+def distancia_xy(sim, x, y):
+    """Horizontal distance between the tool point and the target."""
+    px, py, _ = sim.tip()
+    return math.hypot(px - x, py - y)
+
+
+def ir_para(sim, x, y, z):
+    """Runs the IK for the target and updates the joints."""
+    q1, q2, d3 = cinematica_inversa(x, y, z)
+    sim.move_joints(q1, q2, d3)
+
+
 def controlar(sim):
     """Main loop: conveyor, colour detection, pick and place."""
     print("DH", tabela_dh())
@@ -91,16 +105,23 @@ def controlar(sim):
             alvo = sim.next_object()
             if alvo is None:
                 continue
-            # alvo["color"] is the colour detected by the sensor: "red", "green" or "blue".
-            q1, q2, d3 = cinematica_inversa(alvo["x"], alvo["y"], alvo["z"])
-            sim.move_joints(q1, q2, d3)
+            # Travel above the part first; the electromagnet lowers last.
+            if distancia_xy(sim, alvo["x"], alvo["y"]) > 0.15:
+                ir_para(sim, alvo["x"], alvo["y"], TRANSIT_Z)
+                continue
+            # alvo["z"] is the top of the part: lower until it touches.
+            ir_para(sim, alvo["x"], alvo["y"], alvo["z"])
             if sim.can_pick():
+                # alvo["color"] is the detected colour: "red", "green" or "blue".
                 print("Detected colour:", alvo["color"])
                 sim.pick()
         else:
             cesta = sim.basket_for(sim.held["color"])
-            q1, q2, d3 = cinematica_inversa(cesta["x"], cesta["y"], 0.28)
-            sim.move_joints(q1, q2, d3)
+            # Raise the part before travelling to the basket.
+            if distancia_xy(sim, cesta["x"], cesta["y"]) > 0.15:
+                ir_para(sim, cesta["x"], cesta["y"], TRANSIT_Z)
+                continue
+            ir_para(sim, cesta["x"], cesta["y"], BASKET_Z)
             if sim.can_place():
                 sim.place()
 

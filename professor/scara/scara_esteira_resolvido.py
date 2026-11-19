@@ -8,7 +8,7 @@ para conferir as respostas das atividades `scara-dh`, `scara-matrizes`,
 Como rodar fora do navegador:
 
     cd web/python
-    python ../../professor/scara/scara_esteira_resolvido.py
+    PYTHONPATH=. python ../../professor/scara/scara_esteira_resolvido.py
 
 O script usa o URDF resolvido que está ao lado dele
 (`scara_cell_resolvido.urdf`), imprime as leituras de cor e grava
@@ -29,13 +29,18 @@ Respostas que o aluno deve produzir:
        q2 = acos(c2)
        q1 = atan2(y, x) - atan2(L2*sen(q2), L1 + L2*cos(q2))
        d3 = z - BASE_Z
-  4. URDF: joint_1 em z = 0.80, joint_2 em x = 1.60, joint_3 em x = 1.40.
+  4. URDF: joint_1 em z = 1.10, joint_2 em x = 1.60, joint_3 em x = 1.40.
+     O ponto de ferramenta é a face inferior do eletroímã (z = 0 local).
+
+O laço sobe para TRANSIT_Z entre alvos, desce até o topo da peça, pega, sobe,
+viaja até a cesta, desce até BASKET_Z e solta. Assim a garra eletromagnética
+aparece descendo e subindo em cada ciclo.
 """
 
 import math
 import os
 
-from hivebr_web.scara import BASE_Z, L1, L2, ScaraSimulator
+from hivebr_web.scara import BASE_Z, BASKET_Z, L1, L2, TRANSIT_Z, ScaraSimulator
 
 MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scara_cell_resolvido.urdf")
 
@@ -89,6 +94,18 @@ def cinematica_inversa(x, y, z):
     return q1, q2, d3
 
 
+def distancia_xy(sim, x, y):
+    """Distância horizontal entre a ponta e o alvo."""
+    px, py, _ = sim.tip()
+    return math.hypot(px - x, py - y)
+
+
+def ir_para(sim, x, y, z):
+    """Calcula a IK do alvo e atualiza as juntas."""
+    q1, q2, d3 = cinematica_inversa(x, y, z)
+    sim.move_joints(q1, q2, d3)
+
+
 def controlar(sim):
     """Laço principal: esteira, detecção de cor, pega e coloca."""
     print("DH", tabela_dh())
@@ -102,16 +119,23 @@ def controlar(sim):
             alvo = sim.next_object()
             if alvo is None:
                 continue
-            # A cor vem do sensor do simulador: "red", "green" ou "blue".
-            q1, q2, d3 = cinematica_inversa(alvo["x"], alvo["y"], alvo["z"])
-            sim.move_joints(q1, q2, d3)
+            # Primeiro va acima da peça; o eletroímã desce só no final.
+            if distancia_xy(sim, alvo["x"], alvo["y"]) > 0.15:
+                ir_para(sim, alvo["x"], alvo["y"], TRANSIT_Z)
+                continue
+            # alvo["z"] é o topo da peça: desça até encostar.
+            ir_para(sim, alvo["x"], alvo["y"], alvo["z"])
             if sim.can_pick():
+                # A cor vem do sensor do simulador: "red", "green" ou "blue".
                 print("Cor detectada:", alvo["color"])
                 sim.pick()
         else:
             cesta = sim.basket_for(sim.held["color"])
-            q1, q2, d3 = cinematica_inversa(cesta["x"], cesta["y"], 0.28)
-            sim.move_joints(q1, q2, d3)
+            # Suba com a peça antes de viajar até a cesta.
+            if distancia_xy(sim, cesta["x"], cesta["y"]) > 0.15:
+                ir_para(sim, cesta["x"], cesta["y"], TRANSIT_Z)
+                continue
+            ir_para(sim, cesta["x"], cesta["y"], BASKET_Z)
             if sim.can_place():
                 sim.place()
 

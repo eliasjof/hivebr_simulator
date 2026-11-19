@@ -892,8 +892,15 @@ desenho 3D no canvas 2D.
 - A interface do aluno é `conveyor_on()`, `step()`, `next_object()`,
   `move_joints()`, `can_pick()`, `pick()`, `can_place()`, `place()`,
   `basket_for()`, `export()` e `model_info()`.
-- A pinça é um eletroímã: só pega quando a ponta está a menos de 30 cm da peça.
-  Peças que chegam ao fim da esteira sem serem pegas contam como perdidas.
+- A pinça é um eletroímã: só pega quando a ponta está a menos de 30 cm da peça
+  no plano e a até 6 cm de altura do topo. Peças que chegam ao fim da esteira
+  sem serem pegas contam como perdidas.
+- A altura reportada de uma peça (`alvo["z"]`) é o **topo**, onde o eletroímã
+  encosta; o desenho desenha o corpo abaixo desse ponto. O ponto de ferramenta
+  é a face inferior do eletroímã, então `d3` precisa ser negativo para descer.
+- A pose inicial é dobrada (`q1 = -0.35`, `q2 = 0.95`) e o ímã começa em
+  `TRANSIT_Z`, acima das peças; `reset()` volta para essa pose, em vez de
+  esticar o braço.
 - `pick()` e `place()` emitem um frame imediatamente, então o contador do HUD
   bate com o `SCARA OK` impresso ao final do laço.
 - `scara_relatorio.csv` é neutro de idioma (`color;placed;lost`), para o
@@ -910,8 +917,14 @@ desenho 3D no canvas 2D.
   e `model_summary()`. Não precisa de ROS.
 - `web/python/hivebr_web/models/scara_cell.urdf` é o modelo de referência
   empacotado (inspirado no ABB IRB 910SC): 5 links, cadeia
-  `revolute, revolute, prismatic, fixed`, ombro em 0,80 m, braços de 1,60 m e
-  1,40 m. Com as juntas em zero a ponta fica em `(3,0; 0; 0,8)`.
+  `revolute, revolute, prismatic, fixed`, ombro em 1,10 m, braços de 1,60 m e
+  1,40 m. Com as juntas em zero a ponta fica em `(3,0; 0; 1,1)`.
+- O ombro fica acima da esteira (0,55 m), então o braço precisa descer para
+  tocar a peça. A coluna da base foi estendida até 1,10 m, com um colar escuro
+  no topo, e o `link_3` virou o eletroímã: disco magnético em `z = 0..0.04`,
+  carcaça escura em `0.04..0.14` e `tool_link` na face inferior. A haste entre
+  punho e ímã é desenhada como telescópio pelo canvas, então a garra estica
+  visivelmente quando `d3` desce.
 - O aluno recebe cópias com três `origin` marcados `TODO` em
   `web/templates/scara_cell.urdf` (PT) e `web/templates/en/scara_cell.urdf` (EN).
 - `ScaraSimulator("scara_cell.urdf")` procura primeiro
@@ -942,7 +955,13 @@ desenho 3D no canvas 2D.
   revela mais “planos soltos”.
 - A esteira ganhou chassi, trilhos laterais, pés, roletes e faixas móveis; a
   base do robô ganhou uma mesa de fixação; as cestas são caixas abertas com
-  borda e contador; as peças são cilindros coloridos com topo usinado.
+  borda e contador; as peças são cilindros coloridos com topo usinado, sempre
+  na cor real da peça.
+- A peça presa acompanha a face do ímã (`held["z"]` é o topo) e cada cesta
+  mostra uma pilha 2x2 das peças já colocadas, em vez de só o contador.
+- O eletroímã e a haste telescópica são desenhados junto do modelo URDF; o
+  caminho de fallback (URDF ausente) também usa uma cabeça magnética azul em
+  vez da garra antiga de dois dedos.
 - Cada peça usa a cor detectada (`scene.scara.colors[part.color]`), e o aluno vê
   a cor explicitamente em `alvo["color"]` / `sim.held["color"]`; o template
   imprime `Cor detectada: ...` ao pegar a peça.
@@ -982,7 +1001,9 @@ Novo nível 5 “Manipuladores 3D” e trilha `manipulador`, em sequência:
 - `scara-matrizes` monta a matriz 4x4 de cada linha DH e confere a cinemática
   direta em duas poses.
 - `scara-esteira` integra tudo: DH, matrizes, FK e IK para pegar cada peça e
-  colocá-la na cesta da cor certa.
+  colocá-la na cesta da cor certa. O laço é encenado: viaja em `TRANSIT_Z`,
+  desce até `alvo["z"]` (topo da peça), pega, sobe, viaja até a cesta, desce
+  até `BASKET_Z` e solta, então o eletroímã aparece descendo e subindo.
 - `scara-esteira` exige `scara_placed >= 3`, `scara_relatorio.csv` e
   `SCARA OK`; as estrelas pedem 6 peças e o uso de `cinematica_inversa`.
 - Projeto final do nível: `projeto-final-5` (200 XP, 🦾 Projeto V, 350 palavras,
@@ -999,17 +1020,21 @@ pares foi verificada e é idêntica.
 
 ### Validação da Fase 8
 
-- `node --test "tests/**/*.test.mjs"`: 58/58, incluindo um teste que desenha a
-  cena e confere o HUD (`Colocados`, velocidade da esteira e juntas).
-- `python web/python/tests/run_all.py test_scara`: 8/8, incluindo DH, matrizes,
-  URDF do aluno e a célula completa colocando peças e gravando o CSV.
+- `node --test "tests/**/*.test.mjs"`: 59/59, incluindo um teste que desenha a
+  cena e confere o HUD (`Colocados`, velocidade da esteira e juntas), e outro
+  que desenha o eletroímã, a peça presa e as pilhas das cestas.
+- `python web/python/tests/run_all.py test_scara`: 10/10, incluindo DH,
+  matrizes, URDF do aluno, a pose inicial dobrada, a descida/subida da garra e
+  a célula completa colocando peças e gravando o CSV.
 - `npm run build`: 193 arquivos no `hivebr-py.zip`, com os templates SCARA e os
-  dois URDFs.
+  dois URDFs, sem nenhuma entrada `professor`/`resolvido`.
 - `node tests/e2e/learning.e2e.mjs`: 18/18; o nível 5 roda `scara-dh` e
   `scara-esteira` (com a aba `scara_cell.urdf` resolvida), e o professor conta
   `1/5` relatórios.
-- `professor/scara/scara_esteira_resolvido.py` roda no terminal e termina em
-  `SCARA OK 4 0`, gravando `scara_relatorio.csv`.
+- `professor/scara/scara_esteira_resolvido.py` roda no terminal com
+  `PYTHONPATH=.`, imprime `FK (3.0, 0.0, 1.1)` e termina em `SCARA OK 4 0`,
+  gravando `scara_relatorio.csv`.
+- Paridade AST PT/EN dos quatro pares SCARA: idêntica.
 - Permanecem as seis falhas Python antigas de ambiente/paridade
   (`line_follower.py`, `multi_line_follower.py`, `seguidor_de_linha.py` e os
   testes de caminho/encoding), sem relação com esta fase.

@@ -66,6 +66,8 @@ test('the HUD reads the counters and pose from the SCARA frame', async () => {
     kind: 'scara',
     scara: {
       belt: { x0: 2.1, x1: 5.9, y: 0, z: 0.55, width: 0.62 },
+      base_z: 1.1,
+      part_height: 0.15,
       baskets: [],
       colors: { red: [220, 64, 56], green: [58, 176, 92], blue: [58, 118, 216] },
       model: null,
@@ -78,6 +80,7 @@ test('the HUD reads the counters and pose from the SCARA frame', async () => {
       rejected: 0,
       conveyor: { on: true, speed: 0.55 },
       arm: { q1: 0.5, q2: 1.5, d3: -0.5 },
+      tip: { x: 2.4, y: 0.1, z: 0.7 },
       event: '',
     },
   }
@@ -86,4 +89,67 @@ test('the HUD reads the counters and pose from the SCARA frame', async () => {
   assert.ok(texts.some((s) => s.endsWith(': 4')), `placed counter missing: ${texts.join(' | ')}`)
   assert.ok(texts.some((s) => s.includes('0.55')), 'conveyor speed missing from the HUD')
   assert.ok(texts.some((s) => s.includes('q1=0.50')), 'joint pose missing from the HUD')
+})
+
+test('the SCARA scene draws the magnet, the held part and the basket piles', async () => {
+  const { drawScaraScene } = await import('../../src/canvas/scara.js')
+  const texts = []
+  const ctx = new Proxy({}, {
+    get(_target, prop) {
+      if (prop === 'fillText') return (text) => texts.push(String(text))
+      if (prop === 'measureText') return () => ({ width: 20 })
+      return () => {}
+    },
+    set() { return true },
+  })
+  const model = {
+    base: 'base_link',
+    chain: [{
+      name: 'joint_3',
+      type: 'prismatic',
+      motion: 'd3',
+      axis: [0, 0, 1],
+      origin: { xyz: [0, 0, 0] },
+      child: 'link_3',
+    }],
+    links: {
+      base_link: { visuals: [] },
+      link_3: {
+        visuals: [{
+          origin: { xyz: [0, 0, 0] },
+          geometry: { type: 'cylinder', radius: 0.075, length: 0.04 },
+          material: { color: [0.24, 0.55, 0.95, 1] },
+        }],
+      },
+    },
+  }
+  const colors = { red: [220, 64, 56], green: [58, 176, 92], blue: [58, 118, 216] }
+  const basket = { id: 'red', color: 'red', x: 0.55, y: 2.1, count: 2 }
+  const scene = {
+    kind: 'scara',
+    scara: {
+      belt: { x0: 2.1, x1: 5.9, y: 0, z: 0.55, width: 0.62 },
+      base_z: 1.1,
+      part_height: 0.15,
+      baskets: [basket],
+      colors,
+      model,
+    },
+  }
+  const frame = {
+    t: 2,
+    scara: {
+      placed: 2,
+      rejected: 0,
+      conveyor: { on: true, speed: 0.55 },
+      arm: { q1: 0.2, q2: 0.9, d3: -0.5 },
+      tip: { x: 2.6, y: 0, z: 0.7 },
+      objects: [{ id: 1, color: 'blue', x: 4.0, y: 0, z: 0.7 }],
+      held: { id: 2, color: 'green', x: 2.6, y: 0, z: 0.7 },
+      baskets: [basket],
+      event: '',
+    },
+  }
+  assert.doesNotThrow(() => drawScaraScene(ctx, scene, frame, 'dark', 800, 600))
+  assert.ok(texts.some((s) => s.endsWith(': 2')), `basket/placed counter missing: ${texts.join(' | ')}`)
 })

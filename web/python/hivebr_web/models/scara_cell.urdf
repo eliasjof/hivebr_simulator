@@ -5,6 +5,8 @@
   The shell follows the proportions of a commercial SCARA (ABB IRB 910SC
   class): a heavy cylindrical base, a white shoulder housing, two slim arms
   with an orange safety stripe and a vertical quill with an electromagnet.
+  The shoulder sits above the conveyor, so the prismatic joint must lower the
+  magnet before it can touch a part.
 
   The model is intentionally made of primitives (box/cylinder) so it can be
   parsed and drawn without external mesh files.  The kinematic chain is:
@@ -14,9 +16,11 @@
               -> joint_3 (prismatic Z) -> link_3
               -> joint_4 (fixed) -> tool_link
 
-  Student activity: the file in web/templates/scara_cell.urdf has the joint
-  origins left as placeholders.  Fill them with the values below and the
-  simulator can reach the conveyor and the baskets.
+  The tool point is the lower face of the magnet at link_3 local z = 0, which
+  is also the origin of tool_link.  Student activity: the file in
+  web/templates/scara_cell.urdf has the joint origins left as placeholders.
+  Fill them with the values below and the simulator can reach the conveyor and
+  the baskets.
 -->
 <robot name="hivebr_scara">
 
@@ -43,19 +47,24 @@
       <material name="abb_dark"/>
     </visual>
     <visual>
-      <origin xyz="0 0 0.30" rpy="0 0 0"/>
+      <origin xyz="0 0 0.31" rpy="0 0 0"/>
       <geometry><cylinder radius="0.32" length="0.22"/></geometry>
       <material name="abb_white"/>
     </visual>
     <visual>
-      <origin xyz="0 0 0.43" rpy="0 0 0"/>
+      <origin xyz="0 0 0.44" rpy="0 0 0"/>
       <geometry><cylinder radius="0.34" length="0.04"/></geometry>
       <material name="abb_orange"/>
     </visual>
     <visual>
-      <origin xyz="0 0 0.62" rpy="0 0 0"/>
-      <geometry><cylinder radius="0.22" length="0.36"/></geometry>
+      <origin xyz="0 0 0.77" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.22" length="0.62"/></geometry>
       <material name="abb_white"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 1.07" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.24" length="0.06"/></geometry>
+      <material name="abb_dark"/>
     </visual>
   </link>
 
@@ -106,27 +115,26 @@
   </link>
 
   <link name="link_3">
+    <!-- The electromagnet is the tool: its lower face is local z = 0, the
+         exact point returned by urdf.tip(). The quill that connects it to the
+         wrist is drawn as a telescopic shaft by the canvas, so it can stretch
+         when d3 goes negative. -->
     <visual>
-      <origin xyz="0 0 -0.09" rpy="0 0 0"/>
-      <geometry><cylinder radius="0.055" length="0.18"/></geometry>
-      <material name="steel"/>
-    </visual>
-    <visual>
-      <origin xyz="0 0 -0.21" rpy="0 0 0"/>
-      <geometry><box size="0.14 0.14 0.06"/></geometry>
-      <material name="abb_dark"/>
-    </visual>
-    <visual>
-      <origin xyz="0 0 -0.25" rpy="0 0 0"/>
-      <geometry><cylinder radius="0.065" length="0.02"/></geometry>
+      <origin xyz="0 0 0.02" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.075" length="0.04"/></geometry>
       <material name="magnet"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0.09" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.09" length="0.10"/></geometry>
+      <material name="abb_dark"/>
     </visual>
   </link>
 
   <link name="tool_link">
     <visual>
-      <origin xyz="0 0 -0.26" rpy="0 0 0"/>
-      <geometry><sphere radius="0.025"/></geometry>
+      <origin xyz="0 0 0.02" rpy="0 0 0"/>
+      <geometry><sphere radius="0.015"/></geometry>
       <material name="magnet"/>
     </visual>
   </link>
@@ -134,7 +142,7 @@
   <joint name="joint_1" type="revolute">
     <parent link="base_link"/>
     <child link="link_1"/>
-    <origin xyz="0 0 0.80" rpy="0 0 0"/>
+    <origin xyz="0 0 1.10" rpy="0 0 0"/>
     <axis xyz="0 0 1"/>
     <limit lower="-3.1416" upper="3.1416" effort="120" velocity="3.0"/>
   </joint>

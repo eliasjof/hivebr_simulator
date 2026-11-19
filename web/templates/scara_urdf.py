@@ -5,7 +5,7 @@ Python le exatamente o mesmo arquivo que o desenho da simulacao usa, entao um
 URDF errado deixa o braco curto ou alto demais.
 
 Dicas:
-  - O origin da joint_1 em Z e a altura do ombro: 0,80 m.
+  - O origin da joint_1 em Z e a altura do ombro: 1,10 m.
   - O origin da joint_2 em X e o primeiro braco: 1,60 m.
   - O origin da joint_3 em X e o segundo braco: 1,40 m.
 
@@ -17,7 +17,7 @@ from hivebr_web.urdf import load_model, model_summary, tip
 
 def conferir(modelo):
     """Devolve True quando o URDF descreve o SCARA didatico."""
-    esperado = {"l1": 1.6, "l2": 1.4, "base_z": 0.8}
+    esperado = {"l1": 1.6, "l2": 1.4, "base_z": 1.1}
     for chave, valor in esperado.items():
         if abs(float(modelo["lengths"][chave]) - valor) > 1e-6:
             return False
@@ -25,7 +25,7 @@ def conferir(modelo):
     if tipos != ["revolute", "revolute", "prismatic", "fixed"]:
         return False
     x, y, z = tip(modelo, {"q1": 0.0, "q2": 0.0, "d3": 0.0})
-    if abs(x - 3.0) > 1e-6 or abs(y) > 1e-6 or abs(z - 0.8) > 1e-6:
+    if abs(x - 3.0) > 1e-6 or abs(y) > 1e-6 or abs(z - 1.1) > 1e-6:
         return False
     return True
 

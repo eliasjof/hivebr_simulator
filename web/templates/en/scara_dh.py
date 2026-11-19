@@ -5,7 +5,7 @@ three rows of the didactic SCARA (q1, q2 and the prismatic d3) and run the
 script: the check prints DH OK when the table matches the URDF.
 
 Hints:
-  - The shoulder height is BASE_Z (0.80 m): it belongs to d of joint 1.
+  - The shoulder height is BASE_Z (1.10 m): it belongs to d of joint 1.
   - The arms measure L1 (1.60 m) and L2 (1.40 m): they belong to a.
   - Only the first two joints rotate; joint 3 slides along Z.
 

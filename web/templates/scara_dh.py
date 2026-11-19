@@ -5,7 +5,7 @@ tres linhas do SCARA didatico (q1, q2 e a prismatica d3) e rode o script: a
 verificacao imprime DH OK quando a tabela bate com o URDF.
 
 Dicas:
-  - A altura do ombro e BASE_Z (0,80 m): ela fica no d da junta 1.
+  - A altura do ombro e BASE_Z (1,10 m): ela fica no d da junta 1.
   - Os bracos medem L1 (1,60 m) e L2 (1,40 m): eles ficam no a.
   - Apenas as duas primeiras juntas giram; a junta 3 desliza em Z.
 

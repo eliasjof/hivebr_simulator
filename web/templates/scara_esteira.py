@@ -15,16 +15,17 @@ do ombro e os dois comprimentos do braco. Se o URDF estiver errado, o robo nao
 alcanca a esteira. Preencha os TODO do URDF antes de rodar.
 
 Dicas:
-  - O alcance e L1 + L2 = 3,0 m; a base fica em BASE_Z.
+  - O alcance e L1 + L2 = 3,0 m; a base fica em BASE_Z (1,10 m).
   - Use math.atan2(y, x) e math.acos() com o argumento limitado a [-1, 1].
-  - A pinça so pega quando a ponta esta a menos de 30 cm da peca.
+  - O eletroima e a ponta: alvo["z"] e o topo da peca e a garra desce ate la.
+  - Entre um alvo e outro, o braco sobe para TRANSIT_Z antes de viajar.
 
 O script imprime SCARA OK no final e grava scara_relatorio.csv.
 """
 
 import math
 
-from hivebr_web.scara import BASE_Z, L1, L2, ScaraSimulator
+from hivebr_web.scara import BASE_Z, BASKET_Z, L1, L2, TRANSIT_Z, ScaraSimulator
 
 
 def tabela_dh():
@@ -76,6 +77,18 @@ def cinematica_inversa(x, y, z):
     return 0.0, 0.0, 0.0
 
 
+def distancia_xy(sim, x, y):
+    """Distancia horizontal entre a ponta e o alvo."""
+    px, py, _ = sim.tip()
+    return math.hypot(px - x, py - y)
+
+
+def ir_para(sim, x, y, z):
+    """Calcula a IK do alvo e atualiza as juntas."""
+    q1, q2, d3 = cinematica_inversa(x, y, z)
+    sim.move_joints(q1, q2, d3)
+
+
 def controlar(sim):
     """Laco principal: esteira, deteccao de cor, pega e coloca."""
     print("DH", tabela_dh())
@@ -90,16 +103,23 @@ def controlar(sim):
             alvo = sim.next_object()
             if alvo is None:
                 continue
-            # alvo["color"] é a cor detectada pelo sensor: "red", "green" ou "blue".
-            q1, q2, d3 = cinematica_inversa(alvo["x"], alvo["y"], alvo["z"])
-            sim.move_joints(q1, q2, d3)
+            # Primeiro va acima da peca; o eletroima desce so no final.
+            if distancia_xy(sim, alvo["x"], alvo["y"]) > 0.15:
+                ir_para(sim, alvo["x"], alvo["y"], TRANSIT_Z)
+                continue
+            # alvo["z"] e o topo da peca: desca ate encostar.
+            ir_para(sim, alvo["x"], alvo["y"], alvo["z"])
             if sim.can_pick():
+                # alvo["color"] e a cor detectada: "red", "green" ou "blue".
                 print("Cor detectada:", alvo["color"])
                 sim.pick()
         else:
             cesta = sim.basket_for(sim.held["color"])
-            q1, q2, d3 = cinematica_inversa(cesta["x"], cesta["y"], 0.28)
-            sim.move_joints(q1, q2, d3)
+            # Suba com a peca antes de viajar ate a cesta.
+            if distancia_xy(sim, cesta["x"], cesta["y"]) > 0.15:
+                ir_para(sim, cesta["x"], cesta["y"], TRANSIT_Z)
+                continue
+            ir_para(sim, cesta["x"], cesta["y"], BASKET_Z)
             if sim.can_place():
                 sim.place()
 

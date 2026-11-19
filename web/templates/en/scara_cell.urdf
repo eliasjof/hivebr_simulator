@@ -7,10 +7,12 @@
   cannot reach the conveyor or the baskets.
 
   Complete the three origins marked TODO. The SCARA dimensions are:
-    - joint 1 (shoulder) height above the base: 0.80 m
+    - joint 1 (shoulder) height above the base: 1.10 m
     - arm 1 length: 1.60 m
     - arm 2 length: 1.40 m
-  Joint 3 is prismatic (Z axis) and moves the vertical quill.
+  Joint 3 is prismatic (Z axis) and moves the vertical quill. The tool point is
+  the lower face of the electromagnet (local z = 0): the shoulder sits above the
+  conveyor, so the gripper has to descend to the top of a part.
 -->
 <robot name="hivebr_scara">
 
@@ -37,19 +39,24 @@
       <material name="abb_dark"/>
     </visual>
     <visual>
-      <origin xyz="0 0 0.30" rpy="0 0 0"/>
+      <origin xyz="0 0 0.31" rpy="0 0 0"/>
       <geometry><cylinder radius="0.32" length="0.22"/></geometry>
       <material name="abb_white"/>
     </visual>
     <visual>
-      <origin xyz="0 0 0.43" rpy="0 0 0"/>
+      <origin xyz="0 0 0.44" rpy="0 0 0"/>
       <geometry><cylinder radius="0.34" length="0.04"/></geometry>
       <material name="abb_orange"/>
     </visual>
     <visual>
-      <origin xyz="0 0 0.62" rpy="0 0 0"/>
-      <geometry><cylinder radius="0.22" length="0.36"/></geometry>
+      <origin xyz="0 0 0.77" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.22" length="0.62"/></geometry>
       <material name="abb_white"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 1.07" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.24" length="0.06"/></geometry>
+      <material name="abb_dark"/>
     </visual>
   </link>
 
@@ -100,32 +107,30 @@
   </link>
 
   <link name="link_3">
+    <!-- The electromagnet is the tool: its lower face is local z = 0, the
+         exact point returned by urdf.tip(). The canvas draws the shaft that
+         connects it to the wrist as a telescopic quill. -->
     <visual>
-      <origin xyz="0 0 -0.09" rpy="0 0 0"/>
-      <geometry><cylinder radius="0.055" length="0.18"/></geometry>
-      <material name="steel"/>
-    </visual>
-    <visual>
-      <origin xyz="0 0 -0.21" rpy="0 0 0"/>
-      <geometry><box size="0.14 0.14 0.06"/></geometry>
-      <material name="abb_dark"/>
-    </visual>
-    <visual>
-      <origin xyz="0 0 -0.25" rpy="0 0 0"/>
-      <geometry><cylinder radius="0.065" length="0.02"/></geometry>
+      <origin xyz="0 0 0.02" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.075" length="0.04"/></geometry>
       <material name="magnet"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0.09" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.09" length="0.10"/></geometry>
+      <material name="abb_dark"/>
     </visual>
   </link>
 
   <link name="tool_link">
     <visual>
-      <origin xyz="0 0 -0.26" rpy="0 0 0"/>
-      <geometry><sphere radius="0.025"/></geometry>
+      <origin xyz="0 0 0.02" rpy="0 0 0"/>
+      <geometry><sphere radius="0.015"/></geometry>
       <material name="magnet"/>
     </visual>
   </link>
 
-  <!-- TODO: the shoulder height above the base is 0.80 m. -->
+  <!-- TODO: the shoulder height above the base is 1.10 m. -->
   <joint name="joint_1" type="revolute">
     <parent link="base_link"/>
     <child link="link_1"/>

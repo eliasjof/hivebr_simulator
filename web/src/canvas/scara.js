@@ -273,12 +273,36 @@ function addPartFaces(faces, view, pal, scene, part) {
   const color = scene.scara.colors[part.color] || [200, 200, 200]
   const x = Number(part.x)
   const y = Number(part.y)
+  // The simulator reports the top of the part: the magnet touches this point.
   const z = Number(part.z)
   const radius = 0.105
-  const height = 0.15
+  const height = Number(scene.scara.part_height) || 0.15
   // Solid coloured puck: body, darker base and a bright machined top.
-  addCylinder(faces, view, mTranslate(x, y, z + height / 2), radius, height, color, 22)
-  addCylinder(faces, view, mTranslate(x, y, z + height + 0.004), radius * 0.58, 0.012, shade(color, 0.24), 18)
+  addCylinder(faces, view, mTranslate(x, y, z - height / 2), radius, height, color, 22)
+  addCylinder(faces, view, mTranslate(x, y, z - 0.006), radius * 0.58, 0.012, shade(color, 0.24), 18)
+}
+
+function addPlacedPartsFaces(faces, view, pal, scene, basket, count) {
+  const total = Math.max(0, Math.floor(Number(count) || 0))
+  if (!total) return
+  const x = Number(basket.x)
+  const y = Number(basket.y)
+  const height = Number(scene.scara.part_height) || 0.15
+  // A small 2x2 pile inside the basket; extra parts go to a new layer.
+  const slots = [
+    [0, 0], [-0.12, -0.10], [0.12, -0.10], [-0.12, 0.10], [0.12, 0.10],
+  ]
+  const visible = Math.min(total, 8)
+  for (let i = 0; i < visible; i += 1) {
+    const layer = Math.floor(i / slots.length)
+    const [dx, dy] = slots[i % slots.length]
+    addPartFaces(faces, view, pal, scene, {
+      x: x + dx,
+      y: y + dy,
+      z: 0.05 + height + layer * height,
+      color: basket.color,
+    })
+  }
 }
 
 function drawBasketLabels(ctx, view, pal, labels) {
@@ -583,6 +607,25 @@ function drawFaces(ctx, faces, pal) {
   ctx.restore()
 }
 
+function addQuillFaces(faces, view, pal, scene, state) {
+  const tip = state?.tip
+  const baseZ = Number(scene?.scara?.base_z)
+  if (!tip || !Number.isFinite(baseZ)) return
+  const x = Number(tip.x)
+  const y = Number(tip.y)
+  const z = Number(tip.z)
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return
+  // The URDF puts the magnet at link_3 local z = 0 and its housing up to
+  // local z = 0.14. The quill is the telescopic shaft between the wrist and
+  // that housing; it appears only when d3 lowers the tool below the arm.
+  const headTop = z + 0.14
+  if (baseZ - headTop <= 0.01) return
+  const center = (baseZ + headTop) / 2
+  const length = baseZ - headTop
+  addCylinder(faces, view, mTranslate(x, y, center), 0.038, length, hexToRgb(pal.metal), 16)
+  addCylinder(faces, view, mTranslate(x, y, baseZ - 0.04), 0.055, 0.08, hexToRgb(pal.metalDark), 16)
+}
+
 function addModelFaces(faces, view, pal, scene, state) {
   const model = scene.scara?.model
   if (!model || !model.chain || !model.chain.length) return false
@@ -592,6 +635,7 @@ function addModelFaces(faces, view, pal, scene, state) {
     if (joint.motion) values[joint.motion] = Number(arm[joint.motion]) || 0
   }
   collectModelFaces(faces, view, pal, model, values)
+  addQuillFaces(faces, view, pal, scene, state)
   return true
 }
 
@@ -661,19 +705,16 @@ function drawArm(ctx, view, pal, scene, frame) {
     ctx.stroke()
   }
 
-  // Gripper.
-  const grip = 7
-  ctx.strokeStyle = pal.ink
-  ctx.lineWidth = 2.5
+  // Electromagnet: a blue face at the tool point, with a dark housing above.
+  const magnet = [61, 140, 242]
+  ctx.fillStyle = css(shade(metal, -0.25))
+  ctx.fillRect(quill[0] - 7, quill[1] - 10, 14, 10)
   ctx.beginPath()
-  ctx.moveTo(quill[0] - grip, quill[1] + 4)
-  ctx.lineTo(quill[0] + grip, quill[1] + 4)
-  ctx.stroke()
-  ctx.beginPath()
-  ctx.moveTo(quill[0] - grip, quill[1] + 4)
-  ctx.lineTo(quill[0] - grip + 3, quill[1] + 11)
-  ctx.moveTo(quill[0] + grip, quill[1] + 4)
-  ctx.lineTo(quill[0] + grip - 3, quill[1] + 11)
+  ctx.ellipse(quill[0], quill[1], 7, 3.5, 0, 0, TAU)
+  ctx.fillStyle = css(magnet)
+  ctx.fill()
+  ctx.strokeStyle = css(shade(magnet, -0.4))
+  ctx.lineWidth = 1.5
   ctx.stroke()
   ctx.restore()
 }
@@ -784,6 +825,7 @@ export function drawScaraScene(ctx, scene, frame, theme, width, height, camera) 
   for (const basket of sc.baskets || []) {
     const live = (state.baskets || []).find((b) => b.id === basket.id) || basket
     addBasketFaces(faces, view, pal, scene, live, labels)
+    addPlacedPartsFaces(faces, view, pal, scene, live, live.count)
   }
 
   const parts = [...(state.objects || [])]

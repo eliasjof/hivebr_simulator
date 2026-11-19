@@ -7,10 +7,12 @@
   produz um robô que não alcança a esteira nem as cestas.
 
   Complete os três origins marcados com TODO. As dimensões do SCARA são:
-    - altura da junta 1 (ombro) em relação à base: 0.80 m
+    - altura da junta 1 (ombro) em relação à base: 1.10 m
     - comprimento do braço 1: 1.60 m
     - comprimento do braço 2: 1.40 m
-  A junta 3 é prismática (eixo Z) e move a haste vertical.
+  A junta 3 é prismática (eixo Z) e move a haste vertical. O ponto de
+  ferramenta é a face inferior do eletroímã (z = 0 local): o ombro fica acima
+  da esteira, então a garra precisa descer até o topo da peça.
 -->
 <robot name="hivebr_scara">
 
@@ -37,19 +39,24 @@
       <material name="abb_dark"/>
     </visual>
     <visual>
-      <origin xyz="0 0 0.30" rpy="0 0 0"/>
+      <origin xyz="0 0 0.31" rpy="0 0 0"/>
       <geometry><cylinder radius="0.32" length="0.22"/></geometry>
       <material name="abb_white"/>
     </visual>
     <visual>
-      <origin xyz="0 0 0.43" rpy="0 0 0"/>
+      <origin xyz="0 0 0.44" rpy="0 0 0"/>
       <geometry><cylinder radius="0.34" length="0.04"/></geometry>
       <material name="abb_orange"/>
     </visual>
     <visual>
-      <origin xyz="0 0 0.62" rpy="0 0 0"/>
-      <geometry><cylinder radius="0.22" length="0.36"/></geometry>
+      <origin xyz="0 0 0.77" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.22" length="0.62"/></geometry>
       <material name="abb_white"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 1.07" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.24" length="0.06"/></geometry>
+      <material name="abb_dark"/>
     </visual>
   </link>
 
@@ -100,32 +107,30 @@
   </link>
 
   <link name="link_3">
+    <!-- O eletroímã é a ferramenta: a face inferior fica em z = 0 local, o
+         mesmo ponto devolvido por urdf.tip(). A haste que liga o eletroímã ao
+         punho é desenhada como um telescópio pelo canvas. -->
     <visual>
-      <origin xyz="0 0 -0.09" rpy="0 0 0"/>
-      <geometry><cylinder radius="0.055" length="0.18"/></geometry>
-      <material name="steel"/>
-    </visual>
-    <visual>
-      <origin xyz="0 0 -0.21" rpy="0 0 0"/>
-      <geometry><box size="0.14 0.14 0.06"/></geometry>
-      <material name="abb_dark"/>
-    </visual>
-    <visual>
-      <origin xyz="0 0 -0.25" rpy="0 0 0"/>
-      <geometry><cylinder radius="0.065" length="0.02"/></geometry>
+      <origin xyz="0 0 0.02" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.075" length="0.04"/></geometry>
       <material name="magnet"/>
+    </visual>
+    <visual>
+      <origin xyz="0 0 0.09" rpy="0 0 0"/>
+      <geometry><cylinder radius="0.09" length="0.10"/></geometry>
+      <material name="abb_dark"/>
     </visual>
   </link>
 
   <link name="tool_link">
     <visual>
-      <origin xyz="0 0 -0.26" rpy="0 0 0"/>
-      <geometry><sphere radius="0.025"/></geometry>
+      <origin xyz="0 0 0.02" rpy="0 0 0"/>
+      <geometry><sphere radius="0.015"/></geometry>
       <material name="magnet"/>
     </visual>
   </link>
 
-  <!-- TODO: a altura do ombro em relação à base é 0.80 m. -->
+  <!-- TODO: a altura do ombro em relação à base é 1.10 m. -->
   <joint name="joint_1" type="revolute">
     <parent link="base_link"/>
     <child link="link_1"/>

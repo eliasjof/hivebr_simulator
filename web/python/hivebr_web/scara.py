@@ -17,7 +17,8 @@ Student code drives the cell through this class:
 
 The kinematics (DH table, homogeneous matrices, forward and inverse) live in
 the template, not here: the simulator only applies the joint values it
-receives.
+receives.  The tool point is the lower face of the electromagnet, so a target
+``z`` is the top of a part and the prismatic joint has to descend to reach it.
 """
 from __future__ import annotations
 
@@ -43,12 +44,27 @@ COLOR_ORDER = ("red", "green", "blue")
 # robot with exactly the dimensions written in that file.
 L1 = 1.6
 L2 = 1.4
-BASE_Z = 0.80
+BASE_Z = 1.10
 BELT_Z = 0.55
+PART_HEIGHT = 0.15
 BELT_Y = 0.0
 BELT_X0 = 2.10
 BELT_X1 = 5.90
 BASKET_Z = 0.28
+
+# The magnet is the tool point: its lower face touches the top of a part. The
+# shoulder is deliberately higher than the belt, so the prismatic joint has to
+# lower the electromagnet before a pick. TRANSIT_Z is the safe travel height
+# used by the activity loop.
+TRANSIT_Z = BELT_Z + PART_HEIGHT + 0.30
+PICK_RADIUS = 0.30
+PICK_HEIGHT = 0.06
+PLACE_RADIUS = 0.42
+PLACE_HEIGHT = 0.06
+
+# Home pose: elbow bent, arm over the start of the conveyor and magnet raised.
+HOME_Q1 = -0.35
+HOME_Q2 = 0.95
 
 BASKETS = (
     {"id": "red", "color": "red", "x": 0.55, "y": 2.10},
@@ -119,7 +135,14 @@ class ScaraSimulator:
         self.motion_names = [j.get("motion") for j in self.model["chain"] if j.get("motion")]
         self.motion_types = {j.get("motion"): j["type"] for j in self.model["chain"] if j.get("motion")}
         self.joint_limits = {j.get("motion"): j.get("limit", {}) for j in self.model["chain"] if j.get("motion")}
-        self.arm = {name: 0.0 for name in self.motion_names}
+        # The arm starts in a natural ready pose instead of fully stretched:
+        # q1 points toward the conveyor, q2 bends the elbow and d3 keeps the
+        # magnet at TRANSIT_Z, above the parts on the belt.
+        self.home = {name: 0.0 for name in self.motion_names}
+        self.home["q1"] = self._limited("q1", HOME_Q1)
+        self.home["q2"] = self._limited("q2", HOME_Q2)
+        self.home["d3"] = self._limited("d3", TRANSIT_Z - self.base_z)
+        self.arm = dict(self.home)
         for key in ("q1", "q2", "d3"):
             self.arm.setdefault(key, 0.0)
         self.target = dict(self.arm)
@@ -154,6 +177,7 @@ class ScaraSimulator:
                 "l2": f4(self.l2),
                 "base_z": f4(self.base_z),
                 "reach": f4(self.reach),
+                "part_height": f4(PART_HEIGHT),
                 "belt": {
                     "x0": BELT_X0, "x1": BELT_X1, "y": BELT_Y,
                     "z": BELT_Z, "width": 0.62,
@@ -279,10 +303,11 @@ class ScaraSimulator:
         self._emit()
 
     def reset(self):
-        self.arm = {name: 0.0 for name in self.arm}
+        self.arm = dict(self.home)
+        self.target = dict(self.home)
         for key in ("q1", "q2", "d3"):
             self.arm.setdefault(key, 0.0)
-        self.target = dict(self.arm)
+            self.target.setdefault(key, 0.0)
         self.objects = []
         self.held = None
         self.baskets = [dict(basket, count=0) for basket in BASKETS]
@@ -389,7 +414,7 @@ class ScaraSimulator:
             return False
         x, y, z = self.tip()
         for obj in self.objects:
-            if math.hypot(obj["x"] - x, obj["y"] - y) <= 0.30 and abs(obj["z"] - z) <= 0.30:
+            if math.hypot(obj["x"] - x, obj["y"] - y) <= PICK_RADIUS and abs(obj["z"] - z) <= PICK_HEIGHT:
                 return True
         return False
 
@@ -400,12 +425,15 @@ class ScaraSimulator:
         best = None
         for obj in self.objects:
             distance = math.hypot(obj["x"] - x, obj["y"] - y)
-            if distance <= 0.30 and abs(obj["z"] - z) <= 0.30:
+            if distance <= PICK_RADIUS and abs(obj["z"] - z) <= PICK_HEIGHT:
                 if best is None or distance < best[0]:
                     best = (distance, obj)
         if best is None:
             return False
         self.held = best[1]
+        # The part hangs from the magnet: its top is the tool point. Snapping
+        # here removes the few centimetres the arm still had to travel.
+        self.held["x"], self.held["y"], self.held["z"] = x, y, z
         self.objects.remove(best[1])
         self.event = f"scara.event.holding:{self.held['color']}"
         # Emit immediately so the HUD and the canvas show the new state even
@@ -426,7 +454,7 @@ class ScaraSimulator:
         basket = self.basket_for(self.held["color"])
         if basket is None:
             return False
-        return math.hypot(basket["x"] - x, basket["y"] - y) <= 0.42 and abs(BASKET_Z - z) <= 0.34
+        return math.hypot(basket["x"] - x, basket["y"] - y) <= PLACE_RADIUS and abs(BASKET_Z - z) <= PLACE_HEIGHT
 
     def place(self):
         if not self.can_place():
@@ -469,7 +497,9 @@ class ScaraSimulator:
 
         if self.held is not None:
             x, y, z = self.tip()
-            self.held["x"], self.held["y"], self.held["z"] = x, y, z - 0.12
+            # The reported z is the top of the part, exactly where the magnet
+            # face touches it; the renderer draws the body below that point.
+            self.held["x"], self.held["y"], self.held["z"] = x, y, z
 
         if self.conveyor["on"] and self.conveyor["speed"] > 0.0:
             step = self.conveyor["speed"] * dt
@@ -493,6 +523,6 @@ class ScaraSimulator:
             "color": color,
             "x": BELT_X1,
             "y": BELT_Y,
-            "z": BELT_Z,
+            "z": BELT_Z + PART_HEIGHT,
         })
         self._next_id += 1

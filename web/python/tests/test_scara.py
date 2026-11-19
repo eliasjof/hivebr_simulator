@@ -6,7 +6,7 @@ from pathlib import Path
 
 from harness import REPO, check, env, run_for
 
-from hivebr_web.scara import BASE_Z, BASKET_Z, BELT_Z, L1, L2, ScaraSimulator
+from hivebr_web.scara import BASE_Z, BASKET_Z, BELT_Z, L1, L2, PART_HEIGHT, ScaraSimulator
 
 TEMPLATE = REPO / "web" / "templates" / "scara_esteira.py"
 
@@ -29,7 +29,7 @@ def _ik(x, y, z):
 
 def test_scara_conveyor_moves_and_detects_colour():
     sim = _sim()
-    sim.objects = [{"id": 1, "color": "red", "x": 3.0, "y": 0.0, "z": BELT_Z}]
+    sim.objects = [{"id": 1, "color": "red", "x": 3.0, "y": 0.0, "z": BELT_Z + PART_HEIGHT}]
     sim.conveyor_on(1.0)
     sim._advance(1.0)
     check(sim.objects[0]["x"] < 3.0, "conveyor did not move the part")
@@ -39,9 +39,12 @@ def test_scara_conveyor_moves_and_detects_colour():
 
 def test_scara_pick_and_place_uses_matching_basket():
     sim = _sim()
-    sim.objects = [{"id": 1, "color": "red", "x": L1 + L2, "y": 0.0, "z": BASE_Z}]
-    check(sim.pick(), "pick failed when the tip touches the part")
+    top = BELT_Z + PART_HEIGHT
+    sim.objects = [{"id": 1, "color": "red", "x": L1 + L2, "y": 0.0, "z": top}]
+    sim.arm = dict(zip(("q1", "q2", "d3"), _ik(L1 + L2, 0.0, top)))
+    check(sim.pick(), "pick failed when the magnet touches the part")
     check(sim.held is not None and sim.held["color"] == "red", "held part missing")
+    check(abs(sim.held["z"] - top) < 1e-9, "the held part must hang from the magnet")
 
     basket = sim.basket_for("red")
     sim.arm = dict(zip(("q1", "q2", "d3"), _ik(basket["x"], basket["y"], BASKET_Z)))
@@ -51,9 +54,31 @@ def test_scara_pick_and_place_uses_matching_basket():
     check(sim.basket_for("red")["count"] == 1, "basket count not updated")
 
 
+def test_scara_starts_bent_with_the_magnet_above_the_parts():
+    sim = _sim()
+    x, y, z = sim.tip()
+    check(abs(sim.arm["q2"]) > 0.5, "the arm must not start fully stretched")
+    check(z > BELT_Z + PART_HEIGHT, "the magnet must start above the parts")
+    check(abs(z - (BELT_Z + PART_HEIGHT + 0.30)) < 1e-6, f"unexpected home height: {z}")
+    check(math.hypot(x, y) < L1 + L2 - 0.1, "the home pose must keep the elbow bent")
+
+
+def test_scara_gripper_descends_to_pick_and_lifts_the_part():
+    sim = _sim()
+    top = BELT_Z + PART_HEIGHT
+    sim.objects = [{"id": 1, "color": "blue", "x": 2.6, "y": 0.0, "z": top}]
+    start = sim.tip()[2]
+    sim.arm = dict(zip(("q1", "q2", "d3"), _ik(2.6, 0.0, top)))
+    check(sim.tip()[2] < start - 0.2, "the magnet did not descend to the part")
+    check(sim.pick(), "pick failed after the descent")
+    check(abs(sim.held["z"] - top) < 1e-9, "the part did not attach to the magnet")
+    sim.arm = dict(zip(("q1", "q2", "d3"), _ik(2.6, 0.0, top + 0.30)))
+    check(sim.tip()[2] > top + 0.2, "the magnet did not lift the part")
+
+
 def test_scara_reports_parts_lost_at_the_belt_start():
     sim = _sim()
-    sim.objects = [{"id": 1, "color": "blue", "x": 2.0, "y": 0.0, "z": BELT_Z}]
+    sim.objects = [{"id": 1, "color": "blue", "x": 2.0, "y": 0.0, "z": BELT_Z + PART_HEIGHT}]
     sim.conveyor_on(1.0)
     sim._advance(1.0)
     check(sim.rejected == 1, "lost part was not counted")
@@ -104,7 +129,7 @@ def test_scara_template_runs_and_places_parts():
     check(_MATRIX_TODO in code and _IK_TODO in code, "template TODOs changed; update this test")
     code = code.replace(_MATRIX_TODO, _MATRIX_OK).replace(_IK_TODO, _IK_OK)
     with env() as e:
-        result = run_for(e, code, 420)
+        result = run_for(e, code, 700)
         check(result["ok"] and result["error"] is None, result)
         check("SCARA OK" in e.stdout, e.stdout[-400:])
         placed = int(e.stdout.rsplit("SCARA OK", 1)[1].split()[0])

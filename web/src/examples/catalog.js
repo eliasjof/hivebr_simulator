@@ -301,8 +301,8 @@ const ENTRIES = [
   },
   {
     id: 'scara_matrizes', file: 'scara_matrizes.py', group: 'advanced', category: 'controle', level: 5, order: 30,
-    pt: { title: 'Matrizes homogêneas do SCARA', description: 'Monte a matriz 4x4 de cada linha DH, multiplique as três e confira a cinemática direta em duas poses. O resultado deve devolver (3,0; 0; 0,8) com as juntas em zero.', tags: ['SCARA', 'matrizes', 'homogêneas', 'cinemática direta'], robots: '1 manipulador SCARA', notes: 'Imprime MATRIZ OK quando a cinemática direta está correta.' },
-    en: { filename: 'scara_matrices.py', title: 'SCARA homogeneous matrices', description: 'Build the 4x4 matrix of each DH row, multiply the three and check forward kinematics in two poses. The result must be (3.0, 0, 0.8) with every joint at zero.', tags: ['SCARA', 'matrices', 'homogeneous', 'forward kinematics'], robots: '1 SCARA manipulator', notes: 'Prints MATRIZ OK when forward kinematics is correct.' },
+    pt: { title: 'Matrizes homogêneas do SCARA', description: 'Monte a matriz 4x4 de cada linha DH, multiplique as três e confira a cinemática direta em duas poses. O resultado deve devolver (3,0; 0; 1,1) com as juntas em zero.', tags: ['SCARA', 'matrizes', 'homogêneas', 'cinemática direta'], robots: '1 manipulador SCARA', notes: 'Imprime MATRIZ OK quando a cinemática direta está correta.' },
+    en: { filename: 'scara_matrices.py', title: 'SCARA homogeneous matrices', description: 'Build the 4x4 matrix of each DH row, multiply the three and check forward kinematics in two poses. The result must be (3.0, 0, 1.1) with every joint at zero.', tags: ['SCARA', 'matrices', 'homogeneous', 'forward kinematics'], robots: '1 SCARA manipulator', notes: 'Prints MATRIZ OK when forward kinematics is correct.' },
   },
   {
     id: 'scara_esteira', file: 'scara_esteira.py', group: 'advanced', category: 'controle', level: 5, order: 40, files: ['scara_cell.urdf'],
