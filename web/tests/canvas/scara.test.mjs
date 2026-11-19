@@ -50,3 +50,40 @@ test('orbit, zoom and pan move the SCARA projection', () => {
   assert.ok(Math.abs(shifted[0] - target[0] - 30) < 1e-9)
   assert.ok(Math.abs(shifted[1] - target[1] + 10) < 1e-9)
 })
+
+test('the HUD reads the counters and pose from the SCARA frame', async () => {
+  const { drawScaraScene } = await import('../../src/canvas/scara.js')
+  const texts = []
+  const ctx = new Proxy({}, {
+    get(_target, prop) {
+      if (prop === 'fillText') return (text) => texts.push(String(text))
+      if (prop === 'measureText') return () => ({ width: 20 })
+      return () => {}
+    },
+    set() { return true },
+  })
+  const scene = {
+    kind: 'scara',
+    scara: {
+      belt: { x0: 2.1, x1: 5.9, y: 0, z: 0.55, width: 0.62 },
+      baskets: [],
+      colors: { red: [220, 64, 56], green: [58, 176, 92], blue: [58, 118, 216] },
+      model: null,
+    },
+  }
+  const frame = {
+    t: 1,
+    scara: {
+      placed: 4,
+      rejected: 0,
+      conveyor: { on: true, speed: 0.55 },
+      arm: { q1: 0.5, q2: 1.5, d3: -0.5 },
+      event: '',
+    },
+  }
+  drawScaraScene(ctx, scene, frame, 'dark', 800, 600)
+
+  assert.ok(texts.some((s) => s.endsWith(': 4')), `placed counter missing: ${texts.join(' | ')}`)
+  assert.ok(texts.some((s) => s.includes('0.55')), 'conveyor speed missing from the HUD')
+  assert.ok(texts.some((s) => s.includes('q1=0.50')), 'joint pose missing from the HUD')
+})

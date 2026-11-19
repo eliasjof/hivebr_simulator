@@ -3,11 +3,15 @@
 
 - seria possível implmentar também a simulação de um robo manipulador SCARA 3D (como o da epson ou similar ABB?) por exemplo com uma esteira com objetos coloridos (colocar na esteira uma detecção de cor), de forma que no código o usuário controla a esteira e o braço robótico para pegar esses objetos e colocar nas cestas correspondentes.
 
-avalie e se for factível implemente implmentar também a simulação de um robo manipulador SCARA 3D (como o da epson ou similar ABB?) por exemplo com uma esteira com objetos coloridos (colocar na esteira uma detecção de cor), de forma que no código o usuário controla a esteira e o braço robótico para pegar esses objetos e colocar nas cestas correspondentes. os alunos poderiam preencher a tabela Denavit hatenberg, montar as matrizes de transformação homogênea, testar a cinemática direta e inversa desse manipulador
 
+
+Build · DeepSeek V4.1 Flash Free · 21m 36s · 3.9s ttft
+SubagentsShellTerminalsescshow inactive ctrl+atabs ←/→… Switch agent… One-shot answer from the session's context without adding to the conversation… Change working directory… Clear session… Compact session… Connect an integration… Switch session… Copy last assistant message… View debug info… Open diff viewer… Open editor… Switch model variant… Exit the app… Export session transcript… Fork session… keep working until an objective is met [pause|resume|clear]… Help… Show release highlights… guided AGENTS.md setup… MCP servers… Switch model… New session… Open session or project… Pair device… Plugins… Open session or project… Open session or project… Exit the app… Exit the app… Reload configuration… Rename session… Restart service… Switch session… review changes [commit|branch|pr], defaults to uncommitted… Switch session… Open settings… Skills… Usage statistics… View status… New terminal… Switch theme… Switch model variant… Jump to message… Undo previous message… Update OpenCode… View usage… Switch model variant… Pair device… Manage workspaces
+continue a implemmentação da simulação do scara, recomendo usar um arquivo urdf de um robo preferencialmente com uma carcaça mais real da abb ou UR ou outro comercial, se não encontrar segue um link com um básico https://github.com/ICube-Robotics/scara_tutorial_ros2/blob/main/resources/urdf_tutorial.md. Permita o usuário da zoom, girar a janela de simulação etc. lembrando que esse robo será utilizado para ensinar vários temas em outro nível de aprendizado e na sequência da gamificação, por exemplo, completar a tabela Denavit hatenberg, preencher corretamente o urdf, montar as matrizes de transformação, testar cinemática direta e inversa e no final fazer o robô pegar (a garra tem um eletroima) as peças depenendo da cor na esteira
 - exemplo com pure pursuit
 
-- me dê um exemplo para correção do professor com tudo funcionando do scara (não disponibilize na web)
+- me dê um exemplo para correção do professor com tudo funcionando do scara (não disponibilize na web).
+- corrija a esteira, a mesa e os objetos que não são compactos (ao gerar dá para ver apenas alguns planos). os objetos poderiam ser coloridos da cor correspondente deles
 
 ---
 
@@ -930,6 +934,36 @@ desenho 3D no canvas 2D.
 - Se o URDF não carregar, o renderer cai num braço legado simples; o caminho
   normal é sempre o modelo do aluno.
 
+### Corpos sólidos, cores e correção do HUD
+
+- Esteira, mesa/base, cestas e peças agora são corpos fechados: cada primitiva
+  contribui com as seis faces (ou todas as faces do cilindro) para uma única
+  lista, ordenada por profundidade antes de desenhar. Orbitar a câmera não
+  revela mais “planos soltos”.
+- A esteira ganhou chassi, trilhos laterais, pés, roletes e faixas móveis; a
+  base do robô ganhou uma mesa de fixação; as cestas são caixas abertas com
+  borda e contador; as peças são cilindros coloridos com topo usinado.
+- Cada peça usa a cor detectada (`scene.scara.colors[part.color]`), e o aluno vê
+  a cor explicitamente em `alvo["color"]` / `sim.held["color"]`; o template
+  imprime `Cor detectada: ...` ao pegar a peça.
+- O HUD recebia o estado interno da cena e tentava ler `state.scara` de novo,
+  por isso ficava sempre em `Colocados: 0`, `Esteira: parada` e juntas zeradas.
+  `drawHud()` passou a receber o estado já resolvido; o contador, a esteira e a
+  pose agora acompanham o último frame (`4`, `0.55 m/s`, `q1/q2/d3` reais).
+
+### Solução do professor (fora da web)
+
+- `professor/scara/scara_esteira_resolvido.py` traz a célula completa resolvida
+  (DH, matriz homogênea, FK, IK, cor, pega e coloca), e
+  `professor/scara/scara_cell_resolvido.urdf` é o URDF gabarito.
+- A pasta fica fora de `web/templates`, do catálogo e do build: nada dela é
+  empacotado ou exibido no aplicativo. O `README.md` da pasta explica como rodar
+  no terminal e como colar as respostas no editor para corrigir o aluno.
+- `ScaraSimulator` agora aceita o caminho do modelo como primeiro argumento
+  (`ScaraSimulator("scara_cell.urdf")`), de modo que o arquivo ao lado do script
+  é realmente usado; antes o texto caía no parâmetro `controller`, que não era
+  lido.
+
 ### Currículo do nível 5
 
 Novo nível 5 “Manipuladores 3D” e trilha `manipulador`, em sequência:
@@ -965,7 +999,8 @@ pares foi verificada e é idêntica.
 
 ### Validação da Fase 8
 
-- `node --test "tests/**/*.test.mjs"`: 57/57.
+- `node --test "tests/**/*.test.mjs"`: 58/58, incluindo um teste que desenha a
+  cena e confere o HUD (`Colocados`, velocidade da esteira e juntas).
 - `python web/python/tests/run_all.py test_scara`: 8/8, incluindo DH, matrizes,
   URDF do aluno e a célula completa colocando peças e gravando o CSV.
 - `npm run build`: 193 arquivos no `hivebr-py.zip`, com os templates SCARA e os
@@ -973,6 +1008,8 @@ pares foi verificada e é idêntica.
 - `node tests/e2e/learning.e2e.mjs`: 18/18; o nível 5 roda `scara-dh` e
   `scara-esteira` (com a aba `scara_cell.urdf` resolvida), e o professor conta
   `1/5` relatórios.
+- `professor/scara/scara_esteira_resolvido.py` roda no terminal e termina em
+  `SCARA OK 4 0`, gravando `scara_relatorio.csv`.
 - Permanecem as seis falhas Python antigas de ambiente/paridade
   (`line_follower.py`, `multi_line_follower.py`, `seguidor_de_linha.py` e os
   testes de caminho/encoding), sem relação com esta fase.
@@ -1045,6 +1082,7 @@ Arquivos principais:
 - `web/python/hivebr_web/scara.py`, `urdf.py` e `models/scara_cell.urdf`;
 - `web/src/canvas/scara.js` (projeção isométrica, câmera orbital e HUD);
 - `web/python/tests/test_scara.py` e `web/tests/canvas/scara.test.mjs`;
+- `professor/scara/` (solução e URDF gabarito, fora do build da web);
 - 55 templates PT em `web/templates/` e 55 espelhos EN em `web/templates/en/`,
   mais o par de URDFs (`scara_cell.urdf`);
 - novas entradas e categorias em `web/src/examples/catalog.js`.

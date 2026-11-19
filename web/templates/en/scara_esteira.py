@@ -87,12 +87,15 @@ def controlar(sim):
     while sim.running and sim.placed < 4:
         sim.step()
         if sim.held is None:
+            # sim.detect() lists the sensor readings; each one has "color".
             alvo = sim.next_object()
             if alvo is None:
                 continue
+            # alvo["color"] is the colour detected by the sensor: "red", "green" or "blue".
             q1, q2, d3 = cinematica_inversa(alvo["x"], alvo["y"], alvo["z"])
             sim.move_joints(q1, q2, d3)
             if sim.can_pick():
+                print("Detected colour:", alvo["color"])
                 sim.pick()
         else:
             cesta = sim.basket_for(sim.held["color"])

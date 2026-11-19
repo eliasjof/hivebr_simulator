@@ -96,7 +96,7 @@ class ScaraSimulator:
     joint_step = 0.14
     linear_step = 0.09
 
-    def __init__(self, controller=None, model_path=None):
+    def __init__(self, model_path=None, controller=None):
         from . import simulator as simulator_module
 
         self.config = {"window": {"title": "scara.title"}}
