@@ -15,6 +15,7 @@ const DEFAULT_OPTIONS = {
   showWaypoints: true,
   showLabels: true,
   showLinks: true,
+  showFrames: true,
   interpolate: true,
   themeOverride: null, // 'dark' | 'light' | null
 };
@@ -460,7 +461,7 @@ export class Renderer {
     const scene = this.scene;
     if (!scene) return;
     if (scene.kind === 'scara') {
-      drawScaraScene(ctx, scene, this.frame, this.theme, cam.width, cam.height, this.scaraCamera);
+      drawScaraScene(ctx, scene, this.frame, this.theme, cam.width, cam.height, this.scaraCamera, o);
       return;
     }
 

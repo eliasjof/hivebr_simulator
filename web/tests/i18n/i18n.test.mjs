@@ -35,7 +35,7 @@ test('pt-BR e en têm exatamente as mesmas chaves, sem valores vazios e com os m
 // famílias de chaves montadas em tempo de execução
 const DYNAMIC = [
   ...['select', 'waypoint', 'obstacle', 'recharge', 'move', 'draw'].map((k) => 'tool.' + k),
-  ...['showGrid', 'showPaths', 'showLidar', 'showWaypoints', 'showLabels', 'showLinks'].map((k) => 'layers.' + k),
+  ...['showGrid', 'showPaths', 'showLidar', 'showWaypoints', 'showLabels', 'showLinks', 'showFrames'].map((k) => 'layers.' + k),
   ...['init', 'runtime', 'packages', 'files', 'python', 'scipy', 'imports', 'done', 'restart'].map((k) => 'boot.stage.' + k),
   ...['params', 'plots', 'map', 'robots'].map((k) => 'win.' + k),
   'run.run', 'run.running', 'run.stopping', 'run.loading',

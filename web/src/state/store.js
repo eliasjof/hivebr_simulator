@@ -194,6 +194,7 @@ export const store = reactive({
     showWaypoints: prefs.options?.showWaypoints ?? true,
     showLabels: prefs.options?.showLabels ?? true,
     showLinks: prefs.options?.showLinks ?? true,
+    showFrames: prefs.options?.showFrames ?? true,
     themeOverride: initialTheme,
   },
   theme: initialTheme,

@@ -9,6 +9,7 @@ import { t } from '../i18n/index.js'
 
 const TAU = Math.PI * 2
 const PAD = 44
+const DH_AXIS = { x: '#e05c5c', y: '#48b46e', z: '#5b8fe6' }
 
 /** Default orbit camera for the SCARA cell (yaw around Z, pitch above XY). */
 export const DEFAULT_SCARA_CAMERA = {
@@ -239,7 +240,7 @@ function addConveyorFaces(faces, view, pal, scene, state) {
   }
 }
 
-function addBasketFaces(faces, view, pal, scene, basket, labels) {
+function addBasketFaces(faces, view, pal, scene, basket, labels, index) {
   const color = scene.scara.colors[basket.color] || [180, 180, 180]
   const half = 0.31
   const wall = 0.05
@@ -266,6 +267,37 @@ function addBasketFaces(faces, view, pal, scene, basket, labels) {
     text: String(basket.count ?? 0),
     color,
   })
+
+  // Painted identification number on the outer wall that faces the camera, so
+  // the three baskets stay recognisable from any orbit angle.
+  labels.push({ ...basketWallLabel(view, x, y, half, height, index), color })
+}
+
+function basketWallLabel(view, x, y, half, height, index) {
+  const sy = Math.sin(view.camera.yaw)
+  const cy = Math.cos(view.camera.yaw)
+  const walls = [
+    { nx: 1, ny: 0, x: x + half + 0.004, y },
+    { nx: -1, ny: 0, x: x - half - 0.004, y },
+    { nx: 0, ny: 1, x, y: y + half + 0.004 },
+    { nx: 0, ny: -1, x, y: y - half - 0.004 },
+  ]
+  let wall = walls[0]
+  let best = -Infinity
+  for (const candidate of walls) {
+    const score = candidate.nx * sy + candidate.ny * cy
+    if (score > best) {
+      best = score
+      wall = candidate
+    }
+  }
+  return {
+    kind: 'id',
+    x: wall.x,
+    y: wall.y,
+    z: 0.05 + (height - 0.05) * 0.55,
+    text: String(index),
+  }
 }
 
 function addPartFaces(faces, view, pal, scene, part) {
@@ -307,11 +339,24 @@ function addPlacedPartsFaces(faces, view, pal, scene, basket, count) {
 
 function drawBasketLabels(ctx, view, pal, labels) {
   ctx.save()
-  ctx.font = '700 12px system-ui, -apple-system, "Segoe UI", sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   for (const label of labels) {
     const p = view.project(label.x, label.y, label.z)
+    if (label.kind === 'id') {
+      // Stencilled number on the basket wall: white with a dark outline reads
+      // on the red, green and blue paint alike.
+      const size = Math.max(12, Math.min(22, Math.round(view.px(0.19))))
+      ctx.font = `800 ${size}px system-ui, -apple-system, "Segoe UI", sans-serif`
+      ctx.lineJoin = 'round'
+      ctx.lineWidth = Math.max(2, size * 0.24)
+      ctx.strokeStyle = 'rgba(8, 14, 24, 0.55)'
+      ctx.strokeText(label.text, p[0], p[1])
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.94)'
+      ctx.fillText(label.text, p[0], p[1])
+      continue
+    }
+    ctx.font = '700 12px system-ui, -apple-system, "Segoe UI", sans-serif'
     const w = 26
     const h = 18
     ctx.beginPath()
@@ -435,17 +480,127 @@ function jointValue(joint, values) {
   return 0
 }
 
-function jointMatrix(joint, value) {
-  const base = originMatrix(joint.origin)
-  let motion = mIdentity()
+function jointMotionMatrix(joint, value) {
   if (joint.type === 'revolute' || joint.type === 'continuous') {
-    motion = mAxisAngle(joint.axis, value)
-  } else if (joint.type === 'prismatic') {
+    return mAxisAngle(joint.axis, value)
+  }
+  if (joint.type === 'prismatic') {
     const [ax, ay, az] = joint.axis || [0, 0, 1]
     const norm = Math.hypot(ax, ay, az) || 1
-    motion = mTranslate((ax / norm) * value, (ay / norm) * value, (az / norm) * value)
+    return mTranslate((ax / norm) * value, (ay / norm) * value, (az / norm) * value)
   }
-  return mMul(base, motion)
+  return mIdentity()
+}
+
+function jointMatrix(joint, value) {
+  return mMul(originMatrix(joint.origin), jointMotionMatrix(joint, value))
+}
+
+function translationOf(m) {
+  return [m[0][3], m[1][3], m[2][3]]
+}
+
+function rotateVector(m, v) {
+  return [
+    m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
+    m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2],
+    m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2],
+  ]
+}
+
+function unitVector(v) {
+  const n = Math.hypot(v[0], v[1], v[2])
+  return n > 1e-9 ? [v[0] / n, v[1] / n, v[2] / n] : [0, 0, 1]
+}
+
+// The joint housing is the cylinder the child link already has around the
+// joint axis. Slightly enlarging it gives the canvas a smooth drum to hide the
+// hard corner where one arm box meets the next.
+function housingForJoint(model, joint) {
+  if (joint.type !== 'revolute' && joint.type !== 'continuous') return null
+  const link = model?.links?.[joint.child]
+  let radius = 0
+  let length = 0
+  for (const visual of link?.visuals || []) {
+    const g = visual.geometry || {}
+    if (g.type !== 'cylinder') continue
+    const xyz = visual.origin?.xyz || [0, 0, 0]
+    if (Math.hypot(Number(xyz[0]) || 0, Number(xyz[1]) || 0) > 0.06) continue
+    radius = Math.max(radius, Number(g.radius) || 0)
+    length = Math.max(length, Number(g.length) || 0)
+  }
+  if (!(radius > 0)) return null
+  return { radius: radius + 0.02, height: Math.max(length + 0.14, 0.28) }
+}
+
+function makeJointFrame(index, joint, before, after, axis, housing) {
+  const frame = {
+    index,
+    name: joint?.motion || joint?.name || `joint_${index}`,
+    type: joint?.type || 'revolute',
+    origin: translationOf(after),
+    center: translationOf(before),
+    matrix: after,
+    axis: unitVector(axis),
+    housing,
+    vertical: Math.abs(unitVector(axis)[2]) > 0.94,
+  }
+  return frame
+}
+
+/**
+ * Joint frames in world coordinates, in chain order.
+ *
+ * The matrices follow the DH table used by the SCARA activities: frame 1 sits
+ * on the shoulder, frame 2 on the elbow and frame 3 on the tool point after
+ * the prismatic d3. The ``center`` of each entry is the physical joint centre,
+ * which for the prismatic joint is the wrist (before the d3 travel).
+ */
+export function scaraJointFrames(scene, state) {
+  const s = scene?.scara || {}
+  const arm = state?.arm || {}
+  const model = s.model
+  const frames = []
+  if (model?.chain?.length) {
+    const values = {}
+    for (const joint of model.chain) {
+      if (joint.motion) values[joint.motion] = Number(arm[joint.motion]) || 0
+    }
+    let current = mIdentity()
+    for (const joint of model.chain) {
+      const before = mMul(current, originMatrix(joint.origin))
+      const value = jointValue(joint, values)
+      const after = mMul(before, jointMotionMatrix(joint, value))
+      current = after
+      if (joint.type !== 'revolute' && joint.type !== 'continuous' && joint.type !== 'prismatic') continue
+      frames.push(makeJointFrame(
+        frames.length + 1,
+        joint,
+        before,
+        after,
+        rotateVector(before, joint.axis || [0, 0, 1]),
+        housingForJoint(model, joint),
+      ))
+    }
+    return frames
+  }
+
+  // Fallback when the URDF payload is missing: rebuild the same DH chain from
+  // the dimensions published with the scene.
+  const baseZ = Number(s.base_z) || 1.1
+  const l1 = Number(s.l1) || 1.6
+  const l2 = Number(s.l2) || 1.4
+  const q1 = Number(arm.q1) || 0
+  const q2 = Number(arm.q2) || 0
+  const d3 = Number(arm.d3) || 0
+  const t1 = mMul(mTranslate(0, 0, baseZ), mRz(q1))
+  const t2 = mMul(t1, mMul(mRz(q2), mTranslate(l1, 0, 0)))
+  const wrist = mMul(t2, mTranslate(l2, 0, 0))
+  const t3 = mMul(wrist, mTranslate(0, 0, d3))
+  frames.push(makeJointFrame(1, { name: 'joint_1', motion: 'q1', type: 'revolute' }, t1, t1, [0, 0, 1], { radius: 0.258, height: 0.34 }))
+  frames.push(makeJointFrame(2, { name: 'joint_2', motion: 'q2', type: 'revolute' }, t2, t2, [0, 0, 1], { radius: 0.218, height: 0.34 }))
+  frames.push(makeJointFrame(3, { name: 'joint_3', motion: 'd3', type: 'prismatic' }, wrist, t3, [0, 0, 1], null))
+  return frames
 }
 
 function chainTransforms(model, values) {
@@ -727,7 +882,7 @@ function eventText(event) {
   return color ? `${base} ${t(`scara.color.${color}`)}` : base
 }
 
-function drawHud(ctx, view, pal, scene, state) {
+function drawHud(ctx, view, pal, scene, state, options) {
   const s = state || {}
   ctx.save()
   ctx.textAlign = 'left'
@@ -774,6 +929,29 @@ function drawHud(ctx, view, pal, scene, state) {
   ctx.fillText(t('scara.controls'), PAD, view.height - PAD - 24)
   ctx.globalAlpha = 1
 
+  // DH frame legend: only the SCARA cell has joint frames.
+  if (options?.showFrames) {
+    const baseline = view.height - PAD - 44
+    ctx.font = '600 11px system-ui, -apple-system, "Segoe UI", sans-serif'
+    ctx.fillStyle = pal.muted
+    ctx.fillText(t('scara.frames'), PAD, baseline)
+    let lx = PAD + ctx.measureText(t('scara.frames')).width + 12
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    for (const [label, color] of [['x', DH_AXIS.x], ['y', DH_AXIS.y], ['z', DH_AXIS.z]]) {
+      ctx.strokeStyle = color
+      ctx.beginPath()
+      ctx.moveTo(lx, baseline - 3)
+      ctx.lineTo(lx + 11, baseline - 3)
+      ctx.stroke()
+      ctx.fillStyle = color
+      ctx.fillText(label, lx + 14, baseline)
+      lx += 30
+    }
+    ctx.fillStyle = pal.muted
+    ctx.fillText('{0} J1 J2 J3', lx + 2, baseline)
+  }
+
   // Event line.
   const event = eventText(s.event)
   if (event) {
@@ -801,7 +979,207 @@ function drawHud(ctx, view, pal, scene, state) {
   ctx.restore()
 }
 
-export function drawScaraScene(ctx, scene, frame, theme, width, height, camera) {
+function drawPill(ctx, text, x, y, color, pal) {
+  ctx.save()
+  ctx.font = '700 10px system-ui, -apple-system, "Segoe UI", sans-serif'
+  const width = ctx.measureText(text).width + 10
+  const height = 15
+  ctx.beginPath()
+  ctx.roundRect(x, y - height / 2, width, height, 7)
+  ctx.fillStyle = pal.panel
+  ctx.fill()
+  ctx.strokeStyle = color
+  ctx.lineWidth = 1
+  ctx.stroke()
+  ctx.fillStyle = pal.ink
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, x + 5, y + 0.5)
+  ctx.restore()
+}
+
+function drawAxisArrow(ctx, view, origin, direction, length, color) {
+  const tipWorld = [
+    origin[0] + direction[0] * length,
+    origin[1] + direction[1] * length,
+    origin[2] + direction[2] * length,
+  ]
+  const a = view.project(origin[0], origin[1], origin[2])
+  const b = view.project(tipWorld[0], tipWorld[1], tipWorld[2])
+  const dx = b[0] - a[0]
+  const dy = b[1] - a[1]
+  const norm = Math.hypot(dx, dy)
+  if (norm < 1.2) return
+  const ux = dx / norm
+  const uy = dy / norm
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.strokeStyle = 'rgba(8, 14, 24, 0.55)'
+  ctx.lineWidth = 4.5
+  ctx.beginPath()
+  ctx.moveTo(a[0], a[1])
+  ctx.lineTo(b[0], b[1])
+  ctx.stroke()
+  ctx.strokeStyle = color
+  ctx.lineWidth = 2.2
+  ctx.beginPath()
+  ctx.moveTo(a[0], a[1])
+  ctx.lineTo(b[0], b[1])
+  ctx.stroke()
+  const head = Math.min(8, Math.max(5, norm * 0.22))
+  ctx.beginPath()
+  ctx.moveTo(b[0], b[1])
+  ctx.lineTo(b[0] - ux * head - uy * head * 0.45, b[1] - uy * head + ux * head * 0.45)
+  ctx.lineTo(b[0] - ux * head + uy * head * 0.45, b[1] - uy * head - ux * head * 0.45)
+  ctx.closePath()
+  ctx.fillStyle = color
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(8, 14, 24, 0.55)'
+  ctx.lineWidth = 1
+  ctx.stroke()
+  ctx.restore()
+}
+
+function drawDhFrame(ctx, view, joint) {
+  const m = joint.matrix
+  const origin = joint.origin
+  const length = joint.index === 3 ? 0.24 : 0.30
+  const axes = [
+    [[m[0][0], m[1][0], m[2][0]], DH_AXIS.x],
+    [[m[0][1], m[1][1], m[2][1]], DH_AXIS.y],
+    [[m[0][2], m[1][2], m[2][2]], DH_AXIS.z],
+  ]
+  for (const [axis, color] of axes) drawAxisArrow(ctx, view, origin, axis, length, color)
+}
+
+function drawJointMarker(ctx, view, joint, pal) {
+  const p = view.project(joint.center[0], joint.center[1], joint.center[2])
+  const color = joint.type === 'prismatic' ? DH_AXIS.z : '#e28a3c'
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(p[0], p[1], 5.5, 0, TAU)
+  ctx.fillStyle = css([244, 247, 252])
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(8, 14, 24, 0.8)'
+  ctx.lineWidth = 2.6
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(p[0], p[1], 2.1, 0, TAU)
+  ctx.fillStyle = color
+  ctx.fill()
+  ctx.restore()
+  drawPill(ctx, `J${joint.index}`, p[0] + 9, p[1] - 10, color, pal)
+}
+
+function drawPrismaticAxis(ctx, view, joint) {
+  if (joint.type !== 'prismatic') return
+  const a = view.project(joint.center[0], joint.center[1], joint.center[2])
+  const b = view.project(joint.origin[0], joint.origin[1], joint.origin[2])
+  if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 2) return
+  ctx.save()
+  ctx.strokeStyle = DH_AXIS.z
+  ctx.lineWidth = 1.6
+  ctx.setLineDash([4, 4])
+  ctx.beginPath()
+  ctx.moveTo(a[0], a[1])
+  ctx.lineTo(b[0], b[1])
+  ctx.stroke()
+  ctx.setLineDash([])
+  ctx.restore()
+}
+
+function drawJointHousing(ctx, view, pal, joint) {
+  if (!joint?.housing || !joint.vertical) return
+  const radius = joint.housing.radius
+  const rx = view.px(radius)
+  if (!(rx > 2)) return
+  const ry = Math.max(1.4, view.px(radius * Math.abs(Math.sin(view.camera.pitch))))
+  const [cx, cy, cz] = joint.center
+  const half = joint.housing.height / 2
+  const top = view.project(cx, cy, cz + half)
+  const bottom = view.project(cx, cy, cz - half)
+  const metal = hexToRgb(pal.metal)
+  const dark = hexToRgb(pal.metalDark)
+
+  ctx.save()
+  // Side band of the drum. The horizontal extent is the projected radius and
+  // the vertical curvature comes from the camera pitch.
+  ctx.beginPath()
+  ctx.moveTo(top[0] + rx, top[1])
+  ctx.lineTo(bottom[0] + rx, bottom[1])
+  ctx.ellipse(bottom[0], bottom[1], rx, ry, 0, 0, Math.PI, false)
+  ctx.lineTo(top[0] - rx, top[1])
+  ctx.ellipse(top[0], top[1], rx, ry, 0, Math.PI, TAU, false)
+  ctx.closePath()
+  const gradient = ctx.createLinearGradient
+    ? ctx.createLinearGradient(top[0] - rx, 0, top[0] + rx, 0)
+    : null
+  if (gradient && gradient.addColorStop) {
+    gradient.addColorStop(0, css(shade(metal, -0.22)))
+    gradient.addColorStop(0.42, css(shade(metal, 0.12)))
+    gradient.addColorStop(1, css(shade(metal, -0.28)))
+  }
+  ctx.fillStyle = gradient || css(shade(metal, -0.12))
+  ctx.fill()
+  ctx.strokeStyle = css(dark)
+  ctx.lineWidth = 1.1
+  ctx.stroke()
+
+  // Top cap with a machined recess and a small hub, so the eye reads a real
+  // rotating joint instead of two rectangles crossing each other.
+  ctx.beginPath()
+  ctx.ellipse(top[0], top[1], rx, ry, 0, 0, TAU)
+  ctx.fillStyle = css(shade(metal, 0.22))
+  ctx.fill()
+  ctx.strokeStyle = css(shade(dark, 0.05))
+  ctx.lineWidth = 1.4
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.ellipse(top[0], top[1], rx * 0.64, ry * 0.64, 0, 0, TAU)
+  ctx.fillStyle = css(shade(metal, -0.16))
+  ctx.fill()
+  ctx.strokeStyle = css(shade(dark, -0.12))
+  ctx.lineWidth = 1
+  ctx.stroke()
+
+  ctx.beginPath()
+  ctx.ellipse(top[0], top[1], rx * 0.2, ry * 0.2, 0, 0, TAU)
+  ctx.fillStyle = css(shade(dark, 0.06))
+  ctx.fill()
+  ctx.restore()
+}
+
+// Fixed base frame {0}: the DH origin of the cell, with z0 along joint 1.
+function drawBaseFrame(ctx, view, pal) {
+  const origin = [0, 0, 0]
+  drawAxisArrow(ctx, view, origin, [1, 0, 0], 0.34, DH_AXIS.x)
+  drawAxisArrow(ctx, view, origin, [0, 1, 0], 0.34, DH_AXIS.y)
+  drawAxisArrow(ctx, view, origin, [0, 0, 1], 0.34, DH_AXIS.z)
+  const p = view.project(0, 0, 0)
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(p[0], p[1], 4.5, 0, TAU)
+  ctx.fillStyle = css([244, 247, 252])
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(8, 14, 24, 0.8)'
+  ctx.lineWidth = 2.4
+  ctx.stroke()
+  ctx.restore()
+  drawPill(ctx, '{0}', p[0] - 33, p[1] + 13, DH_AXIS.z, pal)
+}
+
+function drawJointOverlay(ctx, view, pal, scene, state, options) {
+  const joints = scaraJointFrames(scene, state)
+  for (const joint of joints) drawJointHousing(ctx, view, pal, joint)
+  if (!options?.showFrames) return
+  drawBaseFrame(ctx, view, pal)
+  for (const joint of joints) drawDhFrame(ctx, view, joint)
+  for (const joint of joints) drawPrismaticAxis(ctx, view, joint)
+  for (const joint of joints) drawJointMarker(ctx, view, joint, pal)
+}
+
+export function drawScaraScene(ctx, scene, frame, theme, width, height, camera, options) {
   if (!scene || !scene.scara) return
   const pal = palette(theme)
   const view = makeView(scene, width, height, camera)
@@ -822,9 +1200,9 @@ export function drawScaraScene(ctx, scene, frame, theme, width, height, camera) 
 
   addConveyorFaces(faces, view, pal, scene, state)
 
-  for (const basket of sc.baskets || []) {
+  for (const [i, basket] of (sc.baskets || []).entries()) {
     const live = (state.baskets || []).find((b) => b.id === basket.id) || basket
-    addBasketFaces(faces, view, pal, scene, live, labels)
+    addBasketFaces(faces, view, pal, scene, live, labels, i + 1)
     addPlacedPartsFaces(faces, view, pal, scene, live, live.count)
   }
 
@@ -835,7 +1213,8 @@ export function drawScaraScene(ctx, scene, frame, theme, width, height, camera) 
   const hasModel = addModelFaces(faces, view, pal, scene, state)
 
   drawFaces(ctx, faces, pal)
-  drawBasketLabels(ctx, view, pal, labels)
   if (!hasModel) drawArm(ctx, view, pal, scene, state)
-  drawHud(ctx, view, pal, scene, state)
+  drawJointOverlay(ctx, view, pal, scene, state, options)
+  drawBasketLabels(ctx, view, pal, labels)
+  drawHud(ctx, view, pal, scene, state, options)
 }

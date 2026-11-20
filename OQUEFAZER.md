@@ -1,17 +1,10 @@
 
 -- é possível acrescentar um example para utilizar a biblioteca ompl junto com o simulador?
 
-- seria possível implmentar também a simulação de um robo manipulador SCARA 3D (como o da epson ou similar ABB?) por exemplo com uma esteira com objetos coloridos (colocar na esteira uma detecção de cor), de forma que no código o usuário controla a esteira e o braço robótico para pegar esses objetos e colocar nas cestas correspondentes.
-
-
-
-Build · DeepSeek V4.1 Flash Free · 21m 36s · 3.9s ttft
-SubagentsShellTerminalsescshow inactive ctrl+atabs ←/→… Switch agent… One-shot answer from the session's context without adding to the conversation… Change working directory… Clear session… Compact session… Connect an integration… Switch session… Copy last assistant message… View debug info… Open diff viewer… Open editor… Switch model variant… Exit the app… Export session transcript… Fork session… keep working until an objective is met [pause|resume|clear]… Help… Show release highlights… guided AGENTS.md setup… MCP servers… Switch model… New session… Open session or project… Pair device… Plugins… Open session or project… Open session or project… Exit the app… Exit the app… Reload configuration… Rename session… Restart service… Switch session… review changes [commit|branch|pr], defaults to uncommitted… Switch session… Open settings… Skills… Usage statistics… View status… New terminal… Switch theme… Switch model variant… Jump to message… Undo previous message… Update OpenCode… View usage… Switch model variant… Pair device… Manage workspaces
-continue a implemmentação da simulação do scara, recomendo usar um arquivo urdf de um robo preferencialmente com uma carcaça mais real da abb ou UR ou outro comercial, se não encontrar segue um link com um básico https://github.com/ICube-Robotics/scara_tutorial_ros2/blob/main/resources/urdf_tutorial.md. Permita o usuário da zoom, girar a janela de simulação etc. lembrando que esse robo será utilizado para ensinar vários temas em outro nível de aprendizado e na sequência da gamificação, por exemplo, completar a tabela Denavit hatenberg, preencher corretamente o urdf, montar as matrizes de transformação, testar cinemática direta e inversa e no final fazer o robô pegar (a garra tem um eletroima) as peças depenendo da cor na esteira
 - exemplo com pure pursuit
 
-- me dê um exemplo para correção do professor com tudo funcionando do scara (não disponibilize na web).
-- corrija a esteira, a mesa e os objetos que não são compactos (ao gerar dá para ver apenas alguns planos). os objetos poderiam ser coloridos da cor correspondente deles
+- colocar a identificação das caixa 1, 2, 3 na parede lateral da caixa. adicione o referencial da base {0}. 
+- verificar botaão para gravação das capturas e gerar video 
 
 ---
 
@@ -1039,6 +1032,32 @@ pares foi verificada e é idêntica.
   (`line_follower.py`, `multi_line_follower.py`, `seguidor_de_linha.py` e os
   testes de caminho/encoding), sem relação com esta fase.
 
+## Fase 9 — Referenciais DH e acabamento das juntas do SCARA
+
+Status: **concluída e validada** nesta rodada.
+
+- `scaraJointFrames(scene, state)` deriva os quadros DH 1–3 da própria cadeia do
+  URDF (ombro, cotovelo e TCP), com origem, eixos x/y/z e o centro físico de
+  cada junta. Na prismática, o centro fica no punho antes do curso `d3`; o eixo
+  do curso aparece como linha tracejada azul até o TCP.
+- O canvas desenha setas x (vermelho), y (verde) e z (azul) e um marcador
+  circular com rótulo `J1`/`J2`/`J3` em cada centro de junta.
+- A camada **Referenciais DH** aparece em “Camadas” somente na cena SCARA, vem
+  habilitada por padrão e é persistida em `hivebr.web.prefs.v1`
+  (`options.showFrames`). Desligá-la remove setas e rótulos sem tirar o
+  acabamento das juntas.
+- Ombro e cotovelo recebem um tambor de junta desenhado sobre os sólidos, com
+  tampa elíptica, rebaixo usinado e cubo central. Ele cobre o encontro dos dois
+  retângulos do cotovelo (penúltima junta) e suaviza o vinco, de modo que os
+  braços pareçam sair de uma junta rotativa real. O raio e a altura saem dos
+  cilindros do próprio URDF, então editar o modelo também altera o acabamento.
+- O HUD ganhou uma legenda com x/y/z e J1–J3 quando a camada está ativa.
+- Testes novos cobrem os quadros DH, os centros, o tambor derivado do URDF e a
+  alternância da camada; as chaves PT/EN mantêm paridade.
+
+Validação: `node --test "tests/**/*.test.mjs"` 61/61 e `npx vite build`
+concluído.
+
 ## Riscos e cuidados
 
 1. **Progresso local**: pode ser perdido ao limpar o navegador; exportar/importar resolve.
@@ -1083,15 +1102,16 @@ Registro histórico da rodada anterior; a validação da Fase 3 está na seção
 
 ## Estado atual do repositório
 
-Fases 1–8 concluídas e validadas. A Fase 5 expandiu o currículo com atividades
+Fases 1–9 concluídas e validadas. A Fase 5 expandiu o currículo com atividades
 contextuais, identidade local e bundles de progresso protegidos; a Fase 6
 adicionou o perfil visível (nome/turma), a sincronização do relatório e o modo
 professor local com planilha da turma; a Fase 7 deu um projeto final com
 relatório próprio a cada nível; a Fase 8 acrescentou o nível 5 de manipuladores,
 com o simulador SCARA 3D, URDF editável, câmera orbital, DH, matrizes
-homogêneas, cinemática direta/inversa e a célula com esteira e eletroímã. O
-backend opcional e o refinamento do conteúdo das seções dos relatórios continuam
-como próximos passos.
+homogêneas, cinemática direta/inversa e a célula com esteira e eletroímã; a
+Fase 9 trouxe os referenciais DH por junta, os centros J1–J3 e o acabamento
+suave do ombro e do cotovelo. O backend opcional e o refinamento do conteúdo das
+seções dos relatórios continuam como próximos passos.
 
 Arquivos principais:
 
@@ -1105,7 +1125,8 @@ Arquivos principais:
 - `web/tests/learning/learning.test.mjs`;
 - `web/tests/e2e/learning.e2e.mjs`;
 - `web/python/hivebr_web/scara.py`, `urdf.py` e `models/scara_cell.urdf`;
-- `web/src/canvas/scara.js` (projeção isométrica, câmera orbital e HUD);
+- `web/src/canvas/scara.js` (projeção isométrica, câmera orbital, referenciais
+  DH, centros de junta, tambores de junta e HUD);
 - `web/python/tests/test_scara.py` e `web/tests/canvas/scara.test.mjs`;
 - `professor/scara/` (solução e URDF gabarito, fora do build da web);
 - 55 templates PT em `web/templates/` e 55 espelhos EN em `web/templates/en/`,

@@ -4,7 +4,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-const { isometric, makeView } = await import('../../src/canvas/scara.js')
+const { isometric, makeView, scaraJointFrames } = await import('../../src/canvas/scara.js')
 
 test('isometric projection keeps z as the vertical axis', () => {
   const [x0, y0] = isometric(2, 1, 0)
@@ -152,4 +152,113 @@ test('the SCARA scene draws the magnet, the held part and the basket piles', asy
   }
   assert.doesNotThrow(() => drawScaraScene(ctx, scene, frame, 'dark', 800, 600))
   assert.ok(texts.some((s) => s.endsWith(': 2')), `basket/placed counter missing: ${texts.join(' | ')}`)
+})
+
+test('DH joint frames follow the SCARA chain and expose the joint centres', () => {
+  const model = {
+    base: 'base_link',
+    chain: [
+      { name: 'joint_1', type: 'revolute', motion: 'q1', axis: [0, 0, 1], origin: { xyz: [0, 0, 1.1] }, child: 'link_1' },
+      { name: 'joint_2', type: 'revolute', motion: 'q2', axis: [0, 0, 1], origin: { xyz: [1.6, 0, 0] }, child: 'link_2' },
+      { name: 'joint_3', type: 'prismatic', motion: 'd3', axis: [0, 0, 1], origin: { xyz: [1.4, 0, 0] }, child: 'link_3' },
+      { name: 'joint_4', type: 'fixed', origin: { xyz: [0, 0, 0] }, child: 'tool_link' },
+    ],
+    links: {
+      base_link: { visuals: [] },
+      link_1: { visuals: [{ origin: { xyz: [0, 0, 0] }, geometry: { type: 'cylinder', radius: 0.24, length: 0.22 } }] },
+      link_2: { visuals: [{ origin: { xyz: [0, 0, 0] }, geometry: { type: 'cylinder', radius: 0.20, length: 0.20 } }] },
+      link_3: { visuals: [] },
+      tool_link: { visuals: [] },
+    },
+  }
+  const frames = scaraJointFrames({ scara: { model } }, { arm: { q1: 0, q2: 0, d3: -0.4 } })
+  assert.equal(frames.length, 3)
+  const near = (a, b) => Math.abs(a - b) < 1e-9
+  assert.ok(frames[0].origin.every((v, i) => near(v, [0, 0, 1.1][i])), 'frame 1 sits on the shoulder')
+  assert.ok(frames[1].origin.every((v, i) => near(v, [1.6, 0, 1.1][i])), 'frame 2 sits on the elbow')
+  assert.ok(frames[2].origin.every((v, i) => near(v, [3.0, 0, 0.7][i])), 'frame 3 sits on the tool point')
+  assert.ok(frames[2].center.every((v, i) => near(v, [3.0, 0, 1.1][i])), 'prismatic centre stays at the wrist')
+  assert.ok(frames[0].housing.radius > 0.24, 'shoulder housing wraps the link cylinder')
+  assert.equal(frames[2].housing, null, 'the prismatic joint has no revolute housing')
+})
+
+test('the DH layer can be disabled and still draws the smoothed joints', async () => {
+  const { drawScaraScene } = await import('../../src/canvas/scara.js')
+  const { t } = await import('../../src/i18n/index.js')
+  const legend = t('scara.frames')
+  const texts = []
+  let ellipses = 0
+  const ctx = new Proxy({}, {
+    get(_target, prop) {
+      if (prop === 'fillText') return (text) => texts.push(String(text))
+      if (prop === 'measureText') return () => ({ width: 20 })
+      if (prop === 'ellipse') return () => { ellipses += 1 }
+      return () => {}
+    },
+    set() { return true },
+  })
+  const colors = { red: [220, 64, 56], green: [58, 176, 92], blue: [58, 118, 216] }
+  const scene = {
+    kind: 'scara',
+    scara: {
+      belt: { x0: 2.1, x1: 5.9, y: 0, z: 0.55, width: 0.62 },
+      base_z: 1.1, l1: 1.6, l2: 1.4, part_height: 0.15,
+      baskets: [], colors, model: null,
+    },
+  }
+  const frame = {
+    t: 1,
+    scara: { placed: 0, rejected: 0, conveyor: { on: false, speed: 0 }, arm: { q1: 0, q2: 0, d3: 0 }, objects: [], event: '' },
+  }
+  drawScaraScene(ctx, scene, frame, 'dark', 800, 600, undefined, { showFrames: true })
+  assert.ok(ellipses > 0, 'joint housings use smooth ellipse caps')
+  assert.ok(texts.includes('J1') && texts.includes('J2') && texts.includes('J3'), 'joint centres are labelled')
+  assert.ok(texts.includes('{0}'), 'the fixed base frame is labelled')
+  assert.ok(texts.includes(legend), 'the DH legend is shown')
+
+  texts.length = 0
+  drawScaraScene(ctx, scene, frame, 'dark', 800, 600, undefined, { showFrames: false })
+  assert.ok(!texts.includes('J1'), 'disabling the layer hides the frame labels')
+  assert.ok(!texts.includes('{0}'), 'disabling the layer hides the base frame')
+  assert.ok(!texts.includes(legend), 'disabling the layer hides the legend')
+})
+
+test('the three baskets carry their number on the camera-facing wall', async () => {
+  const { drawScaraScene } = await import('../../src/canvas/scara.js')
+  const texts = []
+  const ctx = new Proxy({}, {
+    get(_target, prop) {
+      if (prop === 'fillText') return (text) => texts.push(String(text))
+      if (prop === 'measureText') return () => ({ width: 20 })
+      return () => {}
+    },
+    set() { return true },
+  })
+  const colors = { red: [220, 64, 56], green: [58, 176, 92], blue: [58, 118, 216] }
+  const baskets = [
+    { id: 'red', color: 'red', x: 0.55, y: 2.1, count: 0 },
+    { id: 'green', color: 'green', x: 1.85, y: 1.85, count: 0 },
+    { id: 'blue', color: 'blue', x: 2.2, y: -1.15, count: 0 },
+  ]
+  const scene = {
+    kind: 'scara',
+    scara: {
+      belt: { x0: 2.1, x1: 5.9, y: 0, z: 0.55, width: 0.62 },
+      base_z: 1.1, l1: 1.6, l2: 1.4, part_height: 0.15,
+      baskets, colors, model: null,
+    },
+  }
+  const frame = {
+    t: 1,
+    scara: {
+      placed: 0, rejected: 0, conveyor: { on: false, speed: 0 },
+      arm: { q1: 0, q2: 0, d3: 0 }, tip: { x: 0, y: 0, z: 0.7 },
+      objects: [], baskets, event: '',
+    },
+  }
+  drawScaraScene(ctx, scene, frame, 'dark', 800, 600)
+
+  for (const id of ['1', '2', '3']) {
+    assert.ok(texts.includes(id), `basket number ${id} is painted on the wall: ${texts.join(' | ')}`)
+  }
 })

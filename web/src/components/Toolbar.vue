@@ -2,7 +2,7 @@
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import Icon from './Icon.vue'
 import {
-  store, toggleRun, toggleSim, stepOnce, resetSim, restartScene, setSpeed, newFile, pickFile, downloadScript, runDemo,
+  store, scene, toggleRun, toggleSim, stepOnce, resetSim, restartScene, setSpeed, newFile, pickFile, downloadScript, runDemo,
 } from '../state/store.js'
 import { t } from '../i18n/index.js'
 
@@ -25,7 +25,11 @@ const tools = [
 ]
 const speeds = [0.25, 0.5, 1, 2, 4, Infinity]
 const speedLabel = (s) => (s === Infinity ? t('speed.max') : `${s}×`)
-const layers = ['showGrid', 'showPaths', 'showLidar', 'showWaypoints', 'showLabels', 'showLinks']
+const layers = computed(() => {
+  const base = ['showGrid', 'showPaths', 'showLidar', 'showWaypoints', 'showLabels', 'showLinks']
+  // The SCARA cell has its own joint frames; the mobile scenes do not.
+  return scene.value?.kind === 'scara' ? ['showFrames', ...base] : base
+})
 
 // dropdown de camadas: a barra rola na horizontal (overflow), então ancoramos com coordenadas do botão
 const menu = ref(false)
